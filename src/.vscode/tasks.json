@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Quake 2 Rerelease DLL",
+            "type": "shell",
+            "command": "${workspaceFolder}/build.bat",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "msbuild",
+            "args": [
+                "game.sln",
+                "/t:Clean",
+                "/p:Configuration=Release",
+                "/p:Platform=x64"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        }
+    ]
+} 

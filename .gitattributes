@@ -1,0 +1,13 @@
+# Normalise line endings: let Git decide text vs binary automatically.
+* text=auto
+
+# Windows-specific scripts and project files should stay CRLF.
+*.bat        text eol=crlf
+*.sln        text eol=crlf
+*.vcxproj    text eol=crlf
+*.filters    text eol=crlf
+
+# Source stays LF in the repo, checked out native.
+*.cpp        text
+*.h          text
+*.md         text
