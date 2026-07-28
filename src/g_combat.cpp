@@ -538,8 +538,8 @@ void T_Damage(edict_t *targ, edict_t *inflictor, edict_t *attacker, const vec3_t
 	if (!targ->takedamage)
 		return;
 
-	// [Jump] only world hazards hurt in jump mode
-	if (Jump_FilterDamage(targ, attacker, mod))
+	// [Jump] only world hazards hurt in jump mode (knockback is preserved)
+	if (Jump_FilterDamage(targ, attacker, mod, damage))
 		return;
 
 	if (g_instagib->integer && attacker->client && targ->client)

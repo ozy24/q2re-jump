@@ -36,8 +36,10 @@ void Jump_ClientDisconnect(edict_t *ent);			  // ClientDisconnect
 // Returns true when the command was handled and upstream should stop.
 bool Jump_ClientCommand(edict_t *ent);
 
-// Returns true to swallow the damage entirely.
-bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod);
+// Applies the jump damage rules. Returns true to swallow the hit entirely;
+// otherwise `damage` may have been zeroed, which leaves knockback intact so
+// rocket jumping still works.
+bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &damage);
 
 // ---------------------------------------------------------------------------
 // World hooks

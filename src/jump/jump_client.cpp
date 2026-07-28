@@ -85,7 +85,7 @@ void Jump_ClientDisconnect(edict_t *ent)
 	Jump_VoteClientDisconnect(ent);
 }
 
-bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
+bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &damage)
 {
 	if (!Jump_Active())
 		return false;
@@ -94,8 +94,8 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
 	if (!jump_mset.damage)
 		return true;
 
-	// Otherwise world hazards stay lethal: plenty of maps use lava, slime and
-	// hurt triggers as the fail condition for a jump.
+	// World hazards stay lethal at full damage: plenty of maps use lava, slime
+	// and hurt triggers as the fail condition for a jump.
 	switch (mod.id)
 	{
 	case MOD_WATER:
@@ -109,8 +109,13 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
 		break;
 	}
 
-	// Everything else - weapons, splash, telefrags - does nothing.
+	// Everything else takes no health, but the damage still has to flow
+	// through T_Damage rather than being swallowed here: knockback is applied
+	// independently of the damage value, and that knockback is what makes
+	// rocket jumping work on maps that enable the rocket mset.
 	(void) targ;
 	(void) attacker;
-	return true;
+	damage = 0;
+
+	return false;
 }
