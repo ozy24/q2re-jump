@@ -171,6 +171,9 @@
     <ClCompile Include="jump\jump_logic.cpp" />
     <ClCompile Include="jump\jump_main.cpp" />
     <ClCompile Include="jump\jump_store.cpp" />
+    <ClCompile Include="jump\jump_files.cpp" />
+    <ClCompile Include="jump\jump_records.cpp" />
+    <ClCompile Include="jump\jump_scoreboard.cpp" />
     <ClCompile Include="jump\jump_team.cpp" />
     <ClCompile Include="g_ai.cpp" />
     <ClCompile Include="g_chase.cpp" />

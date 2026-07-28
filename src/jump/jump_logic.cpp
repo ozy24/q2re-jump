@@ -68,6 +68,69 @@ int PointsForRank(int rank)
 	return points[rank - 1];
 }
 
+int map_records_t::Submit(const record_t &rec)
+{
+	for (auto &existing : times)
+	{
+		if (existing.id != rec.id)
+			continue;
+
+		if (rec.time_ms >= existing.time_ms)
+			return 0; // not an improvement
+
+		existing = rec;
+		Sort();
+		return RankOf(rec.id);
+	}
+
+	times.push_back(rec);
+	Sort();
+	return RankOf(rec.id);
+}
+
+void map_records_t::Sort()
+{
+	// Plain insertion sort: the table is at most a few hundred entries and
+	// this keeps ties in insertion order, so an equal time never displaces
+	// the player who set it first.
+	for (size_t i = 1; i < times.size(); i++)
+	{
+		record_t key = times[i];
+		size_t	 j = i;
+
+		while (j > 0 && times[j - 1].time_ms > key.time_ms)
+		{
+			times[j] = times[j - 1];
+			j--;
+		}
+
+		times[j] = key;
+	}
+}
+
+int map_records_t::RankOf(const std::string &id) const
+{
+	for (size_t i = 0; i < times.size(); i++)
+		if (times[i].id == id)
+			return (int) i + 1;
+
+	return 0;
+}
+
+int64_t map_records_t::TimeOf(const std::string &id) const
+{
+	for (const auto &rec : times)
+		if (rec.id == id)
+			return rec.time_ms;
+
+	return 0;
+}
+
+int map_records_t::PointsOf(const std::string &id) const
+{
+	return PointsForRank(RankOf(id));
+}
+
 std::string SafeName(const std::string &name)
 {
 	std::string out;

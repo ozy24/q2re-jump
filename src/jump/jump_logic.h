@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace jump
 {
@@ -65,6 +66,46 @@ constexpr int MAX_HIGHSCORES = 15;
 // 1st..15th = 25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1.
 // rank is 1-based; anything outside 1..15 scores nothing.
 int PointsForRank(int rank);
+
+// ---------------------------------------------------------------------------
+// Map records
+// ---------------------------------------------------------------------------
+
+// One entry per player: their personal best on a map.
+struct record_t
+{
+	std::string id;   // stable player identity (social id, or name fallback)
+	std::string name; // display name as of the record
+	int64_t		time_ms = 0;
+	std::string date; // ISO-8601, for display only
+};
+
+// A map's high score table, kept sorted ascending by time.
+struct map_records_t
+{
+	static constexpr int SCHEMA_VERSION = 1;
+
+	std::string			  map;
+	std::vector<record_t> times;
+
+	// Record a completion. Each player holds exactly one entry - their best -
+	// so a slower run by an existing player changes nothing.
+	// Returns the new 1-based rank, or 0 if the table was not improved.
+	int Submit(const record_t &rec);
+
+	// 1-based rank of a player's entry, or 0 when they have none.
+	int RankOf(const std::string &id) const;
+
+	// The player's recorded time, or 0 when they have none.
+	int64_t TimeOf(const std::string &id) const;
+
+	// Points this player scores on this map, per PointsForRank.
+	int PointsOf(const std::string &id) const;
+
+	// Restore the ascending-by-time ordering. Ties keep insertion order, so
+	// whoever set an equal time first stays ahead.
+	void Sort();
+};
 
 // ---------------------------------------------------------------------------
 // Filenames

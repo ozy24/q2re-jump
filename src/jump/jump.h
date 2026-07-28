@@ -55,3 +55,6 @@ void Jump_SetStats(edict_t *ent);
 
 // ClientUserinfoChanged: returns true when jump set the player's skin.
 bool Jump_AssignSkin(edict_t *ent, const char *skin);
+
+// DeathmatchScoreboardMessage: returns true when jump sent its own board.
+bool Jump_ScoreboardMessage(edict_t *ent);

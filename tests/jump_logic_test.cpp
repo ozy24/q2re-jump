@@ -141,6 +141,54 @@ static void TestSafeName()
 	CHECK_EQ(jump::SafeName("..."), "_");
 }
 
+static jump::record_t MakeRecord(const char *id, int64_t time_ms)
+{
+	jump::record_t r;
+	r.id = id;
+	r.name = id;
+	r.time_ms = time_ms;
+	r.date = "2026-07-28T00:00:00Z";
+	return r;
+}
+
+static void TestRecords()
+{
+	jump::map_records_t records;
+
+	CHECK(records.RankOf("alice") == 0);
+	CHECK(records.TimeOf("alice") == 0);
+	CHECK(records.PointsOf("alice") == 0);
+
+	// First submissions are always accepted and sorted by time.
+	CHECK(records.Submit(MakeRecord("alice", 5000)) == 1);
+	CHECK(records.Submit(MakeRecord("bob", 3000)) == 1);
+	CHECK(records.Submit(MakeRecord("carol", 4000)) == 2);
+
+	CHECK(records.times.size() == 3);
+	CHECK(records.RankOf("bob") == 1);
+	CHECK(records.RankOf("carol") == 2);
+	CHECK(records.RankOf("alice") == 3);
+
+	// A slower run by an existing player changes nothing at all.
+	CHECK(records.Submit(MakeRecord("alice", 9000)) == 0);
+	CHECK(records.times.size() == 3);
+	CHECK(records.TimeOf("alice") == 5000);
+
+	// An improvement replaces their single entry rather than adding one.
+	CHECK(records.Submit(MakeRecord("alice", 1000)) == 1);
+	CHECK(records.times.size() == 3);
+	CHECK(records.TimeOf("alice") == 1000);
+	CHECK(records.RankOf("alice") == 1);
+	CHECK(records.RankOf("bob") == 2);
+	CHECK(records.PointsOf("alice") == 25);
+	CHECK(records.PointsOf("bob") == 20);
+
+	// Equal times keep the earlier holder ahead.
+	CHECK(records.Submit(MakeRecord("dave", 3000)) == 3);
+	CHECK(records.RankOf("bob") == 2);
+	CHECK(records.RankOf("dave") == 3);
+}
+
 int main()
 {
 	TestFormatTime();
@@ -148,6 +196,7 @@ int main()
 	TestStoreRing();
 	TestPoints();
 	TestSafeName();
+	TestRecords();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);
 

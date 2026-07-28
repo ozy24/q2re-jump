@@ -406,6 +406,10 @@ DeathmatchScoreboardMessage
 */
 void DeathmatchScoreboardMessage(edict_t *ent, edict_t *killer)
 {
+	// [Jump] map times board replaces the frag scoreboard
+	if (Jump_ScoreboardMessage(ent))
+		return;
+
 	static std::string entry, string;
 	size_t		j;
 	int			sorted[MAX_CLIENTS];

@@ -139,25 +139,34 @@ void Jump_Finish(edict_t *ent)
 		return;
 	}
 
-	if (jc->pb_time_ms == 0)
-	{
-		gi.Broadcast_Print(PRINT_HIGH,
-						   G_Fmt("{} finished in {} seconds\n", ent->client->pers.netname, time_str.c_str()).data());
-		jc->pb_time_ms = time_ms;
-	}
+	// Compare against the stored table before submitting, so the announcement
+	// describes the run the player just made rather than the one it became.
+	const int64_t previous_pb = Jump_PersonalBest(ent);
+	const int64_t previous_record = Jump_MapRecord();
+
+	const int rank = Jump_SubmitTime(ent, time_ms);
+
+	jc->pb_time_ms = (previous_pb == 0 || time_ms < previous_pb) ? time_ms : previous_pb;
+
+	std::string suffix;
+
+	if (previous_pb == 0 && previous_record == 0)
+		suffix = " (1st completion on the map)";
+	else if (previous_pb == 0)
+		suffix = G_Fmt(" (1st {})", jump::FormatDelta(time_ms - previous_record).c_str()).data();
 	else
-	{
-		const std::string delta = jump::FormatDelta(time_ms - jc->pb_time_ms);
+		suffix = G_Fmt(" (PB {} | 1st {})", jump::FormatDelta(time_ms - previous_pb).c_str(),
+					   jump::FormatDelta(time_ms - previous_record).c_str())
+					 .data();
 
-		gi.Broadcast_Print(PRINT_HIGH, G_Fmt("{} finished in {} seconds (PB {})\n", ent->client->pers.netname,
-											 time_str.c_str(), delta.c_str())
-										   .data());
+	gi.Broadcast_Print(
+		PRINT_HIGH,
+		G_Fmt("{} finished in {} seconds{}\n", ent->client->pers.netname, time_str.c_str(), suffix.c_str()).data());
 
-		if (time_ms < jc->pb_time_ms)
-			jc->pb_time_ms = time_ms;
-	}
+	if (rank == 1 && previous_record != 0)
+		gi.Broadcast_Print(PRINT_CHAT, G_Fmt("{} has set a 1st place!\n", ent->client->pers.netname).data());
 
-	Jump_Log("%s finished: %lld ms", ent->client->pers.netname, (long long) time_ms);
+	Jump_Log("%s finished: %lld ms (rank %d)", ent->client->pers.netname, (long long) time_ms, rank);
 }
 
 bool Jump_ItemTouch(edict_t *ent, edict_t *other)

@@ -190,6 +190,15 @@
     <ClCompile Include="jump\jump_store.cpp">
       <Filter>jump</Filter>
     </ClCompile>
+    <ClCompile Include="jump\jump_files.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_records.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_scoreboard.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
     <ClCompile Include="jump\jump_team.cpp">
       <Filter>jump</Filter>
     </ClCompile>

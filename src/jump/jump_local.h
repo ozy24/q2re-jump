@@ -6,6 +6,9 @@
 
 #include "jump_logic.h"
 
+#include <filesystem>
+#include <string>
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -60,6 +63,8 @@ extern jump_level_t	 jump_level;
 extern cvar_t *g_jump;
 extern cvar_t *jump_debug;
 extern cvar_t *jump_box_models;
+extern cvar_t *jump_data_dir;
+extern cvar_t *jump_records_max;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -101,6 +106,27 @@ void Jump_StripInventory(edict_t *ent);
 const char *Jump_TeamName(jump_team_t team);
 void		Jump_JoinTeam(edict_t *ent, jump_team_t team);
 void		Jump_CmdTeam(edict_t *ent);
+
+// jump_files.cpp
+const std::filesystem::path &Jump_DataRoot();
+std::filesystem::path		 Jump_MapTimesPath(const char *mapname);
+bool						 Jump_ReadFile(const std::filesystem::path &path, std::string &out);
+bool						 Jump_WriteFileAtomic(const std::filesystem::path &path, const std::string &contents);
+
+// jump_records.cpp
+const jump::map_records_t &Jump_Records();
+const char				  *Jump_PlayerId(edict_t *ent);
+void					   Jump_LoadRecords();
+void					   Jump_SaveRecords();
+int64_t					   Jump_PersonalBest(edict_t *ent);
+int64_t					   Jump_MapRecord();
+int						   Jump_SubmitTime(edict_t *ent, int64_t time_ms);
+void					   Jump_PlayerTotals(const std::string &id, int &points, int &completions, int &firsts);
+
+// jump_scoreboard.cpp (Jump_ScoreboardMessage is declared in jump.h)
+void Jump_CmdMapTimes(edict_t *ent);
+void Jump_CmdPlayerTimes(edict_t *ent);
+void Jump_CmdRanks(edict_t *ent);
 
 // Debug logging, no-op unless jump_debug is set.
 void Jump_Log(const char *fmt, ...);

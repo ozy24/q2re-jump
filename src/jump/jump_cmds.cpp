@@ -15,6 +15,9 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  reset          discard all saved positions\n"
 					"  kill           restart the run from the spawn\n"
 					"  team <name>    easy (practice), hard (timed), or spectator\n"
+					"  maptimes       best times on this map\n"
+					"  playertimes    your completions and points\n"
+					"  ranks          points for everyone connected\n"
 					"  jumphelp       this list\n"
 					"Bind them, e.g: bind mouse4 store; bind mouse5 recall\n");
 }
@@ -55,6 +58,24 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "team"))
 	{
 		Jump_CmdTeam(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "maptimes"))
+	{
+		Jump_CmdMapTimes(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "playertimes"))
+	{
+		Jump_CmdPlayerTimes(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "ranks") || !Q_strcasecmp(cmd, "playerscores"))
+	{
+		Jump_CmdRanks(ent);
 		return true;
 	}
 

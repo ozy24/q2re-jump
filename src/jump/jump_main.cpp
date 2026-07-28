@@ -11,6 +11,8 @@ jump_level_t  jump_level;
 cvar_t *g_jump;
 cvar_t *jump_debug;
 cvar_t *jump_box_models;
+cvar_t *jump_data_dir;
+cvar_t *jump_records_max;
 
 bool Jump_Active()
 {
@@ -46,6 +48,10 @@ void Jump_Init()
 	// Off-switch for the jumpbox/cpbox models, which ship with the jump map
 	// packs rather than with Quake II itself.
 	jump_box_models = gi.cvar("jump_box_models", "1", CVAR_NOFLAGS);
+
+	// Empty means "next to game_x64.dll"; set it to relocate the records.
+	jump_data_dir = gi.cvar("jump_data_dir", "", CVAR_NOFLAGS);
+	jump_records_max = gi.cvar("jump_records_max", "15", CVAR_NOFLAGS);
 
 	if (!g_jump->integer)
 		return;
@@ -84,6 +90,17 @@ void Jump_InitLevel()
 		jc.store_marker = nullptr; // freed with TAG_LEVEL
 	}
 
+	Jump_LoadRecords();
+
+	// Seed each connected player's PB display from the table.
+	for (uint32_t i = 0; i < game.maxclients; i++)
+	{
+		edict_t *ent = &g_edicts[i + 1];
+
+		if (ent->client && ent->client->pers.connected)
+			jump_clients[i].pb_time_ms = Jump_PersonalBest(ent);
+	}
+
 	if (jump_level.active && !was_active)
 		Jump_Log("level init: %s", jump_level.mapname);
 }
@@ -98,7 +115,8 @@ void Jump_RunFrame()
 
 void Jump_Shutdown()
 {
-	// Phase 3 flushes pending records here.
+	if (Jump_Active())
+		Jump_SaveRecords();
 }
 
 // ---------------------------------------------------------------------------
