@@ -13,7 +13,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  store          save your position\n"
 					"  recall [1-5]   return to a saved position (1 = most recent)\n"
 					"  reset          discard all saved positions\n"
-					"  kill           restart the run from the spawn\n"
+					"  kill           go again: recalls on Easy, restarts on Hard\n"
 					"  team <name>    easy (practice), hard (timed), or spectator\n"
 					"  maptimes       best times on this map\n"
 					"  playertimes    your completions and points\n"
@@ -32,7 +32,18 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Jump_Active())
 		return false;
 
+	// This hook runs ahead of the upstream intermission gate, so honour it
+	// here too rather than letting players store and recall on the scoreboard.
+	if (level.intermissiontime)
+		return false;
+
 	const char *cmd = gi.argv(0);
+
+	if (!Q_strcasecmp(cmd, "kill"))
+	{
+		Jump_CmdKill(ent);
+		return true;
+	}
 
 	if (!Q_strcasecmp(cmd, "store"))
 	{

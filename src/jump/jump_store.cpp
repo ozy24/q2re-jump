@@ -135,6 +135,26 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	Jump_Log("%s recalled store %d", ent->client->pers.netname, which);
 }
 
+// Upstream's Cmd_Kill_f refuses to run for the first five seconds after a
+// spawn, which is unusable in a mode whose core loop is "miss the jump, go
+// again". Jump handles it instead: on Easy a stored position is the natural
+// place to resume from, otherwise it's a clean run from the spawn.
+void Jump_CmdKill(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || ent->client->resp.spectator)
+		return;
+
+	if (jc->team == jump_team_t::easy && !jc->stores.Empty())
+	{
+		Jump_CmdRecall(ent, 1);
+		return;
+	}
+
+	Jump_RestartRun(ent);
+}
+
 void Jump_CmdReset(edict_t *ent)
 {
 	jump_client_t *jc = Jump_ClientData(ent);

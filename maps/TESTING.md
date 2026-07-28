@@ -45,6 +45,8 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
 - [ ] Reaching the railgun **with** the checkpoint stops the timer, turns it
       green, and broadcasts your time.
 - [ ] The railgun is still there afterwards and you never actually receive it.
+- [ ] After finishing you stay put - upstream never respawns you - and a centre
+      print tells you to `kill` to run again.
 
 ### Teams
 
@@ -52,6 +54,8 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
       elapsed time carried over (the timer does **not** reset to zero).
 - [ ] `recall 2` returns you to the store before last.
 - [ ] `reset` clears your stores; `recall` then says you have none.
+- [ ] `kill` on Easy with a store recalls you to it; with no stores it restarts
+      you at the spawn. Either works immediately, with no cooldown.
 - [ ] Finishing on Easy prints a private message and does **not** broadcast.
 - [ ] `team hard` — `store` is refused, and `recall` restarts you at the spawn
       with a fresh timer.
@@ -70,7 +74,7 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
 
 ### Hazards and misc
 
-- [ ] Falling into the lava kills you and restarts the run.
+- [ ] Falling into the lava kills you immediately.
 - [ ] Firing the blaster at another player does nothing.
 - [ ] `jumphelp` lists the commands.
 - [ ] `votemap`, `timeextend`, `yes`/`no` behave (a solo host passes their own

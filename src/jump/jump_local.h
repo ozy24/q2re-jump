@@ -120,6 +120,7 @@ void Jump_ClearCheckpointFlags(edict_t *ent);
 void Jump_CmdStore(edict_t *ent);
 void Jump_CmdRecall(edict_t *ent, int which);
 void Jump_CmdReset(edict_t *ent);
+void Jump_CmdKill(edict_t *ent);
 
 // jump_client.cpp
 void Jump_StripInventory(edict_t *ent);

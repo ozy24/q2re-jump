@@ -38,9 +38,9 @@ void Jump_ClientSpawn(edict_t *ent)
 	Jump_StripInventory(ent);
 	Jump_ClearCheckpointFlags(ent);
 
-	// Nothing in a jump map is supposed to whittle you down; hazards kill
-	// outright via Jump_FilterDamage instead.
-	ent->health = ent->max_health = 1000;
+	// Health is deliberately left at the default. Inflating it does nothing
+	// useful once combat damage is zeroed, and it makes hazards take seconds
+	// to kill instead of ending the run.
 }
 
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
@@ -94,8 +94,9 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &
 	if (!jump_mset.damage)
 		return true;
 
-	// World hazards stay lethal at full damage: plenty of maps use lava, slime
-	// and hurt triggers as the fail condition for a jump.
+	// World hazards are a fail condition, not a health bar: lava does 3 damage
+	// a tick, so left alone it would let a player wade out of the pit and
+	// carry on. Touching one ends the run outright.
 	switch (mod.id)
 	{
 	case MOD_WATER:
@@ -104,6 +105,8 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &
 	case MOD_CRUSH:
 	case MOD_TRIGGER_HURT:
 	case MOD_SUICIDE:
+		if (targ->client)
+			damage = max(damage, targ->health + 100);
 		return false;
 	default:
 		break;

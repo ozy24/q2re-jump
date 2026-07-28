@@ -133,6 +133,10 @@ void Jump_Finish(edict_t *ent)
 
 	const std::string time_str = jump::FormatTime(time_ms);
 
+	// Finishing leaves you standing on the pad, as it does upstream; nothing
+	// starts a new run until you ask for one.
+	gi.LocCenter_Print(ent, G_Fmt("Finished in {}\nkill to run again", time_str.c_str()).data());
+
 	// Easy is the practice team: the run is timed for your own benefit but is
 	// never broadcast and never recorded.
 	if (jc->team != jump_team_t::hard)
