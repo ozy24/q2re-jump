@@ -59,6 +59,12 @@
     <ClInclude Include="jump\jump.h">
       <Filter>jump</Filter>
     </ClInclude>
+    <ClInclude Include="jump\jump_stats.h">
+      <Filter>jump</Filter>
+    </ClInclude>
+    <ClInclude Include="jump\jump_hud_draw.h">
+      <Filter>jump</Filter>
+    </ClInclude>
     <ClInclude Include="jump\jump_local.h">
       <Filter>jump</Filter>
     </ClInclude>
@@ -182,6 +188,12 @@
       <Filter>jump</Filter>
     </ClCompile>
     <ClCompile Include="jump\jump_store.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_team.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_hud_draw.cpp">
       <Filter>jump</Filter>
     </ClCompile>
     <ClCompile Include="rogue\g_rogue_combat.cpp">

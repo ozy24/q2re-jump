@@ -14,6 +14,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  recall [1-5]   return to a saved position (1 = most recent)\n"
 					"  reset          discard all saved positions\n"
 					"  kill           restart the run from the spawn\n"
+					"  team <name>    easy (practice), hard (timed), or spectator\n"
 					"  jumphelp       this list\n"
 					"Bind them, e.g: bind mouse4 store; bind mouse5 recall\n");
 }
@@ -48,6 +49,12 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "reset"))
 	{
 		Jump_CmdReset(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "team"))
+	{
+		Jump_CmdTeam(ent);
 		return true;
 	}
 

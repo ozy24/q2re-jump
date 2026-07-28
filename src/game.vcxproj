@@ -109,6 +109,8 @@
     <ClInclude Include="ctf\g_ctf.h" />
     <ClInclude Include="ctf\p_ctf_menu.h" />
     <ClInclude Include="jump\jump.h" />
+    <ClInclude Include="jump\jump_hud_draw.h" />
+    <ClInclude Include="jump\jump_stats.h" />
     <ClInclude Include="jump\jump_local.h" />
     <ClInclude Include="jump\jump_logic.h" />
     <ClInclude Include="game.h" />
@@ -165,9 +167,11 @@
     <ClCompile Include="jump\jump_ents.cpp" />
     <ClCompile Include="jump\jump_finish.cpp" />
     <ClCompile Include="jump\jump_hud.cpp" />
+    <ClCompile Include="jump\jump_hud_draw.cpp" />
     <ClCompile Include="jump\jump_logic.cpp" />
     <ClCompile Include="jump\jump_main.cpp" />
     <ClCompile Include="jump\jump_store.cpp" />
+    <ClCompile Include="jump\jump_team.cpp" />
     <ClCompile Include="g_ai.cpp" />
     <ClCompile Include="g_chase.cpp" />
     <ClCompile Include="g_cmds.cpp" />

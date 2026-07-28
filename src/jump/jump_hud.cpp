@@ -22,6 +22,8 @@ void Jump_SetStats(edict_t *ent)
 
 	const int64_t ms = Jump_RunTimeMs(*jc);
 
+	ent->client->ps.stats[JUMP_STAT_ENABLED] = 1;
+
 	ent->client->ps.stats[JUMP_STAT_TIME_SEC] = (int16_t) min<int64_t>(ms / 1000, 32767);
 	ent->client->ps.stats[JUMP_STAT_TIME_MS] = (int16_t) ((ms % 1000) / 10);
 	ent->client->ps.stats[JUMP_STAT_RUN_STATE] = (int16_t) jc->state;

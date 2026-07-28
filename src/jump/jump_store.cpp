@@ -53,6 +53,12 @@ void Jump_CmdStore(edict_t *ent)
 	if (!Jump_CanStore(ent, jc))
 		return;
 
+	if (jc->team == jump_team_t::hard)
+	{
+		gi.Client_Print(ent, PRINT_HIGH, "Stores are disabled on Hard. Use \"team easy\" to practice.\n");
+		return;
+	}
+
 	jump::store_slot_t slot;
 
 	slot.origin[0] = ent->s.origin[0];
@@ -80,9 +86,18 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	if (!Jump_CanStore(ent, jc))
 		return;
 
+	// There is no recall on Hard: the only way back is a fresh run. This is
+	// what keeps Hard times comparable.
+	if (jc->team == jump_team_t::hard)
+	{
+		gi.Client_Print(ent, PRINT_HIGH, "No recall on Hard - restarting your run.\n");
+		Jump_RestartRun(ent);
+		return;
+	}
+
 	if (jc->stores.Empty())
 	{
-		gi.LocClient_Print(ent, PRINT_HIGH, "You have no stores.\n");
+		gi.Client_Print(ent, PRINT_HIGH, "You have no stores.\n");
 		return;
 	}
 

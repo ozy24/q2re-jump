@@ -74,6 +74,9 @@ int64_t Jump_RunTimeMs(const jump_client_t &jc);
 // Drops the run back to idle and clears checkpoints. Stores are untouched.
 void Jump_ResetRun(jump_client_t &jc);
 
+// Puts the player back at the spawn with a clean run.
+void Jump_RestartRun(edict_t *ent);
+
 // Teleport without the teleporter freeze: origin, angles, zeroed velocity.
 void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles);
 
@@ -93,6 +96,11 @@ void Jump_CmdReset(edict_t *ent);
 
 // jump_client.cpp
 void Jump_StripInventory(edict_t *ent);
+
+// jump_team.cpp
+const char *Jump_TeamName(jump_team_t team);
+void		Jump_JoinTeam(edict_t *ent, jump_team_t team);
+void		Jump_CmdTeam(edict_t *ent);
 
 // Debug logging, no-op unless jump_debug is set.
 void Jump_Log(const char *fmt, ...);

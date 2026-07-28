@@ -2599,17 +2599,22 @@ void ClientUserinfoChanged(edict_t *ent, const char *userinfo)
 	int playernum = ent - g_edicts - 1;
 
 	// combine name and skin into a configstring
-	// ZOID
-	if (G_TeamplayEnabled())
-		CTFAssignSkin(ent, val);
-	else
+	// [Jump] jump assigns team-coloured skins; otherwise fall through to vanilla
+	if (!Jump_AssignSkin(ent, val))
 	{
-		// set dogtag
-		char dogtag[MAX_INFO_VALUE] = { 0 };
-		gi.Info_ValueForKey(userinfo, "dogtag", dogtag, sizeof(dogtag));
-
 		// ZOID
-		gi.configstring(CS_PLAYERSKINS + playernum, G_Fmt("{}\\{}\\{}", ent->client->pers.netname, val, dogtag).data());
+		if (G_TeamplayEnabled())
+			CTFAssignSkin(ent, val);
+		else
+		{
+			// set dogtag
+			char dogtag[MAX_INFO_VALUE] = { 0 };
+			gi.Info_ValueForKey(userinfo, "dogtag", dogtag, sizeof(dogtag));
+
+			// ZOID
+			gi.configstring(CS_PLAYERSKINS + playernum,
+							G_Fmt("{}\\{}\\{}", ent->client->pers.netname, val, dogtag).data());
+		}
 	}
 
 	// ZOID

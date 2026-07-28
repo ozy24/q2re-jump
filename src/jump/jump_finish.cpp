@@ -128,6 +128,17 @@ void Jump_Finish(edict_t *ent)
 
 	const std::string time_str = jump::FormatTime(time_ms);
 
+	// Easy is the practice team: the run is timed for your own benefit but is
+	// never broadcast and never recorded.
+	if (jc->team != jump_team_t::hard)
+	{
+		gi.Client_Print(ent, PRINT_HIGH,
+						G_Fmt("You would have finished in {} seconds (Easy times are not recorded).\n",
+							  time_str.c_str())
+							.data());
+		return;
+	}
+
 	if (jc->pb_time_ms == 0)
 	{
 		gi.Broadcast_Print(PRINT_HIGH,

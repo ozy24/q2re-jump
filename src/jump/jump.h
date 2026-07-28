@@ -7,24 +7,7 @@
 
 #pragma once
 
-// ---------------------------------------------------------------------------
-// HUD stats
-//
-// The stat table is full, so jump reuses the CTF block (18-31). This is safe
-// because Jump_Init() forces ctf/teamplay off and Jump_SetStats() runs after
-// SetCTFStats() in G_SetStats(), so jump is the last writer.
-// ---------------------------------------------------------------------------
-
-constexpr player_stat_t JUMP_STAT_TIME_SEC = STAT_CTF_TEAM1_PIC;		  // 18: whole seconds of the current run
-constexpr player_stat_t JUMP_STAT_TIME_MS = STAT_CTF_TEAM1_CAPS;		  // 19: milliseconds remainder / 100
-constexpr player_stat_t JUMP_STAT_RUN_STATE = STAT_CTF_TEAM2_PIC;		  // 20: jump_run_state_t
-constexpr player_stat_t JUMP_STAT_STORES = STAT_CTF_TEAM2_CAPS;			  // 21: stores held
-constexpr player_stat_t JUMP_STAT_TEAM = STAT_CTF_FLAG_PIC;				  // 22: jump_team_t
-constexpr player_stat_t JUMP_STAT_PB_SEC = STAT_CTF_JOINED_TEAM1_PIC;	  // 23: personal best, whole seconds
-constexpr player_stat_t JUMP_STAT_PB_MS = STAT_CTF_JOINED_TEAM2_PIC;	  // 24: personal best, ms / 100
-constexpr player_stat_t JUMP_STAT_CHECKPOINTS = STAT_CTF_TEAM1_HEADER;	  // 25: checkpoints taken
-constexpr player_stat_t JUMP_STAT_CHECKPOINT_TOTAL = STAT_CTF_TEAM2_HEADER; // 26: checkpoints required
-// 27-31 reserved (replay rank, vote countdown).
+#include "jump_stats.h"
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -69,3 +52,6 @@ bool Jump_InitStatusbar();
 
 // G_SetStats: must run last so it wins over SetCTFStats.
 void Jump_SetStats(edict_t *ent);
+
+// ClientUserinfoChanged: returns true when jump set the player's skin.
+bool Jump_AssignSkin(edict_t *ent, const char *skin);

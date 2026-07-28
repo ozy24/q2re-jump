@@ -136,6 +136,17 @@ void Jump_ResetRun(jump_client_t &jc)
 	jc.checkpoints = 0;
 }
 
+void Jump_RestartRun(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (jc)
+		Jump_ResetRun(*jc);
+
+	PutClientInServer(ent);
+	G_PostRespawn(ent);
+}
+
 void Jump_FreeStoreMarker(jump_client_t &jc)
 {
 	if (jc.store_marker)
