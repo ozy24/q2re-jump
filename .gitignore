@@ -44,4 +44,4 @@ maps/*.bsp
 maps/*.ent
 maps/*.prt
 maps/*.log
-maps/*.texinfo
+maps/*.json
