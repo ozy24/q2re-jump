@@ -513,6 +513,10 @@ void ED_CallSpawn(edict_t *ent)
 		}
 	}
 
+	// [Jump] jump entities + legacy jump-map classnames
+	if (Jump_CallSpawn(ent))
+		return;
+
 	gi.Com_PrintFmt("{} doesn't have a spawn function\n", *ent);
 	G_FreeEdict(ent);
 }
@@ -1195,6 +1199,9 @@ void SpawnEntities(const char *mapname, const char *entities, const char *spawnp
 	// reserve some spots for dead player bodies for coop / deathmatch
 	InitBodyQue();
 
+	// [Jump] reset per-map mod state before entities spawn
+	Jump_InitLevel();
+
 	// parse ents
 	while (1)
 	{
@@ -1281,6 +1288,10 @@ void SpawnEntities(const char *mapname, const char *entities, const char *spawnp
 // create & set the statusbar string for the current gamemode
 static void G_InitStatusbar()
 {
+	// [Jump] jump mode installs its own statusbar
+	if (Jump_InitStatusbar())
+		return;
+
 	statusbar_t sb;
 
 	// ---- shared stuff that every gamemode uses ----

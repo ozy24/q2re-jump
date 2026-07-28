@@ -205,6 +205,9 @@ void PreInitGame()
 			gi.cvar_set("coop", "0");
 	}
 	// ZOID
+
+	// [Jump] claim the gamemode before anything else latches
+	Jump_PreInit();
 }
 
 /*
@@ -378,6 +381,8 @@ void InitGame()
 	// how far back we should support lag origins for
 	game.max_lag_origins = 20 * (0.1f / gi.frame_time_s);
 	game.lag_origins = (vec3_t *) gi.TagMalloc(game.maxclients * sizeof(vec3_t) * game.max_lag_origins, TAG_GAME);
+
+	Jump_Init(); // [Jump] mod cvars and gameplay defaults
 }
 
 //===================================================================
@@ -385,6 +390,8 @@ void InitGame()
 void ShutdownGame()
 {
 	gi.Com_Print("==== ShutdownGame ====\n");
+
+	Jump_Shutdown(); // [Jump] flush pending mod state before tags are freed
 
 	gi.FreeTags(TAG_LEVEL);
 	gi.FreeTags(TAG_GAME);
@@ -947,6 +954,8 @@ inline void G_RunFrame_(bool main_loop)
 
 		G_RunEntity(ent);
 	}
+
+	Jump_RunFrame(); // [Jump] per-frame mod housekeeping
 
 	// see if it is time to end a deathmatch
 	CheckDMRules();

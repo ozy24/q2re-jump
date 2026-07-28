@@ -108,6 +108,9 @@
     <ClInclude Include="cg_local.h" />
     <ClInclude Include="ctf\g_ctf.h" />
     <ClInclude Include="ctf\p_ctf_menu.h" />
+    <ClInclude Include="jump\jump.h" />
+    <ClInclude Include="jump\jump_local.h" />
+    <ClInclude Include="jump\jump_logic.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="g_local.h" />
     <ClInclude Include="g_statusbar.h" />
@@ -157,6 +160,14 @@
     <ClCompile Include="cg_screen.cpp" />
     <ClCompile Include="ctf\g_ctf.cpp" />
     <ClCompile Include="ctf\p_ctf_menu.cpp" />
+    <ClCompile Include="jump\jump_client.cpp" />
+    <ClCompile Include="jump\jump_cmds.cpp" />
+    <ClCompile Include="jump\jump_ents.cpp" />
+    <ClCompile Include="jump\jump_finish.cpp" />
+    <ClCompile Include="jump\jump_hud.cpp" />
+    <ClCompile Include="jump\jump_logic.cpp" />
+    <ClCompile Include="jump\jump_main.cpp" />
+    <ClCompile Include="jump\jump_store.cpp" />
     <ClCompile Include="g_ai.cpp" />
     <ClCompile Include="g_chase.cpp" />
     <ClCompile Include="g_cmds.cpp" />

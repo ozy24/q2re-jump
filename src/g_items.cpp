@@ -918,6 +918,10 @@ TOUCH(Touch_Item) (edict_t *ent, edict_t *other, const trace_t &tr, bool other_t
 	if (!ent->item->pickup)
 		return; // not a grabbable item?
 
+	// [Jump] weapons are the finish line, keys are checkpoints, rest is inert
+	if (Jump_ItemTouch(ent, other))
+		return;
+
 	// already got this instanced item
 	if (coop->integer && P_UseCoopInstancedItems())
 	{

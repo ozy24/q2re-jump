@@ -1084,6 +1084,9 @@ void G_SetStats(edict_t *ent)
 	// ZOID
 	SetCTFStats(ent);
 	// ZOID
+
+	// [Jump] must run last: jump reuses the CTF stat slots
+	Jump_SetStats(ent);
 }
 
 /*

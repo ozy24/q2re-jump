@@ -538,6 +538,10 @@ void T_Damage(edict_t *targ, edict_t *inflictor, edict_t *attacker, const vec3_t
 	if (!targ->takedamage)
 		return;
 
+	// [Jump] only world hazards hurt in jump mode
+	if (Jump_FilterDamage(targ, attacker, mod))
+		return;
+
 	if (g_instagib->integer && attacker->client && targ->client)
 	{
 		// [Kex] always kill no matter what on instagib

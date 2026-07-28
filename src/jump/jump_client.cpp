@@ -1,0 +1,108 @@
+// [Jump] Per-client behaviour: spawning, the run timer, damage rules.
+
+#include "../g_local.h"
+#include "jump_local.h"
+
+// Jump players carry nothing but the blaster, which is harmless because
+// Jump_FilterDamage swallows all combat damage.
+void Jump_StripInventory(edict_t *ent)
+{
+	gclient_t *client = ent->client;
+
+	client->pers.inventory.fill(0);
+	client->pers.inventory[IT_WEAPON_BLASTER] = 1;
+
+	client->pers.weapon = GetItemByIndex(IT_WEAPON_BLASTER);
+	client->pers.lastweapon = client->pers.weapon;
+	client->newweapon = client->pers.weapon;
+	client->pers.selected_item = IT_WEAPON_BLASTER;
+
+	client->quad_time = 0_ms;
+	client->invincible_time = 0_ms;
+	client->enviro_time = 0_ms;
+	client->breather_time = 0_ms;
+	client->silencer_shots = 0;
+}
+
+void Jump_ClientSpawn(edict_t *ent)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	Jump_ResetRun(*jc);
+	Jump_StripInventory(ent);
+	Jump_ClearCheckpointFlags(ent);
+
+	// Nothing in a jump map is supposed to whittle you down; hazards kill
+	// outright via Jump_FilterDamage instead.
+	ent->health = ent->max_health = 1000;
+}
+
+void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || jc->state != jump_run_state_t::idle)
+		return;
+
+	if (ent->client->resp.spectator || ent->client->chase_target)
+		return;
+
+	// The run starts on the first movement input, matching Q2JumpRefresh.
+	// Deliberately not started by +attack (the classic mod does) so that
+	// firing the blaster on the spawn pad doesn't commit you to a run.
+	// The rerelease has no upmove axis: jump and crouch are buttons.
+	if (ucmd->forwardmove || ucmd->sidemove || (ucmd->buttons & (BUTTON_JUMP | BUTTON_CROUCH)))
+	{
+		jc->state = jump_run_state_t::running;
+		jc->run_start = level.time;
+		Jump_Log("%s started a run", ent->client->pers.netname);
+	}
+}
+
+void Jump_ClientDisconnect(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	Jump_FreeStoreMarker(*jc);
+	Jump_ResetRun(*jc);
+	jc->stores.Clear();
+	jc->last_time_ms = 0;
+}
+
+bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
+{
+	if (!Jump_Active())
+		return false;
+
+	// World hazards stay lethal: plenty of maps use lava, slime and hurt
+	// triggers as the fail condition for a jump.
+	switch (mod.id)
+	{
+	case MOD_WATER:
+	case MOD_SLIME:
+	case MOD_LAVA:
+	case MOD_CRUSH:
+	case MOD_TRIGGER_HURT:
+	case MOD_SUICIDE:
+		return false;
+	default:
+		break;
+	}
+
+	// Everything else - weapons, splash, telefrags - does nothing.
+	(void) targ;
+	(void) attacker;
+	return true;
+}

@@ -2651,6 +2651,8 @@ constexpr spawnflags_t SPAWNFLAG_LANDMARK_KEEP_Z = 1_spawnflag;
 #include "ctf/g_ctf.h"
 #include "ctf/p_ctf_menu.h"
 // ZOID
+// [Jump] jump game mode hooks
+#include "jump/jump.h"
 //============================================================================
 
 // client_t->anim_priority

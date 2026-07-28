@@ -1640,6 +1640,10 @@ void ClientCommand(edict_t *ent)
 		return;
 	}
 
+	// [Jump] mod commands (store/recall/reset/...)
+	if (Jump_ClientCommand(ent))
+		return;
+
 	if (level.intermissiontime)
 		return;
 	

@@ -56,6 +56,15 @@
     <ClInclude Include="ctf\p_ctf_menu.h">
       <Filter>ctf</Filter>
     </ClInclude>
+    <ClInclude Include="jump\jump.h">
+      <Filter>jump</Filter>
+    </ClInclude>
+    <ClInclude Include="jump\jump_local.h">
+      <Filter>jump</Filter>
+    </ClInclude>
+    <ClInclude Include="jump\jump_logic.h">
+      <Filter>jump</Filter>
+    </ClInclude>
     <ClInclude Include="rogue\m_rogue_carrier.h">
       <Filter>rogue</Filter>
     </ClInclude>
@@ -150,6 +159,30 @@
     </ClCompile>
     <ClCompile Include="ctf\p_ctf_menu.cpp">
       <Filter>ctf</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_client.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_cmds.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_ents.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_finish.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_hud.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_logic.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_main.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_store.cpp">
+      <Filter>jump</Filter>
     </ClCompile>
     <ClCompile Include="rogue\g_rogue_combat.cpp">
       <Filter>rogue</Filter>
@@ -254,6 +287,9 @@
     </Filter>
     <Filter Include="ctf">
       <UniqueIdentifier>{2b0fdaa0-3de9-4bbd-9bc6-3cadf798c291}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="jump">
+      <UniqueIdentifier>{a7c31f42-9b18-4d5e-8f3a-2e6c91d40b77}</UniqueIdentifier>
     </Filter>
     <Filter Include="rogue">
       <UniqueIdentifier>{76ef0be8-1c1d-472a-ada1-3aa1b354e022}</UniqueIdentifier>

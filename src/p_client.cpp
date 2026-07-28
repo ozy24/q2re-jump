@@ -2293,6 +2293,9 @@ void PutClientInServer(edict_t *ent)
 			client->pers.inventory[IT_KEY_NUKE] = 1;
 	}
 
+	// [Jump] reset the run and strip loadout before the weapon is raised
+	Jump_ClientSpawn(ent);
+
 	// force the current weapon up
 	client->newweapon = client->pers.weapon;
 	ChangeWeapon(ent);
@@ -2937,6 +2940,8 @@ void ClientDisconnect(edict_t *ent)
 	CTFDeadDropTech(ent);
 	// ZOID
 
+	Jump_ClientDisconnect(ent); // [Jump] drop stores and the store marker
+
 	PlayerTrail_Destroy(ent);
 
 	//============
@@ -3171,6 +3176,8 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 			gi.LocClient_Print(ent, PRINT_CENTER, "$g_n64_crouching");
 		}
 	}
+
+	Jump_ClientThink(ent, ucmd); // [Jump] start the run on first movement
 
 	if (level.intermissiontime || ent->client->awaiting_respawn)
 	{
