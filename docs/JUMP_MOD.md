@@ -65,6 +65,56 @@ armour, health, powerups — is inert.
 Combat damage does nothing. World hazards (lava, slime, hurt triggers, crushers)
 still kill, so maps keep their fail conditions.
 
+## Map compatibility
+
+Nothing below has been confirmed in game yet — it describes what the code
+supports, not what has been played.
+
+### Supported entities
+
+| Entity | Behaviour |
+|---|---|
+| `trigger_finish`, `weapon_finish` | Ends the run |
+| any `weapon_*` item | Ends the run, unless the map enables it via an mset |
+| any `key_*` item | Checkpoint |
+| `cpbox_small` / `_medium` / `_large` | Checkpoint volume |
+| `jumpbox_small` / `_medium` / `_large` | Solid box |
+| `jump_clip` | Invisible solid wall, or a checkpoint volume when `message` is `checkpoint` |
+| `one_way_wall` | Passable one way only; spawnflag 1 lets fast players through |
+| `jump_cpwall`, `jump_cpbrush` | Checkpoint barrier; spawnflag 1 inverts the test |
+| `trigger_weapon` | Gives the weapon named by `count` (blaster 1 … rail 9, BFG 0) |
+
+Cosmetic leftovers (`jump_time`, `jump_score`, `jumpmod_effect`,
+`jump_cpeffect`) are removed silently rather than logging an error.
+
+### What works
+
+- **Classic q2jump maps** are the main target. Finish-by-weapon, key
+  checkpoints, cpboxes, clip walls, one-way walls and checkpoint barriers are
+  all handled.
+- **Q2JumpRefresh-era maps** using `trigger_finish` and `cpbox_*` work.
+- **Stock deathmatch maps** load and time correctly, but the first weapon you
+  touch ends the run, so they are only useful for smoke-testing.
+
+### Known gaps
+
+- **Physics.** This runs stock rerelease movement. Maps built around the old
+  engine's 125 fps behaviour may have jumps that are harder or outright
+  impossible. This is a deliberate design decision, not a bug — see the top of
+  this document.
+- **Lap maps.** `trigger_lapcounter` and `trigger_lapcp` are ignored, so lap
+  counting does not gate the finish.
+- **`trigger_push` checkpoint barriers.** The Refresh variant keyed on a
+  `target` of `checkpoint…` is not implemented; use `jump_cpwall` instead.
+- **`trigger_hurt` with `dmg 1`** does not strip weapons the way Refresh does.
+- **`trigger_quad`, `cp_clear`, `trigger_single_cp_clear`** are ignored.
+- **Box models.** `jumpbox_*` and `cpbox_*` reference `models/jump/*box3`,
+  which ship with jump map packs rather than with Quake II. Without them the
+  boxes are still solid and still work, but may not draw; set
+  `jump_box_models 0` if a missing model causes trouble.
+- **Invisible brushes and prediction.** `jump_clip` is invisible, so the client
+  cannot predict against it and you may see a one-frame correction on contact.
+
 ## Server configuration
 
 ### Cvars

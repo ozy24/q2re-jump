@@ -233,6 +233,81 @@ static void SP_jump_clip(edict_t *self)
 }
 
 // ---------------------------------------------------------------------------
+// trigger_weapon - hands out a weapon by the classic Quake II weapon number.
+// ---------------------------------------------------------------------------
+
+static item_id_t Jump_WeaponByNumber(int number)
+{
+	switch (number)
+	{
+	case 0:
+		return IT_WEAPON_BFG;
+	case 1:
+		return IT_WEAPON_BLASTER;
+	case 2:
+		return IT_WEAPON_SHOTGUN;
+	case 3:
+		return IT_WEAPON_SSHOTGUN;
+	case 4:
+		return IT_WEAPON_MACHINEGUN;
+	case 5:
+		return IT_WEAPON_CHAINGUN;
+	case 6:
+		return IT_WEAPON_GLAUNCHER;
+	case 7:
+		return IT_WEAPON_RLAUNCHER;
+	case 8:
+		return IT_WEAPON_HYPERBLASTER;
+	case 9:
+		return IT_WEAPON_RAILGUN;
+	case 11:
+		return IT_AMMO_GRENADES;
+	default:
+		return IT_NULL;
+	}
+}
+
+TOUCH(jump_trigger_weapon_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool other_touching_self) -> void
+{
+	if (!other->client || other->client->resp.spectator)
+		return;
+
+	const item_id_t id = Jump_WeaponByNumber(self->count);
+
+	if (id == IT_NULL)
+		return;
+
+	gitem_t *item = GetItemByIndex(id);
+
+	if (!item)
+		return;
+
+	if (!other->client->pers.inventory[id])
+	{
+		other->client->pers.inventory[id] = 1;
+		other->client->newweapon = item;
+		ChangeWeapon(other);
+	}
+
+	// Plenty of ammo: running dry mid-route would just be frustrating.
+	Add_Ammo(other, item, 1000);
+}
+
+static void SP_jump_trigger_weapon(edict_t *self)
+{
+	self->movetype = MOVETYPE_NONE;
+	self->solid = SOLID_TRIGGER;
+
+	if (self->model)
+		gi.setmodel(self, self->model);
+
+	self->svflags |= SVF_NOCLIENT;
+	self->touch = jump_trigger_weapon_touch;
+
+	gi.linkentity(self);
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
@@ -255,6 +330,7 @@ static const jump_spawn_t jump_spawns[] = {
 	{ "one_way_wall", SP_jump_one_way_wall },
 	{ "jump_cpwall", SP_jump_cpbarrier },
 	{ "jump_cpbrush", SP_jump_cpbarrier },
+	{ "trigger_weapon", SP_jump_trigger_weapon },
 };
 
 // Classnames from old jump maps that carry no collision and only ever drove
