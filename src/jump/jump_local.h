@@ -39,10 +39,30 @@ struct jump_client_t
 	int32_t				 checkpoints = 0;
 	jump::store_ring_t	 stores;
 	edict_t				*store_marker = nullptr;
+	gtime_t				 last_input_time = 0_ms;
 
 	// --- session: survives map changes, re-keyed on connect ---
 	jump_team_t team = jump_team_t::easy;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
+};
+
+// Per-map settings, reloaded on every level change.
+struct jump_mset_t
+{
+	int32_t gravity = 800;
+	bool	gravity_set = false;
+
+	int32_t checkpoint_total = 0;
+	bool	checkpoint_total_set = false;
+
+	bool damage = true;	  // false disables even world hazards
+	bool fasttele = false; // skip the teleporter freeze
+
+	// Weapons the map wants usable rather than treated as the finish line.
+	bool weapon_rocket = false;
+	bool weapon_grenadelauncher = false;
+	bool weapon_hyperblaster = false;
+	bool weapon_bfg = false;
 };
 
 // Per-level mod state, memset by Jump_InitLevel.
@@ -59,12 +79,14 @@ struct jump_level_t
 
 extern jump_client_t jump_clients[MAX_CLIENTS];
 extern jump_level_t	 jump_level;
+extern jump_mset_t	 jump_mset;
 
 extern cvar_t *g_jump;
 extern cvar_t *jump_debug;
 extern cvar_t *jump_box_models;
 extern cvar_t *jump_data_dir;
 extern cvar_t *jump_records_max;
+extern cvar_t *jump_idle_time;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -122,6 +144,23 @@ int64_t					   Jump_PersonalBest(edict_t *ent);
 int64_t					   Jump_MapRecord();
 int						   Jump_SubmitTime(edict_t *ent, int64_t time_ms);
 void					   Jump_PlayerTotals(const std::string &id, int &points, int &completions, int &firsts);
+
+// jump_mset.cpp
+void Jump_LoadMsets(const char *entities);
+bool Jump_IsUsableWeapon(item_id_t id);
+
+// jump_vote.cpp
+void Jump_LoadMapList();
+void Jump_VoteFrame();
+void Jump_IdleFrame();
+void Jump_TrackInput(edict_t *ent, usercmd_t *ucmd);
+void Jump_CmdVoteMap(edict_t *ent);
+void Jump_CmdNominate(edict_t *ent);
+void Jump_CmdTimeExtend(edict_t *ent);
+void Jump_CmdVote(edict_t *ent, bool yes);
+void Jump_CmdMapList(edict_t *ent);
+void Jump_CmdIdle(edict_t *ent);
+void Jump_VoteClientDisconnect(edict_t *ent);
 
 // jump_scoreboard.cpp (Jump_ScoreboardMessage is declared in jump.h)
 void Jump_CmdMapTimes(edict_t *ent);

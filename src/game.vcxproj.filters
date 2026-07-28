@@ -199,6 +199,12 @@
     <ClCompile Include="jump\jump_scoreboard.cpp">
       <Filter>jump</Filter>
     </ClCompile>
+    <ClCompile Include="jump\jump_mset.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_vote.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
     <ClCompile Include="jump\jump_team.cpp">
       <Filter>jump</Filter>
     </ClCompile>

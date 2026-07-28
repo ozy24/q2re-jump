@@ -2020,9 +2020,13 @@ TOUCH(teleporter_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool 
 	other->s.origin[2] += 10;
 
 	// clear the velocity and hold them in place briefly
-	other->velocity = {};
-	other->client->ps.pmove.pm_time = 160; // hold time
-	other->client->ps.pmove.pm_flags |= PMF_TIME_TELEPORT;
+	// [Jump] the fasttele mset skips the freeze
+	if (!Jump_FastTeleport())
+	{
+		other->velocity = {};
+		other->client->ps.pmove.pm_time = 160; // hold time
+		other->client->ps.pmove.pm_flags |= PMF_TIME_TELEPORT;
+	}
 
 	// draw the teleport splash at source and on the player
 	if (!self->spawnflags.has(SPAWNFLAG_TELEPORTER_NO_TELEPORT_EFFECT))

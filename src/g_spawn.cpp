@@ -1200,7 +1200,7 @@ void SpawnEntities(const char *mapname, const char *entities, const char *spawnp
 	InitBodyQue();
 
 	// [Jump] reset per-map mod state before entities spawn
-	Jump_InitLevel();
+	Jump_InitLevel(entities);
 
 	// parse ents
 	while (1)

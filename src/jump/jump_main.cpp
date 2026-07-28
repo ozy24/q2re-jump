@@ -13,6 +13,7 @@ cvar_t *jump_debug;
 cvar_t *jump_box_models;
 cvar_t *jump_data_dir;
 cvar_t *jump_records_max;
+cvar_t *jump_idle_time;
 
 bool Jump_Active()
 {
@@ -53,6 +54,9 @@ void Jump_Init()
 	jump_data_dir = gi.cvar("jump_data_dir", "", CVAR_NOFLAGS);
 	jump_records_max = gi.cvar("jump_records_max", "15", CVAR_NOFLAGS);
 
+	// Seconds of no input before a player is moved to spectator; 0 disables.
+	jump_idle_time = gi.cvar("jump_idle_time", "300", CVAR_NOFLAGS);
+
 	if (!g_jump->integer)
 		return;
 
@@ -64,10 +68,12 @@ void Jump_Init()
 	gi.cvar_set("g_dm_random_items", "0");
 	gi.cvar_set("g_instagib", "0");
 
+	Jump_LoadMapList();
+
 	gi.Com_PrintFmt("==== Jump mode enabled ====\n");
 }
 
-void Jump_InitLevel()
+void Jump_InitLevel(const char *entities)
 {
 	const bool was_active = jump_level.active;
 
@@ -90,6 +96,7 @@ void Jump_InitLevel()
 		jc.store_marker = nullptr; // freed with TAG_LEVEL
 	}
 
+	Jump_LoadMsets(entities);
 	Jump_LoadRecords();
 
 	// Seed each connected player's PB display from the table.
@@ -110,7 +117,8 @@ void Jump_RunFrame()
 	if (!Jump_Active())
 		return;
 
-	// Phase 4 will drive votes and the idle sweep from here.
+	Jump_VoteFrame();
+	Jump_IdleFrame();
 }
 
 void Jump_Shutdown()

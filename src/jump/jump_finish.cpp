@@ -29,6 +29,11 @@ bool Jump_IsCheckpointEntity(edict_t *ent)
 
 int Jump_CheckpointTotal()
 {
+	// An explicit mset always wins: some maps place more checkpoint entities
+	// than a run is required to collect.
+	if (jump_mset.checkpoint_total_set)
+		return jump_mset.checkpoint_total;
+
 	if (jump_checkpoint_total_cache >= 0)
 		return jump_checkpoint_total_cache;
 
@@ -181,10 +186,15 @@ bool Jump_ItemTouch(edict_t *ent, edict_t *other)
 	if (ent->item->flags & IF_KEY)
 		return Jump_TakeCheckpoint(other, ent);
 
-	// Any weapon is the finish line. Weapons are never handed out and the
-	// entity is never removed, so every player can finish on the same one.
 	if (ent->item->flags & IF_WEAPON)
 	{
+		// A map can mark specific weapons as usable (rocket jumping, etc.);
+		// those fall through and are picked up normally.
+		if (Jump_IsUsableWeapon(ent->item->id))
+			return false;
+
+		// Otherwise any weapon is the finish line. It is never handed out and
+		// never removed, so every player can finish on the same one.
 		Jump_Finish(other);
 		return true;
 	}

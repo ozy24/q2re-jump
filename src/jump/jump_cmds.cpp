@@ -18,6 +18,11 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  maptimes       best times on this map\n"
 					"  playertimes    your completions and points\n"
 					"  ranks          points for everyone connected\n"
+					"  maplist        maps in the rotation\n"
+					"  votemap <map>  call a vote to change map\n"
+					"  timeextend [n] call a vote to add time (default 15 min)\n"
+					"  yes / no       vote on the current call\n"
+					"  idle           move yourself to spectator\n"
 					"  jumphelp       this list\n"
 					"Bind them, e.g: bind mouse4 store; bind mouse5 recall\n");
 }
@@ -76,6 +81,48 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "ranks") || !Q_strcasecmp(cmd, "playerscores"))
 	{
 		Jump_CmdRanks(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "votemap"))
+	{
+		Jump_CmdVoteMap(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "nominate"))
+	{
+		Jump_CmdNominate(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "timeextend") || !Q_strcasecmp(cmd, "votetime"))
+	{
+		Jump_CmdTimeExtend(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "yes"))
+	{
+		Jump_CmdVote(ent, true);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "no"))
+	{
+		Jump_CmdVote(ent, false);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "maplist"))
+	{
+		Jump_CmdMapList(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "idle"))
+	{
+		Jump_CmdIdle(ent);
 		return true;
 	}
 

@@ -48,6 +48,8 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 	if (!Jump_Active())
 		return;
 
+	Jump_TrackInput(ent, ucmd);
+
 	jump_client_t *jc = Jump_ClientData(ent);
 
 	if (!jc || jc->state != jump_run_state_t::idle)
@@ -79,6 +81,8 @@ void Jump_ClientDisconnect(edict_t *ent)
 	Jump_ResetRun(*jc);
 	jc->stores.Clear();
 	jc->last_time_ms = 0;
+
+	Jump_VoteClientDisconnect(ent);
 }
 
 bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
@@ -86,8 +90,12 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod)
 	if (!Jump_Active())
 		return false;
 
-	// World hazards stay lethal: plenty of maps use lava, slime and hurt
-	// triggers as the fail condition for a jump.
+	// A map can turn damage off entirely, including its own hazards.
+	if (!jump_mset.damage)
+		return true;
+
+	// Otherwise world hazards stay lethal: plenty of maps use lava, slime and
+	// hurt triggers as the fail condition for a jump.
 	switch (mod.id)
 	{
 	case MOD_WATER:

@@ -18,7 +18,10 @@ bool Jump_Active();
 
 void Jump_PreInit();	// PreInitGame: claim the gamemode before anything latches
 void Jump_Init();		// InitGame: register cvars, force the gamemode
-void Jump_InitLevel();	// SpawnEntities: reset per-map state, load map config
+// SpawnEntities: reset per-map state and load the map config. The raw entity
+// string is passed so worldspawn msets can be read without touching the
+// upstream spawn field table.
+void Jump_InitLevel(const char *entities);
 void Jump_RunFrame();	// G_RunFrame_: per-frame housekeeping
 void Jump_Shutdown();	// ShutdownGame: flush anything pending
 
@@ -58,3 +61,7 @@ bool Jump_AssignSkin(edict_t *ent, const char *skin);
 
 // DeathmatchScoreboardMessage: returns true when jump sent its own board.
 bool Jump_ScoreboardMessage(edict_t *ent);
+
+// teleporter_touch: true when the map's fasttele mset is on, meaning the
+// teleport freeze should be skipped.
+bool Jump_FastTeleport();
