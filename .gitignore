@@ -38,3 +38,10 @@ Desktop.ini
 .DS_Store
 *.swp
 *~
+
+# generated map artifacts
+maps/*.bsp
+maps/*.ent
+maps/*.prt
+maps/*.log
+maps/*.texinfo
