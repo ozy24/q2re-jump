@@ -809,9 +809,11 @@ void InitClientPersistant(edict_t *ent, gclient_t *client)
 	// backup & restore userinfo
 	char userinfo[MAX_INFO_STRING];
 	Q_strlcpy(userinfo, client->pers.userinfo, sizeof(userinfo));
+	const bool jump_spectator = Jump_Active() && client->pers.spectator;
 
 	memset(&client->pers, 0, sizeof(client->pers));
 	ClientUserinfoChanged(ent, userinfo);
+	client->pers.spectator = jump_spectator;
 
 	client->pers.health = 100;
 	client->pers.max_health = 100;
@@ -3391,8 +3393,10 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 		}
 	}
 
+	const bool jump_spectator_controls = Jump_HandleSpectatorControls(ent, ucmd);
+
 	// fire weapon from final position if needed
-	if (client->latched_buttons & BUTTON_ATTACK)
+	if (!jump_spectator_controls && (client->latched_buttons & BUTTON_ATTACK))
 	{
 		if (client->resp.spectator)
 		{
@@ -3423,7 +3427,7 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 		}
 	}
 
-	if (client->resp.spectator)
+	if (!jump_spectator_controls && client->resp.spectator)
 	{
 		if (!HandleMenuMovement(ent, ucmd))
 		{

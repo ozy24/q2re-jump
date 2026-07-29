@@ -48,6 +48,8 @@ static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinPractice(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinRanked(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinSpectator(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuFollowPlayer(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuFollowView(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
 
@@ -64,11 +66,11 @@ static const pmenu_t jump_main_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 6  ranked
 	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 7  spectator
 	{ "", PMENU_ALIGN_CENTER, nullptr }, // 8  blank
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 9  vote map
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 10 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 11
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 12
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 13
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 9  follow player
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 10 follow view
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 11 blank
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 12 vote map
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 13 extend
 	{ "", PMENU_ALIGN_CENTER, nullptr }, // 14
 	{ "", PMENU_ALIGN_CENTER, nullptr }, // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr }, // 16 blank
@@ -171,10 +173,24 @@ static void Jump_MenuUpdateMain(edict_t *ent)
 	Jump_MenuTeamRow(hnd->entries[7], jump_team_t::spectator, team, Jump_MenuJoinSpectator);
 
 	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
-	Jump_MenuSetRow(hnd->entries[9], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
-	Jump_MenuSetRow(hnd->entries[10], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+	if (team == jump_team_t::spectator)
+	{
+		Jump_MenuSetRow(hnd->entries[9], ent->client->chase_target ? "Stop following" : "Follow player",
+						PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer);
+		Jump_MenuSetRow(hnd->entries[10],
+						G_Fmt("Follow view: {}", jc && jc->eyecam ? "first-person" : "third-person").data(),
+						PMENU_ALIGN_LEFT, Jump_MenuFollowView);
+	}
+	else
+	{
+		Jump_MenuSetRow(hnd->entries[9], "Follow player", PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer);
+		Jump_MenuSetRow(hnd->entries[10], "", PMENU_ALIGN_LEFT, nullptr);
+	}
+	Jump_MenuSetRow(hnd->entries[11], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[12], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
+	Jump_MenuSetRow(hnd->entries[13], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
-	for (int i = 11; i < JUMP_MENU_CLOSE; i++)
+	for (int i = 14; i < JUMP_MENU_CLOSE; i++)
 		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
 
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
@@ -206,6 +222,29 @@ static void Jump_MenuJoinSpectator(edict_t *ent, pmenuhnd_t *hnd)
 	PMenu_Close(ent);
 	ent->client->update_chase = true;
 	Jump_JoinTeam(ent, jump_team_t::spectator);
+}
+
+static void Jump_MenuFollowPlayer(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+
+	jump_client_t *jc = Jump_ClientData(ent);
+	if (!jc)
+		return;
+
+	if (jc->team != jump_team_t::spectator)
+		Jump_JoinTeam(ent, jump_team_t::spectator);
+
+	if (ent->client->chase_target)
+		Jump_FreeFollower(ent);
+	else
+		GetChaseTarget(ent);
+}
+
+static void Jump_MenuFollowView(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	Jump_CmdEyecam(ent);
 }
 
 static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd)

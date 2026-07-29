@@ -1483,6 +1483,9 @@ void ClientEndServerFrame(edict_t *ent)
 
 	G_SetClientSound(ent);
 
+	// [Jump] eyecam inherits the followed player's late-frame presentation.
+	Jump_SyncFollowPresentation(ent);
+
 	G_SetClientFrame(ent);
 
 	ent->client->oldvelocity = ent->velocity;

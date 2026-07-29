@@ -1,105 +1,101 @@
-// [Jump] Spectator eyecam: first-person follow of another player.
+// [Jump] Spectator follow and first-person eyecam.
 //
-// The stock engine already has a third-person chase cam (g_chase.cpp /
-// UpdateChaseCam / ChaseNext / ChasePrev).  We extend it with first-person
-// follow (eyecam), matching MuffMode's following_camera.cpp approach:
-//
-//   - By default spectators use the vanilla third-person orbit camera.
-//   - Pressing +use (or issuing "eyecam") toggles to first-person: the
-//     spectator's ps is filled from the target's ps frame each tick.
-//   - invnext/invprev cycle the target; +attack drops/picks up chase.
-//
-// The toggle state lives in jump_client_t::eyecam so it survives a call to
-// PutClientInServer.
-//
-// Nothing here modifies g_chase.cpp; we just replace UpdateChaseCam output
-// for spectators that have eyecam on.
+// This mirrors MuffMode's following_camera.cpp on top of the rerelease's
+// existing chase_target field and ChaseNext/ChasePrev/GetChaseTarget helpers.
 
 #include "../g_local.h"
 #include "jump_local.h"
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// True when ent is a connected, non-spectator, living player that can be
-// watched.
 static bool Jump_IsFollowable(edict_t *ent)
 {
-	if (!ent->inuse || !ent->client)
-		return false;
-	if (ent->client->resp.spectator)
-		return false;
-	if (!ent->client->pers.connected)
-		return false;
-	return true;
+	return ent && ent->inuse && ent->client && ent->client->pers.connected &&
+		   !ent->client->resp.spectator;
 }
 
-// ---------------------------------------------------------------------------
-// Eyecam frame update (first-person follow)
-// ---------------------------------------------------------------------------
-
-// Called in place of the stock UpdateChaseCam when eyecam is active.
-static void Jump_UpdateEyecam(edict_t *ent)
+static bool Jump_FirstPersonFollowing(edict_t *viewer, edict_t *target = nullptr)
 {
-	edict_t *targ = ent->client->chase_target;
+	if (!viewer || !viewer->client)
+		return false;
 
-	if (!targ || !Jump_IsFollowable(targ))
-	{
-		// target gone: drop to spectator free-fly
-		ent->client->chase_target = nullptr;
-		ent->client->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
-		Jump_EyecamOff(ent);
-		GetChaseTarget(ent);
-		return;
-	}
+	jump_client_t *jc = Jump_ClientData(viewer);
+	if (!jc || jc->team != jump_team_t::spectator || !jc->eyecam ||
+		!viewer->client->chase_target)
+		return false;
 
-	gclient_t *tc = targ->client;
-	gclient_t *ec = ent->client;
-
-	// First-person: mirror target's player-state
-	ec->ps.viewangles	= tc->ps.viewangles;
-	ec->ps.viewoffset	= tc->ps.viewoffset;
-	ec->ps.kick_angles	= tc->ps.kick_angles;
-	ec->ps.gunangles	= tc->ps.gunangles;
-	ec->ps.gunoffset	= tc->ps.gunoffset;
-	ec->ps.gunindex		= tc->ps.gunindex;
-	ec->ps.gunskin		= tc->ps.gunskin;
-	ec->ps.gunframe		= tc->ps.gunframe;
-	ec->ps.gunrate		= tc->ps.gunrate;
-	ec->ps.screen_blend = tc->ps.screen_blend;
-	ec->ps.damage_blend = tc->ps.damage_blend;
-	ec->ps.fov			= tc->ps.fov;
-	ec->ps.rdflags		= tc->ps.rdflags;
-
-	// pmove fields needed for client-side prediction to look right
-	ec->ps.pmove.origin		  = tc->ps.pmove.origin;
-	ec->ps.pmove.velocity	  = tc->ps.pmove.velocity;
-	ec->ps.pmove.pm_time	  = tc->ps.pmove.pm_time;
-	ec->ps.pmove.gravity	  = tc->ps.pmove.gravity;
-	ec->ps.pmove.viewheight	  = tc->ps.pmove.viewheight;
-	ec->ps.pmove.delta_angles = {}; // fully authoritative from target's v_angle
-
-	ec->ps.pmove.pm_type = targ->deadflag ? PM_DEAD : PM_FREEZE;
-
-	// No positional / angular prediction — origin is locked to target
-	ec->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
-
-	// Hide the spectator model
-	ent->s.modelindex  = 0;
-	ent->s.modelindex2 = 0;
-	ent->s.modelindex3 = 0;
-
-	ent->s.origin	  = tc->ps.pmove.origin;
-	ec->v_angle		  = tc->v_angle;
-	ent->viewheight	  = 0;
-
-	gi.linkentity(ent);
+	return !target || viewer->client->chase_target == target;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+static void Jump_ClearFollowPresentation(edict_t *ent)
+{
+	gclient_t *client = ent->client;
+
+	client->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
+	client->ps.kick_angles = {};
+	client->ps.gunangles = {};
+	client->ps.gunoffset = {};
+	client->ps.gunindex = 0;
+	client->ps.gunskin = 0;
+	client->ps.gunframe = 0;
+	client->ps.gunrate = 0;
+	client->ps.screen_blend = {};
+	client->ps.damage_blend = {};
+	client->ps.rdflags = RDF_NONE;
+	ent->s.effects = EF_NONE;
+	ent->s.renderfx &= ~RF_STAIR_STEP;
+	ent->s.renderfx |= RF_IR_VISIBLE;
+	ent->s.sound = 0;
+	ent->s.loop_attenuation = 0;
+	ent->s.loop_volume = 0;
+}
+
+static void Jump_RefreshFollowInstancing()
+{
+	for (uint32_t i = 1; i <= game.maxclients; i++)
+	{
+		edict_t *target = g_edicts + i;
+		if (!target->inuse || !target->client)
+			continue;
+
+		bool needed = false;
+		for (uint32_t j = 1; j <= game.maxclients; j++)
+		{
+			edict_t *viewer = g_edicts + j;
+			if (viewer->inuse && Jump_FirstPersonFollowing(viewer, target))
+			{
+				needed = true;
+				break;
+			}
+		}
+
+		if (needed)
+			target->svflags |= SVF_INSTANCED;
+		else
+			target->svflags &= ~SVF_INSTANCED;
+	}
+}
+
+void Jump_FreeFollower(edict_t *ent)
+{
+	if (!ent || !ent->client)
+		return;
+
+	ent->client->chase_target = nullptr;
+	Jump_ClearFollowPresentation(ent);
+	Jump_RefreshFollowInstancing();
+}
+
+void Jump_FreeClientFollowers(edict_t *target)
+{
+	if (!target)
+		return;
+
+	for (uint32_t i = 1; i <= game.maxclients; i++)
+	{
+		edict_t *viewer = g_edicts + i;
+		if (viewer->inuse && viewer->client && viewer->client->chase_target == target)
+			Jump_FreeFollower(viewer);
+	}
+}
 
 void Jump_EyecamOn(edict_t *ent)
 {
@@ -111,9 +107,9 @@ void Jump_EyecamOn(edict_t *ent)
 		return;
 
 	jc->eyecam = true;
-
 	if (!ent->client->chase_target)
 		GetChaseTarget(ent);
+	Jump_RefreshFollowInstancing();
 }
 
 void Jump_EyecamOff(edict_t *ent)
@@ -125,69 +121,165 @@ void Jump_EyecamOff(edict_t *ent)
 	if (jc)
 		jc->eyecam = false;
 
-	// Restore the standard orbit camera flags so vanilla UpdateChaseCam works
-	ent->client->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
+	Jump_ClearFollowPresentation(ent);
+	Jump_RefreshFollowInstancing();
+	if (ent->client->chase_target)
+		ent->client->update_chase = true;
 }
 
-// Toggle eyecam for ent.  Only meaningful while spectating.
 void Jump_CmdEyecam(edict_t *ent)
 {
 	if (!Jump_Active())
 		return;
 
 	jump_client_t *jc = Jump_ClientData(ent);
-	if (!jc)
-		return;
-
-	if (jc->team != jump_team_t::spectator)
+	if (!jc || jc->team != jump_team_t::spectator)
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "eyecam is only available to spectators.\n");
 		return;
 	}
 
 	if (jc->eyecam)
-	{
 		Jump_EyecamOff(ent);
-		gi.Client_Print(ent, PRINT_HIGH, "Eyecam off (third-person)\n");
-	}
 	else
-	{
 		Jump_EyecamOn(ent);
-		gi.Client_Print(ent, PRINT_HIGH, "Eyecam on (first-person)\n");
-	}
+
+	gi.Client_Print(ent, PRINT_HIGH, G_Fmt("Follow view: {}\n", jc->eyecam ? "first-person" : "third-person").data());
+	gi.local_sound(ent, CHAN_AUTO, gi.soundindex("misc/menu3.wav"), 1, ATTN_NONE, 0);
 }
 
-// Called from Jump_ClientThink to handle spectator key actions.
-// invnext / invprev cycle targets; +attack toggles chase on/off.
-void Jump_SpectatorThink(edict_t *ent, usercmd_t *ucmd)
+// Handles the same spectator controls as MuffMode:
+// use toggles view, crouch goes back, attack toggles follow, jump goes forward.
+bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd)
 {
-	(void) ucmd;
-
 	jump_client_t *jc = Jump_ClientData(ent);
-	if (!jc || jc->team != jump_team_t::spectator)
-		return;
+	if (!Jump_Active() || !jc || jc->team != jump_team_t::spectator)
+		return false;
 
-	// invnext / invprev are already handled by vanilla g_cmds.cpp → ChaseNext /
-	// ChasePrev when chase_target is set, so we only need to handle the case
-	// where there is no target yet (first keypress).
-	if (!ent->client->chase_target && ent->client->update_chase)
+	gclient_t *client = ent->client;
+
+	if (!client->menu && client->chase_target && (client->latched_buttons & BUTTON_USE))
 	{
-		GetChaseTarget(ent);
-		ent->client->update_chase = false;
+		client->latched_buttons &= ~BUTTON_USE;
+		Jump_CmdEyecam(ent);
 	}
+
+	if (!client->menu && client->chase_target && (client->latched_buttons & BUTTON_CROUCH))
+	{
+		client->latched_buttons &= ~BUTTON_CROUCH;
+		ChasePrev(ent);
+		Jump_RefreshFollowInstancing();
+	}
+
+	if (!client->menu && (client->latched_buttons & BUTTON_ATTACK))
+	{
+		client->latched_buttons = BUTTON_NONE;
+		if (client->chase_target)
+			Jump_FreeFollower(ent);
+		else
+			GetChaseTarget(ent);
+		Jump_RefreshFollowInstancing();
+	}
+
+	if (!client->menu)
+	{
+		if (ucmd->buttons & BUTTON_JUMP)
+		{
+			if (!(client->ps.pmove.pm_flags & PMF_JUMP_HELD))
+			{
+				client->ps.pmove.pm_flags |= PMF_JUMP_HELD;
+				if (client->chase_target)
+					ChaseNext(ent);
+				else
+					GetChaseTarget(ent);
+				Jump_RefreshFollowInstancing();
+			}
+		}
+		else
+			client->ps.pmove.pm_flags &= ~PMF_JUMP_HELD;
+	}
+
+	return true;
 }
 
-// Per-frame camera update called from Jump_ClientThink.
-void Jump_UpdateChase(edict_t *ent)
+// Called from the stock UpdateChaseCam after it validates/cycles the target.
+// Returning true means first-person output replaced the vanilla orbit camera.
+bool Jump_UpdateEyecam(edict_t *ent)
 {
-	jump_client_t *jc = Jump_ClientData(ent);
-	if (!jc || jc->team != jump_team_t::spectator)
+	if (!Jump_Active() || !Jump_FirstPersonFollowing(ent))
+		return false;
+
+	edict_t *target = ent->client->chase_target;
+	if (!Jump_IsFollowable(target))
+		return false;
+
+	gclient_t *viewer = ent->client;
+	gclient_t *followed = target->client;
+
+	target->svflags |= SVF_INSTANCED;
+
+	viewer->ps.viewangles = followed->ps.viewangles;
+	viewer->ps.viewoffset = followed->ps.viewoffset;
+	viewer->ps.kick_angles = followed->ps.kick_angles;
+	viewer->ps.gunangles = followed->ps.gunangles;
+	viewer->ps.gunoffset = followed->ps.gunoffset;
+	viewer->ps.gunindex = followed->ps.gunindex;
+	viewer->ps.gunskin = followed->ps.gunskin;
+	viewer->ps.gunframe = followed->ps.gunframe;
+	viewer->ps.gunrate = followed->ps.gunrate;
+	viewer->ps.screen_blend = followed->ps.screen_blend;
+	viewer->ps.damage_blend = followed->ps.damage_blend;
+	// The older rerelease base clamps a missing userinfo "fov" to 1, while
+	// MuffMode's newer base supplies a real default. Copying 1 produces an
+	// extreme telescope view, so treat that sentinel as the normal 90 degrees.
+	viewer->ps.fov = followed->ps.fov > 1.f ? followed->ps.fov : 90.f;
+	viewer->ps.rdflags = followed->ps.rdflags;
+	viewer->ps.pmove.origin = followed->ps.pmove.origin;
+	viewer->ps.pmove.velocity = followed->ps.pmove.velocity;
+	viewer->ps.pmove.pm_time = followed->ps.pmove.pm_time;
+	viewer->ps.pmove.gravity = followed->ps.pmove.gravity;
+	viewer->ps.pmove.delta_angles = {};
+	viewer->ps.pmove.viewheight = followed->ps.pmove.viewheight;
+	viewer->ps.pmove.pm_type = target->deadflag ? PM_DEAD : PM_FREEZE;
+	viewer->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
+	viewer->pers.hand = followed->pers.hand;
+
+	ent->s.origin = followed->ps.pmove.origin;
+	ent->s.modelindex = 0;
+	ent->s.modelindex2 = 0;
+	ent->s.modelindex3 = 0;
+	ent->client->v_angle = target->client->v_angle;
+	AngleVectors(ent->client->v_angle, ent->client->v_forward, nullptr, nullptr);
+	ent->viewheight = 0;
+
+	Jump_RefreshFollowInstancing();
+	gi.linkentity(ent);
+	return true;
+}
+
+void Jump_SyncFollowPresentation(edict_t *ent)
+{
+	if (!Jump_FirstPersonFollowing(ent))
 		return;
 
-	if (!ent->client->chase_target)
+	edict_t *target = ent->client->chase_target;
+	if (!Jump_IsFollowable(target))
 		return;
 
-	if (jc->eyecam)
-		Jump_UpdateEyecam(ent);
-	// else: vanilla UpdateChaseCam is called by the upstream loop in ClientThink
+	ent->client->ps.screen_blend = target->client->ps.screen_blend;
+	ent->client->ps.damage_blend = target->client->ps.damage_blend;
+	ent->s.effects = target->s.effects;
+	ent->s.renderfx = target->s.renderfx;
+	ent->s.sound = target->s.sound;
+	ent->s.loop_attenuation = target->s.loop_attenuation;
+	ent->s.loop_volume = target->s.loop_volume;
+}
+
+bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible)
+{
+	if (!Jump_Active() || !ent || !ent->client)
+		return false;
+
+	visible = !Jump_FirstPersonFollowing(viewer, ent);
+	return true;
 }

@@ -33,6 +33,13 @@ void Jump_ClientSpawn(edict_t *ent);				  // PutClientInServer
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd); // ClientThink, before pmove
 void Jump_ClientDisconnect(edict_t *ent);			  // ClientDisconnect
 
+// Spectator follow hooks. The controls hook replaces stock spectator input;
+// the eyecam hook replaces the stock orbit camera when first-person is on.
+bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd);
+bool Jump_UpdateEyecam(edict_t *ent);
+void Jump_SyncFollowPresentation(edict_t *ent);
+bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible);
+
 // Returns true when the command was handled and upstream should stop.
 bool Jump_ClientCommand(edict_t *ent);
 

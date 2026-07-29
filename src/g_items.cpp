@@ -899,6 +899,10 @@ void Drop_PowerArmor(edict_t *ent, gitem_t *item)
 
 bool Entity_IsVisibleToPlayer(edict_t* ent, edict_t* player)
 {
+	bool visible;
+	if (Jump_EntityVisibility(ent, player, visible))
+		return visible;
+
 	return !ent->item_picked_up_by[player->s.number - 1];
 }
 

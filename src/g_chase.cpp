@@ -26,6 +26,10 @@ void UpdateChaseCam(edict_t *ent)
 
 	targ = ent->client->chase_target;
 
+	// [Jump] first-person follow replaces the stock orbit camera.
+	if (Jump_UpdateEyecam(ent))
+		return;
+
 	ownerv = targ->s.origin;
 	oldgoal = ent->s.origin;
 

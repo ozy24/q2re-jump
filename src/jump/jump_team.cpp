@@ -71,6 +71,8 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 
 	// Switching teams always abandons the run in progress, and the stores go
 	// with it: a ranked run must not inherit shortcuts stored in practice.
+	Jump_FreeFollower(ent);
+	Jump_FreeClientFollowers(ent);
 	Jump_ResetRun(*jc);
 	jc->stores.Clear();
 	Jump_FreeStoreMarker(*jc);

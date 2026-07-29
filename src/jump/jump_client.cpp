@@ -55,10 +55,6 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 
 	Jump_TrackInput(ent, ucmd);
 
-	// Spectator eyecam update runs first so the camera is ready this frame.
-	Jump_SpectatorThink(ent, ucmd);
-	Jump_UpdateChase(ent);
-
 	jump_client_t *jc = Jump_ClientData(ent);
 
 	if (!jc || jc->state != jump_run_state_t::idle)
@@ -86,12 +82,14 @@ void Jump_ClientDisconnect(edict_t *ent)
 	if (!jc)
 		return;
 
+	Jump_FreeClientFollowers(ent);
 	Jump_FreeStoreMarker(*jc);
 	Jump_ResetRun(*jc);
 	jc->stores.Clear();
 	jc->last_time_ms = 0;
 
 	Jump_VoteClientDisconnect(ent);
+	*jc = jump_client_t {};
 }
 
 bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &damage)

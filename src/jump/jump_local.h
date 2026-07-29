@@ -46,7 +46,7 @@ struct jump_client_t
 
 	// --- session: survives map changes, re-keyed on connect ---
 	jump_team_t team    = jump_team_t::ranked;
-	bool        eyecam  = false; // first-person spectator follow
+	bool        eyecam  = true; // MuffMode default: first-person spectator follow
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 };
 
@@ -184,8 +184,8 @@ bool		Jump_HasVoted(edict_t *ent);
 void Jump_EyecamOn(edict_t *ent);
 void Jump_EyecamOff(edict_t *ent);
 void Jump_CmdEyecam(edict_t *ent);
-void Jump_SpectatorThink(edict_t *ent, usercmd_t *ucmd);
-void Jump_UpdateChase(edict_t *ent);
+void Jump_FreeFollower(edict_t *ent);
+void Jump_FreeClientFollowers(edict_t *target);
 
 // jump_menu.cpp
 void Jump_OpenMainMenu(edict_t *ent);
