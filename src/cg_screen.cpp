@@ -1780,5 +1780,7 @@ void CG_InitScreen()
     ui_acc_contrast = cgi.cvar ("ui_acc_contrast", "0",   CVAR_NOFLAGS);
     ui_acc_alttypeface = cgi.cvar("ui_acc_alttypeface", "0", CVAR_NOFLAGS);
 
+    Jump_InitClientCvars(); // [Jump] client-side overlay toggle
+
     hud_data = {};
 }

@@ -6,4 +6,7 @@
 
 #pragma once
 
+// Registers the client-side cvars. Called once from CG_InitScreen.
+void Jump_InitClientCvars();
+
 void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale);

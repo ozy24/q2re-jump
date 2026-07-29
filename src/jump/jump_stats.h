@@ -18,8 +18,19 @@ constexpr player_stat_t JUMP_STAT_PB_SEC = STAT_CTF_JOINED_TEAM1_PIC;		// 23: pe
 constexpr player_stat_t JUMP_STAT_PB_MS = STAT_CTF_JOINED_TEAM2_PIC;		// 24: personal best, hundredths
 constexpr player_stat_t JUMP_STAT_CHECKPOINTS = STAT_CTF_TEAM1_HEADER;		// 25: checkpoints taken
 constexpr player_stat_t JUMP_STAT_CHECKPOINT_TOTAL = STAT_CTF_TEAM2_HEADER; // 26: checkpoints required
-constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TECH;					// 27: 1 while jump mode owns the level
-// 28-31 reserved (replay rank, vote countdown).
+
+// 27 (STAT_CTF_TECH) is deliberately left alone. The stock statusbar draws a
+// pic from it in EVERY deathmatch game rather than only under teamplay
+// (g_spawn.cpp, in the block after the teamplay branch), so any value we put
+// there would render as an arbitrary image the moment the stock script ran.
+
+// Team is published as two booleans rather than one enum so the statusbar can
+// select the label with plain ifstat blocks, which is all a stock client's
+// layout interpreter can do.
+constexpr player_stat_t JUMP_STAT_TEAM_EASY = STAT_CTF_ID_VIEW;	 // 28: 1 while on Easy
+constexpr player_stat_t JUMP_STAT_TEAM_HARD = STAT_CTF_MATCH;	 // 29: 1 while on Hard
+constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO;	 // 31: 1 while jump mode owns the level
+// 30 spare.
 
 // Mirrors jump_team_t / jump_run_state_t, which the cgame can't see.
 constexpr int16_t JUMP_TEAM_SPECTATOR = 0;

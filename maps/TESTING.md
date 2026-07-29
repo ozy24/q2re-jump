@@ -80,7 +80,17 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
 - [ ] `votemap`, `timeextend`, `yes`/`no` behave (a solo host passes their own
       vote immediately, which is intended).
 - [ ] `g_jump 0` then `map q2dm1` behaves like stock deathmatch: weapons are
-      picked up normally, damage works, no jump HUD.
+      picked up normally, damage works, no jump HUD — and specifically **no
+      stray icon bottom right**, which is what a stat-slot clash would look
+      like.
+
+### Stock-client view
+
+- [ ] The statusbar shows timer, checkpoints, stores, team and PB. All of this
+      is server-drawn, so a vanilla player sees it too.
+- [ ] `jump_hud 0` — only the coloured PB delta after a finish disappears.
+      Everything else is unchanged. That is exactly what a stock client sees.
+- [ ] `jump_hud 1` restores it, and the setting survives a restart.
 
 ## Things I could not test
 

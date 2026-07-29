@@ -33,6 +33,8 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_PB_MS] = (int16_t) ((jc->pb_time_ms % 1000) / 10);
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
+	ent->client->ps.stats[JUMP_STAT_TEAM_EASY] = jc->team == jump_team_t::easy;
+	ent->client->ps.stats[JUMP_STAT_TEAM_HARD] = jc->team == jump_team_t::hard;
 }
 
 bool Jump_InitStatusbar()
@@ -56,6 +58,23 @@ bool Jump_InitStatusbar()
 		.num(2, JUMP_STAT_CHECKPOINTS)
 		.xr(-16)
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
+		.endifstat();
+
+	// Team. Written as literal text in two branches because a layout script
+	// can test a stat but can't select a string from a value.
+	sb.ifstat(JUMP_STAT_TEAM_EASY).yt(72).xr(-56).string2("EASY").endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_HARD).yt(72).xr(-56).string2("HARD").endifstat();
+
+	// Personal best on this map, hidden until the player has one.
+	sb.ifstat(JUMP_STAT_PB_SEC)
+		.yt(88)
+		.xr(-96)
+		.string2("PB")
+		.yt(84)
+		.xr(-48)
+		.num(3, JUMP_STAT_PB_SEC)
+		.xr(-8)
+		.num(2, JUMP_STAT_PB_MS)
 		.endifstat();
 
 	// Stores held, bottom left.

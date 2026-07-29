@@ -65,6 +65,29 @@ armour, health, powerups — is inert.
 Combat damage does nothing. World hazards (lava, slime, hurt triggers, crushers)
 still kill, so maps keep their fail conditions.
 
+## Stock clients
+
+**A player running unmodified Quake II Remastered can join and play normally.** Nothing
+about the mod requires a modified client.
+
+Every gameplay decision — the timer, stores, teams, checkpoints, records, damage rules — is made
+on the server. The only things sent to clients are stock mechanisms: the `CS_STATUSBAR` layout
+script, `svc_layout` for the times board, `CS_PLAYERSKINS` for team colours, and ordinary print
+messages. There are no custom network messages and no new configstring ranges, and the statusbar
+uses only layout tokens the stock client already understands.
+
+Movement matters just as much. Prediction runs through `Pmove` in the client, and this port makes
+no pmove changes at all, so a stock client predicts identically to the server. That is the real
+payoff of building on rerelease physics rather than emulating the old engine.
+
+So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best — plus every
+message and the times board. The single thing they miss is the coloured delta against their
+personal best after a finish, which is drawn client-side.
+
+To see the stock view yourself, set `jump_hud 0`. That disables the mod's one client-side drawing
+call, and since the modded client is otherwise the stock client, the result is exactly what a
+vanilla player sees. `jump_hud 1` brings it back.
+
 ## Map compatibility
 
 Nothing below has been confirmed in game yet — it describes what the code
@@ -127,6 +150,7 @@ Cosmetic leftovers (`jump_time`, `jump_score`, `jumpmod_effect`,
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
+| `jump_hud` | `1` | **Client-side**, unlike the others. `0` hides the mod's one client-drawn element, giving the exact stock-client view |
 
 ### Map rotation
 
