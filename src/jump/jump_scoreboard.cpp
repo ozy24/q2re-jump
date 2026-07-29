@@ -19,9 +19,14 @@ static bool Jump_AppendLayout(std::string &layout, const std::string &chunk)
 	return true;
 }
 
-// Map records first (# / player / time / date), then only the viewing player.
-// One quoted string per row keeps top-10 + empty "-" slots under the layout cap.
-constexpr int JUMP_REC_NAME_LEN = 18;
+// Separate xv per column — the remaster layout font is not reliably monospace,
+// so space-padded single strings cannot keep columns aligned.
+constexpr int JUMP_REC_RANK = 16;
+constexpr int JUMP_REC_NAME = 40;
+constexpr int JUMP_REC_TIME = 200;
+constexpr int JUMP_REC_DATE = 264;
+constexpr int JUMP_REC_NAME_LEN = 16;
+
 constexpr int JUMP_MAX_RECORD_ROWS = 10;
 
 bool Jump_ScoreboardMessage(edict_t *ent)
@@ -36,12 +41,15 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	if (!records.times.empty())
 		layout = G_Fmt("xv 0 yv 0 cstring2 \"{} - record {} by {}\" ", jump_level.mapname,
 					   jump::FormatTime(records.times.front().time_ms).c_str(),
-					   jump::SanitizeLayoutText(records.times.front().name, 16).c_str())
+					   jump::SanitizeLayoutText(records.times.front().name, 14).c_str())
 					 .data();
 	else
 		layout = G_Fmt("xv 0 yv 0 cstring2 \"{} - no times yet\" ", jump_level.mapname).data();
 
-	if (!Jump_AppendLayout(layout, "yv 16 xv 8 string2 \"#  player             time     date\" "))
+	if (!Jump_AppendLayout(layout,
+						   G_Fmt("yv 16 xv {} string2 # xv {} string2 player xv {} string2 time xv {} string2 date ",
+								 JUMP_REC_RANK, JUMP_REC_NAME, JUMP_REC_TIME, JUMP_REC_DATE)
+							   .data()))
 	{
 		gi.WriteByte(svc_layout);
 		gi.WriteString(layout.c_str());
@@ -49,7 +57,9 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	}
 
 	int y = 26;
+	int rows = 0;
 
+	// Filled records first, then "-" padding — drop whichever no longer fits.
 	for (int i = 0; i < JUMP_MAX_RECORD_ROWS; i++)
 	{
 		std::string row;
@@ -59,36 +69,39 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 			const jump::record_t &rec = records.times[i];
 			const std::string	  date = rec.date.size() >= 10 ? rec.date.substr(0, 10) : rec.date;
 
-			row = G_Fmt("yv {} xv 8 string \"{:>2}  {:<18.18}  {:>7}  {}\" ", y, i + 1,
-						jump::SanitizeLayoutText(rec.name, JUMP_REC_NAME_LEN).c_str(),
-						jump::FormatTime(rec.time_ms).c_str(), date.c_str())
+			// Rank/time/date stay unquoted (no spaces); names must be quoted.
+			row = G_Fmt("yv {} xv {} string {} xv {} string \"{}\" xv {} string {} xv {} string {} ", y,
+						JUMP_REC_RANK, i + 1, JUMP_REC_NAME,
+						jump::SanitizeLayoutText(rec.name, JUMP_REC_NAME_LEN).c_str(), JUMP_REC_TIME,
+						jump::FormatTime(rec.time_ms).c_str(), JUMP_REC_DATE, date.c_str())
 					  .data();
 		}
 		else
 		{
-			row = G_Fmt("yv {} xv 8 string \"{:>2}  {:<18}  {:>7}  {}\" ", y, i + 1, "-", "-", "-").data();
+			row = G_Fmt("yv {} xv {} string {} xv {} string - xv {} string - xv {} string - ", y, JUMP_REC_RANK,
+						i + 1, JUMP_REC_NAME, JUMP_REC_TIME, JUMP_REC_DATE)
+					  .data();
 		}
 
 		if (!Jump_AppendLayout(layout, row))
 			break;
 
 		y += 10;
+		rows++;
 	}
 
-	// Viewer only — not the full connected-player list (layout budget).
 	const std::string self_id = Jump_PlayerId(ent);
 	const int64_t	  best = records.TimeOf(self_id);
 	const int		  place = records.RankOf(self_id);
 
-	y += 8;
+	y += 12;
 	Jump_AppendLayout(
 		layout,
-		G_Fmt("yv {} xv 8 string2 \"you: {:<16.16}  best {}  place {}\" ", y,
-			  jump::SanitizeLayoutText(Jump_DisplayName(ent), 16).c_str(),
+		G_Fmt("yv {} xv {} string2 \"you: {}  best {}  place {}\" ", y, JUMP_REC_RANK,
+			  jump::SanitizeLayoutText(Jump_DisplayName(ent), 14).c_str(),
 			  best ? jump::FormatTime(best).c_str() : "-", place ? std::to_string(place).c_str() : "-")
 			.data());
 
-	// Stock puts map time remaining on the scoreboard layout, not CS_STATUSBAR.
 	if (timelimit && timelimit->value && !level.intermissiontime)
 	{
 		const int32_t end_frame =
@@ -96,6 +109,8 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 					   ((gtime_t::from_min(timelimit->value) - level.time)).milliseconds() / gi.frame_time_ms);
 		Jump_AppendLayout(layout, G_Fmt("xv 340 yv -10 time_limit {} ", end_frame).data());
 	}
+
+	(void) rows;
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(layout.c_str());
