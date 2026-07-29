@@ -244,7 +244,7 @@ class MapBuilder:
 def jumptest1():
     """Baseline: linear platforms over lava, one checkpoint, weapon finish."""
     m = MapBuilder("jumptest1", "Jump Test 1 - the basics",
-                   mset="gravity 800 checkpoint_total 1")
+                   mset="checkpoint_total 1")
     m.room((0, -384, 0), (2560, 384, 640))
     m.lava((0, -384, 0), (2560, 384, 0))
 
@@ -275,7 +275,7 @@ def jumptest2():
     lap is skippable.
     """
     m = MapBuilder("jumptest2", "Jump Test 2 - green descent",
-                   mset="gravity 800 checkpoint_total 3",
+                   mset="checkpoint_total 3",
                    sky="unit9_",              # stock baseq2 sky, as used by q2dm5
                    _sunlight="180", _sunlight_mangle="30 -60 0",
                    _sunlight_color="255 250 220")
@@ -355,8 +355,7 @@ def jumptest2():
 
 def jumptest3():
     """Precision: small pads, no margin for error. Tests store and recall."""
-    m = MapBuilder("jumptest3", "Jump Test 3 - precision pads",
-                   mset="gravity 800")
+    m = MapBuilder("jumptest3", "Jump Test 3 - precision pads")
     m.room((0, -256, 0), (2304, 256, 512))
     m.lava((0, -256, 0), (2304, 256, 0))
 
@@ -382,7 +381,7 @@ def jumptest4():
     """Checkpoints: five to collect, and a barrier that will not open without
     them. Tests checkpoint counting and jump_cpwall."""
     m = MapBuilder("jumptest4", "Jump Test 4 - checkpoint gauntlet",
-                   mset="gravity 800 checkpoint_total 5")
+                   mset="checkpoint_total 5")
     m.room((0, -384, 0), (2816, 384, 640))
     m.lava((0, -384, 0), (2816, 384, 0))
 
@@ -412,7 +411,7 @@ def jumptest5():
     """Teleports: four chambers chained together, with the teleport freeze
     disabled. Tests the fasttele mset."""
     m = MapBuilder("jumptest5", "Jump Test 5 - teleport chain",
-                   mset="gravity 800 fasttele 1")
+                   mset="fasttele 1")
     m.room((0, -320, 0), (2560, 320, 512))
     m.lava((0, -320, 0), (2560, 320, 0))
 
@@ -441,8 +440,7 @@ def jumptest5():
 def jumptest6():
     """Water and ladders: swim, climb, then jump. Tests movement modes the
     other maps never touch."""
-    m = MapBuilder("jumptest6", "Jump Test 6 - water and ladders",
-                   mset="gravity 800")
+    m = MapBuilder("jumptest6", "Jump Test 6 - water and ladders")
     m.room((0, -320, 0), (2048, 320, 768))
 
     m.platform(64, -160, 320, 160, 192)
@@ -468,7 +466,7 @@ def jumptest7():
     """Rocket jump: the only way up is to blast yourself. Tests the rocket
     mset, trigger_weapon, and that knockback survives damage being zeroed."""
     m = MapBuilder("jumptest7", "Jump Test 7 - rocket jump",
-                   mset="gravity 800 rocket 1")
+                   mset="rocket 1")
     m.room((0, -320, 0), (1536, 320, 1024))
     m.lava((0, -320, 0), (1536, 320, 0))
 
@@ -493,7 +491,7 @@ def jumptest8():
     """Legacy entities: a brush finish, a one-way wall and an invisible clip.
     Tests the classic jump-map entities, none of which the other maps use."""
     m = MapBuilder("jumptest8", "Jump Test 8 - legacy entities",
-                   mset="gravity 800 checkpoint_total 1")
+                   mset="checkpoint_total 1")
     m.room((0, -384, 0), (2304, 384, 640))
     m.lava((0, -384, 0), (2304, 384, 0))
 
