@@ -117,4 +117,14 @@ struct map_records_t
 // Returns "_" for input that reduces to nothing.
 std::string SafeName(const std::string &name);
 
+// Make untrusted text safe to embed in a quoted layout-string token.
+//
+// This is a crash guard, not cosmetics: the client parses the layout it is
+// sent, and a stray quote or backslash produces a malformed token stream that
+// makes its parser raise a fatal error. Quotes, backslashes, control
+// characters and high bytes all become spaces, runs of space collapse, and the
+// result is trimmed and truncated. Empty input yields "?" so a row never
+// collapses into an empty token.
+std::string SanitizeLayoutText(const std::string &text, size_t max_len = 20);
+
 } // namespace jump

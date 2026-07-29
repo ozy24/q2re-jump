@@ -131,6 +131,46 @@ int map_records_t::PointsOf(const std::string &id) const
 	return PointsForRank(RankOf(id));
 }
 
+std::string SanitizeLayoutText(const std::string &text, size_t max_len)
+{
+	std::string out;
+	out.reserve(text.size());
+
+	bool pending_space = false;
+
+	for (unsigned char c : text)
+	{
+		// Quote and backslash would terminate or escape the token; control and
+		// high bytes render as junk in the layout font.
+		const bool safe = c >= 0x20 && c < 0x7f && c != '"' && c != '\\';
+
+		if (!safe || c == ' ')
+		{
+			pending_space = !out.empty();
+			continue;
+		}
+
+		if (pending_space)
+		{
+			if (out.size() + 1 >= max_len)
+				break;
+
+			out.push_back(' ');
+			pending_space = false;
+		}
+
+		if (out.size() >= max_len)
+			break;
+
+		out.push_back((char) c);
+	}
+
+	if (out.empty())
+		return "?";
+
+	return out;
+}
+
 std::string SafeName(const std::string &name)
 {
 	std::string out;

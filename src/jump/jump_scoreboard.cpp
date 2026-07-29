@@ -6,18 +6,29 @@
 
 #include <string>
 
-constexpr size_t JUMP_LAYOUT_LIMIT = MAX_STRING_CHARS - 128;
+// The layout string is capped at MAX_STRING_CHARS. Truncating it mid-token is
+// not merely ugly: the client's parser raises a fatal error on a malformed
+// token stream, so rows are dropped rather than risking that. The reserve
+// keeps room for the footer that always has to fit.
+constexpr size_t JUMP_LAYOUT_FOOTER_RESERVE = 160;
 
-// The layout string has a hard size limit; stop adding rows before we reach it
-// rather than letting the engine truncate mid-token.
 static bool Jump_AppendRow(std::string &layout, const std::string &row)
 {
-	if (layout.size() + row.size() >= JUMP_LAYOUT_LIMIT)
+	if (layout.size() + row.size() + JUMP_LAYOUT_FOOTER_RESERVE >= MAX_STRING_CHARS)
 		return false;
 
 	layout += row;
 	return true;
 }
+
+// Rows are name / team / personal best / rank on this map.
+constexpr int JUMP_COL_NAME = 16;
+constexpr int JUMP_COL_TEAM = 116;
+constexpr int JUMP_COL_TIME = 196;
+constexpr int JUMP_COL_RANK = 262;
+
+constexpr int JUMP_MAX_PLAYER_ROWS = 10;
+constexpr int JUMP_MAX_RECORD_ROWS = 5;
 
 bool Jump_ScoreboardMessage(edict_t *ent)
 {
@@ -27,67 +38,115 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	const jump::map_records_t &records = Jump_Records();
 	const std::string		   self_id = Jump_PlayerId(ent);
 
-	const int max_rows = jump_records_max ? jump_records_max->integer : jump::MAX_HIGHSCORES;
-
 	std::string layout;
 
-	// The client font is proportional by default (scr_usekfont), so columns
-	// cannot be made to line up by padding with spaces - each cell needs its
-	// own cursor. These are xv offsets in the 320-wide virtual layout space.
-	constexpr int col_rank = 16;
-	constexpr int col_name = 76;
-	constexpr int col_time = 186;
-	constexpr int col_date = 240;
+	// Header: the map and whoever holds it.
+	if (!records.times.empty())
+		layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - record {} by {}\" ", jump_level.mapname,
+						jump::FormatTime(records.times.front().time_ms).c_str(),
+						jump::SanitizeLayoutText(records.times.front().name, 18).c_str())
+					  .data();
+	else
+		layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - no times yet\" ", jump_level.mapname).data();
 
-	layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - best times\" ", jump_level.mapname).data();
-
-	layout += G_Fmt("yv 16 xv {} string2 rank xv {} string2 name xv {} string2 time xv {} string2 date ", col_rank,
-					col_name, col_time, col_date)
+	layout += G_Fmt("yv 20 xv {} string2 player xv {} string2 team xv {} string2 best xv {} string2 rank ",
+					JUMP_COL_NAME, JUMP_COL_TEAM, JUMP_COL_TIME, JUMP_COL_RANK)
 				  .data();
 
 	int y = 32;
-	int shown = 0;
+	int rows = 0;
+	int hidden = 0;
 
-	for (size_t i = 0; i < records.times.size() && shown < max_rows; i++, shown++)
+	for (auto player : active_players())
+	{
+		if (!player->client->pers.connected)
+			continue;
+
+		if (rows >= JUMP_MAX_PLAYER_ROWS)
+		{
+			hidden++;
+			continue;
+		}
+
+		jump_client_t *jc = Jump_ClientData(player);
+
+		if (!jc)
+			continue;
+
+		const std::string id = Jump_PlayerId(player);
+		const int64_t	  best = records.TimeOf(id);
+		const int		  place = records.RankOf(id);
+
+		// Highlight the viewer's own row.
+		const char *tok = (player == ent) ? "string2" : "string";
+
+		// Names are player-controlled, so they are sanitised before being
+		// embedded in a quoted token.
+		const std::string row =
+			G_Fmt("yv {} xv {} {} \"{}\" xv {} {} \"{}\" xv {} {} \"{}\" xv {} {} \"{}\" ", y, JUMP_COL_NAME, tok,
+				  jump::SanitizeLayoutText(Jump_DisplayName(player), 16).c_str(), JUMP_COL_TEAM, tok,
+				  Jump_TeamName(jc->team), JUMP_COL_TIME, tok, best ? jump::FormatTime(best).c_str() : "-",
+				  JUMP_COL_RANK, tok, place ? std::to_string(place).c_str() : "-")
+				.data();
+
+		if (!Jump_AppendRow(layout, row))
+		{
+			hidden++;
+			break;
+		}
+
+		y += 10;
+		rows++;
+	}
+
+	if (hidden > 0)
+		layout += G_Fmt("xv {} yv {} string \"...and {} more\" ", JUMP_COL_NAME, y, hidden).data();
+
+	// Top of the records table, for the times of players who aren't here.
+	y += 18;
+
+	int record_rows = 0;
+
+	for (size_t i = 0; i < records.times.size() && record_rows < JUMP_MAX_RECORD_ROWS; i++)
 	{
 		const jump::record_t &rec = records.times[i];
 
-		// Highlight the viewer's own row.
-		const char *tok = (rec.id == self_id) ? "string2" : "string";
-
-		// Names can contain spaces, so every cell is quoted.
-		const std::string row = G_Fmt("yv {} xv {} {} \"{}\" xv {} {} \"{:.18}\" xv {} {} \"{}\" xv {} {} \"{:.10}\" ",
-									  y, col_rank, tok, (int) i + 1, col_name, tok, rec.name.c_str(), col_time, tok,
-									  jump::FormatTime(rec.time_ms).c_str(), col_date, tok, rec.date.c_str())
+		const std::string row = G_Fmt("yv {} xv {} string \"{}\" xv {} string \"{}\" xv {} string \"{}\" ", y,
+									  JUMP_COL_NAME, (int) i + 1, JUMP_COL_TEAM,
+									  jump::SanitizeLayoutText(rec.name, 16).c_str(), JUMP_COL_TIME,
+									  jump::FormatTime(rec.time_ms).c_str())
 									.data();
+
+		if (record_rows == 0)
+		{
+			const std::string head =
+				G_Fmt("yv {} xv {} string2 \"map records\" ", y - 12, JUMP_COL_NAME).data();
+
+			if (!Jump_AppendRow(layout, head))
+				break;
+		}
 
 		if (!Jump_AppendRow(layout, row))
 			break;
 
 		y += 10;
+		record_rows++;
 	}
 
-	if (records.times.empty())
-		layout += G_Fmt("xv {} yv {} string \"no times recorded yet\" ", col_rank, y).data();
-
-	// The viewer's own standing, always visible even if they're off the board.
+	// The viewer's own standing. Spell out what the points mean - "25 points"
+	// on its own says nothing until you know they come from where you placed.
 	const int rank = records.RankOf(self_id);
 
 	Jump_Log("scoreboard: self id=%s rank=%d of %d record(s)", self_id.c_str(), rank, (int) records.times.size());
 
-	y += 14;
+	y += 16;
 
-	// Spell out what the points are - "25 points" on its own means nothing
-	// until you know they come from where you place.
 	if (rank > 0)
-		layout += G_Fmt("xv {} yv {} string2 \"you are {} of {} here, worth {} points\" ", col_rank, y, rank,
+		layout += G_Fmt("xv {} yv {} string2 \"you are {} of {} here, worth {} points\" ", JUMP_COL_NAME, y, rank,
 						(int) records.times.size(), jump::PointsForRank(rank))
 					  .data();
 	else
-		layout += G_Fmt("xv {} yv {} string \"you have no time on this map yet\" ", col_rank, y).data();
-
-	y += 12;
-	layout += G_Fmt("xv {} yv {} string \"points by place: 25 20 16 13 11 10 9 8 7 6 5 4 3 2 1\" ", col_rank, y).data();
+		layout += G_Fmt("xv {} yv {} string \"you have no time on this map yet\" ", JUMP_COL_NAME, y).data();
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(layout.c_str());

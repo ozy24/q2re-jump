@@ -141,6 +141,29 @@ static void TestSafeName()
 	CHECK_EQ(jump::SafeName("..."), "_");
 }
 
+static void TestSanitizeLayoutText()
+{
+	CHECK_EQ(jump::SanitizeLayoutText("chris"), "chris");
+	CHECK_EQ(jump::SanitizeLayoutText("two words"), "two words");
+
+	// The characters that would break the client's layout parser.
+	CHECK_EQ(jump::SanitizeLayoutText("say \"hi\""), "say hi");
+	CHECK_EQ(jump::SanitizeLayoutText("back\\slash"), "back slash");
+	// Split literals: "\x01c" would parse as the single byte 0x1c.
+	CHECK_EQ(jump::SanitizeLayoutText("nul\x01" "ctrl"), "nul ctrl");
+	CHECK_EQ(jump::SanitizeLayoutText("hi\x80there"), "hi there");
+
+	// Runs of whitespace collapse, and edges are trimmed.
+	CHECK_EQ(jump::SanitizeLayoutText("  lots   of   space  "), "lots of space");
+	CHECK_EQ(jump::SanitizeLayoutText("\"\"\""), "?");
+	CHECK_EQ(jump::SanitizeLayoutText(""), "?");
+
+	// Truncation never leaves a trailing space.
+	CHECK_EQ(jump::SanitizeLayoutText("abcdefghij", 5), "abcde");
+	CHECK_EQ(jump::SanitizeLayoutText("ab cdefghij", 5), "ab cd");
+	CHECK(jump::SanitizeLayoutText("a very long player name here", 10).size() <= 10);
+}
+
 static jump::record_t MakeRecord(const char *id, int64_t time_ms)
 {
 	jump::record_t r;
@@ -196,6 +219,7 @@ int main()
 	TestStoreRing();
 	TestPoints();
 	TestSafeName();
+	TestSanitizeLayoutText();
 	TestRecords();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);

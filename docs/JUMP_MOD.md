@@ -34,7 +34,7 @@ lobby, so everything below is a console command.
 | `reset` | Discard all saved positions |
 | `kill` | Go again: recalls on practice, restarts on ranked |
 | `team practice\|ranked\|spectator` | Change team (`easy`/`hard` still work as aliases) |
-| `maptimes` | Best times on this map |
+| `maptimes` | Full list of best times on this map |
 | `playertimes` | Your completions and points |
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
@@ -58,6 +58,13 @@ Upstream q2jump calls these Easy and Hard; those names still work as command
 aliases, but they read as map difficulty rather than what they actually are.
 
 Switching teams abandons the run in progress and clears your stores.
+
+### The scoreboard
+
+`Tab` shows who is connected, which team they are on, their best time on this
+map and their place — plus the top few map records underneath, so you can see
+what you are chasing even when the holder is offline. Your own row is
+highlighted. Use `maptimes` for the full records list.
 
 ### Finishing
 
