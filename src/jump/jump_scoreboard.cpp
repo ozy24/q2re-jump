@@ -21,11 +21,15 @@ static bool Jump_AppendRow(std::string &layout, const std::string &row)
 	return true;
 }
 
-// Rows are name / team / personal best / rank on this map.
+// Rows are name / best time here / place / current mode.
+//
+// Mode goes last on purpose. Next to "best" it reads as the mode the time was
+// set on, which it is not - a stored time is always from a ranked run, while
+// the mode column is whatever the player happens to be doing right now.
 constexpr int JUMP_COL_NAME = 16;
-constexpr int JUMP_COL_TEAM = 116;
-constexpr int JUMP_COL_TIME = 196;
-constexpr int JUMP_COL_RANK = 262;
+constexpr int JUMP_COL_TIME = 116;
+constexpr int JUMP_COL_RANK = 178;
+constexpr int JUMP_COL_MODE = 226;
 
 constexpr int JUMP_MAX_PLAYER_ROWS = 10;
 constexpr int JUMP_MAX_RECORD_ROWS = 5;
@@ -49,8 +53,8 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	else
 		layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - no times yet\" ", jump_level.mapname).data();
 
-	layout += G_Fmt("yv 20 xv {} string2 player xv {} string2 team xv {} string2 best xv {} string2 rank ",
-					JUMP_COL_NAME, JUMP_COL_TEAM, JUMP_COL_TIME, JUMP_COL_RANK)
+	layout += G_Fmt("yv 20 xv {} string2 player xv {} string2 best xv {} string2 place xv {} string2 mode ",
+					JUMP_COL_NAME, JUMP_COL_TIME, JUMP_COL_RANK, JUMP_COL_MODE)
 				  .data();
 
 	int y = 32;
@@ -84,9 +88,9 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 		// embedded in a quoted token.
 		const std::string row =
 			G_Fmt("yv {} xv {} {} \"{}\" xv {} {} \"{}\" xv {} {} \"{}\" xv {} {} \"{}\" ", y, JUMP_COL_NAME, tok,
-				  jump::SanitizeLayoutText(Jump_DisplayName(player), 16).c_str(), JUMP_COL_TEAM, tok,
-				  Jump_TeamName(jc->team), JUMP_COL_TIME, tok, best ? jump::FormatTime(best).c_str() : "-",
-				  JUMP_COL_RANK, tok, place ? std::to_string(place).c_str() : "-")
+				  jump::SanitizeLayoutText(Jump_DisplayName(player), 16).c_str(), JUMP_COL_TIME, tok,
+				  best ? jump::FormatTime(best).c_str() : "-", JUMP_COL_RANK, tok,
+				  place ? std::to_string(place).c_str() : "-", JUMP_COL_MODE, tok, Jump_TeamName(jc->team))
 				.data();
 
 		if (!Jump_AppendRow(layout, row))
@@ -112,7 +116,7 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 		const jump::record_t &rec = records.times[i];
 
 		const std::string row = G_Fmt("yv {} xv {} string \"{}\" xv {} string \"{}\" xv {} string \"{}\" ", y,
-									  JUMP_COL_NAME, (int) i + 1, JUMP_COL_TEAM,
+									  JUMP_COL_NAME, (int) i + 1, JUMP_COL_NAME + 40,
 									  jump::SanitizeLayoutText(rec.name, 16).c_str(), JUMP_COL_TIME,
 									  jump::FormatTime(rec.time_ms).c_str())
 									.data();
