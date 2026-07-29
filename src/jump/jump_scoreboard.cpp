@@ -27,7 +27,15 @@ constexpr int JUMP_REC_TIME = 200;
 constexpr int JUMP_REC_DATE = 264;
 constexpr int JUMP_REC_NAME_LEN = 16;
 
+constexpr int JUMP_YOU_NAME = 16;
+constexpr int JUMP_YOU_TIME = 176;
+constexpr int JUMP_YOU_RANK = 248;
+constexpr int JUMP_YOU_NAME_LEN = 16;
+
 constexpr int JUMP_MAX_RECORD_ROWS = 10;
+
+// Leave room for the viewer you/best/place block (+ optional time_limit).
+constexpr size_t JUMP_VIEWER_RESERVE = 160;
 
 bool Jump_ScoreboardMessage(edict_t *ent)
 {
@@ -57,9 +65,9 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	}
 
 	int y = 26;
-	int rows = 0;
 
-	// Filled records first, then "-" padding — drop whichever no longer fits.
+	// Filled records first, then "-" padding — stop early enough that the
+	// viewer block below still fits.
 	for (int i = 0; i < JUMP_MAX_RECORD_ROWS; i++)
 	{
 		std::string row;
@@ -83,23 +91,31 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 					  .data();
 		}
 
-		if (!Jump_AppendLayout(layout, row))
+		if (layout.size() + row.size() + JUMP_VIEWER_RESERVE >= JUMP_LAYOUT_MAX)
 			break;
 
+		layout += row;
 		y += 10;
-		rows++;
 	}
 
+	// Viewing player only — not every connected client (layout budget).
 	const std::string self_id = Jump_PlayerId(ent);
 	const int64_t	  best = records.TimeOf(self_id);
 	const int		  place = records.RankOf(self_id);
 
-	y += 12;
+	y += 14;
+
+	Jump_AppendLayout(layout, G_Fmt("yv {} xv {} string2 you xv {} string2 best xv {} string2 place ", y,
+									JUMP_YOU_NAME, JUMP_YOU_TIME, JUMP_YOU_RANK)
+								  .data());
+	y += 10;
+
 	Jump_AppendLayout(
 		layout,
-		G_Fmt("yv {} xv {} string2 \"you: {}  best {}  place {}\" ", y, JUMP_REC_RANK,
-			  jump::SanitizeLayoutText(Jump_DisplayName(ent), 14).c_str(),
-			  best ? jump::FormatTime(best).c_str() : "-", place ? std::to_string(place).c_str() : "-")
+		G_Fmt("yv {} xv {} string2 \"{}\" xv {} string2 {} xv {} string2 {} ", y, JUMP_YOU_NAME,
+			  jump::SanitizeLayoutText(Jump_DisplayName(ent), JUMP_YOU_NAME_LEN).c_str(), JUMP_YOU_TIME,
+			  best ? jump::FormatTime(best).c_str() : "-", JUMP_YOU_RANK,
+			  place ? std::to_string(place).c_str() : "-")
 			.data());
 
 	if (timelimit && timelimit->value && !level.intermissiontime)
@@ -109,8 +125,6 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 					   ((gtime_t::from_min(timelimit->value) - level.time)).milliseconds() / gi.frame_time_ms);
 		Jump_AppendLayout(layout, G_Fmt("xv 340 yv -10 time_limit {} ", end_frame).data());
 	}
-
-	(void) rows;
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(layout.c_str());
