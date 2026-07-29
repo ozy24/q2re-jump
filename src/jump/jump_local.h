@@ -37,7 +37,7 @@ struct jump_client_t
 {
 	// --- per map: cleared by Jump_ResetRun / Jump_InitLevel ---
 	jump_run_state_t	 state = jump_run_state_t::idle;
-	gtime_t				 run_start = 0_ms;
+	int64_t				 run_start_ms = 0; // Jump_NowMs() stamp; 0 when idle
 	int64_t				 last_time_ms = 0; // most recent completed run
 	int32_t				 checkpoints = 0;
 	jump::store_ring_t	 stores;
@@ -100,6 +100,9 @@ extern cvar_t *jump_map_pool;
 
 // Returns nullptr for entities that aren't connected clients.
 jump_client_t *Jump_ClientData(edict_t *ent);
+
+// Monotonic wall-clock milliseconds (matches Q2JumpRefresh Sys_Milliseconds).
+int64_t Jump_NowMs();
 
 // Elapsed run time in milliseconds; 0 unless the timer has started.
 int64_t Jump_RunTimeMs(const jump_client_t &jc);

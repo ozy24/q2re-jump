@@ -124,7 +124,7 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	if (slot->elapsed_ms > 0)
 	{
 		jc->state = jump_run_state_t::running;
-		jc->run_start = level.time - gtime_t::from_ms(slot->elapsed_ms);
+		jc->run_start_ms = Jump_NowMs() - slot->elapsed_ms;
 	}
 	else
 	{

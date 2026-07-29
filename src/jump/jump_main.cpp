@@ -3,6 +3,7 @@
 #include "../g_local.h"
 #include "jump_local.h"
 
+#include <chrono>
 #include <cstdarg>
 
 jump_client_t jump_clients[MAX_CLIENTS];
@@ -93,7 +94,7 @@ void Jump_InitLevel(const char *entities)
 	for (auto &jc : jump_clients)
 	{
 		jc.state = jump_run_state_t::idle;
-		jc.run_start = 0_ms;
+		jc.run_start_ms = 0;
 		jc.last_time_ms = 0;
 		jc.pb_time_ms = 0;
 		jc.checkpoints = 0;
@@ -144,6 +145,13 @@ jump_client_t *Jump_ClientData(edict_t *ent)
 	return &jump_clients[index];
 }
 
+int64_t Jump_NowMs()
+{
+	return std::chrono::duration_cast<std::chrono::milliseconds>(
+			   std::chrono::steady_clock::now().time_since_epoch())
+		.count();
+}
+
 int64_t Jump_RunTimeMs(const jump_client_t &jc)
 {
 	if (jc.state == jump_run_state_t::idle)
@@ -152,13 +160,13 @@ int64_t Jump_RunTimeMs(const jump_client_t &jc)
 	if (jc.state == jump_run_state_t::finished)
 		return jc.last_time_ms;
 
-	return (level.time - jc.run_start).milliseconds();
+	return Jump_NowMs() - jc.run_start_ms;
 }
 
 void Jump_ResetRun(jump_client_t &jc)
 {
 	jc.state = jump_run_state_t::idle;
-	jc.run_start = 0_ms;
+	jc.run_start_ms = 0;
 	jc.checkpoints = 0;
 }
 

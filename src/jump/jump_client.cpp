@@ -70,7 +70,7 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 	if (ucmd->forwardmove || ucmd->sidemove || (ucmd->buttons & (BUTTON_JUMP | BUTTON_CROUCH)))
 	{
 		jc->state = jump_run_state_t::running;
-		jc->run_start = level.time;
+		jc->run_start_ms = Jump_NowMs();
 		Jump_Log("%s started a run", Jump_DisplayName(ent));
 	}
 }

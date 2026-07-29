@@ -41,8 +41,11 @@ Phase 2 introduces the split. Default team on join = Easy until the join menu ex
 - **Resolution**: A = 0.1 s accumulator corrected against a ms wall clock (plus a `time_adjust`
   gset). B = pure `Sys_Milliseconds()`, HUD shows seconds + tenths.
 
-**Port decision:** movement-axes only (B), `gtime_t` millisecond resolution off `level.time`
-(25 ms tick). No attack-to-start, no fudge factors, no time_adjust.
+**Port decision:** movement-axes only (B), monotonic millisecond wall clock via
+`std::chrono::steady_clock` (matches B's `Sys_Milliseconds()`). Start/finish still
+occur on a server think (40 Hz), so recorded values are not sub-tick collision times,
+but they are no longer forced onto a 25 ms `level.time` grid. No attack-to-start, no
+fudge factors, no time_adjust.
 
 ### Message formats (B `jump.cpp:226-291`)
 
@@ -223,7 +226,7 @@ A: `MAX_RECORD_FRAMES 200000`, demos in `<game>/jumpdemo/<map>.dj2` (1st place) 
 ## 8. Divergences requiring a port decision
 
 1. **Timer start** — A also starts on `+attack`; B only on movement. → **B**.
-2. **Timer resolution** — A 0.1 s + ms correction; B pure ms. → **B**, via `gtime_t`.
+2. **Timer resolution** — A 0.1 s + ms correction; B pure ms. → **B**, via `steady_clock`.
 3. **Stores** — A 6 slots + optional velocity restore + optional ground check; B 5-deep, always
    zeroed. → **B**.
 4. **mset name** — `checkpoint_total` (A, B docs) vs `checkpoints` (B code). → **accept both**.
