@@ -8,7 +8,7 @@ real test of that code.
 | Map | Tests | Notes |
 |---|---|---|
 | `jumptest1` | the basics | nine platforms over lava, one checkpoint, weapon finish |
-| `jumptest2` | the **gravity mset** | vertical shaft, `gravity 450` - the 224-unit steps are only reachable because of it |
+| `jumptest2` | **movement feel**, checkpoints | outdoor downhill circuit: ramps you carry speed down, three corner checkpoints, finishes beneath its own start |
 | `jumptest3` | precision, **store/recall** | 48-unit pads that weave side to side |
 | `jumptest4` | **checkpoint counting** and `jump_cpwall` | five keys to collect, then a barrier that refuses to open without them |
 | `jumptest5` | **teleporters** and the `fasttele` mset | four ledges joined only by teleports |
@@ -17,8 +17,9 @@ real test of that code.
 | `jumptest8` | **legacy entities** | `trigger_finish` brush, `one_way_wall`, `jump_clip` |
 
 Gaps elsewhere run 96-144 units against a running jump of roughly 200, so the
-maps test the mod rather than your aim. `jumptest2`, `jumptest3` and `jumptest7`
-are deliberately harder, since the thing being tested *is* the movement. If a
+maps test the mod rather than your aim. `jumptest3` and `jumptest7` are deliberately
+harder, since the thing being tested *is* the movement, and `jumptest2` is
+about whether descending and jumping *flows*. If a
 jump feels impossible, that is a finding about rerelease physics worth
 reporting.
 

@@ -25,10 +25,12 @@ CONTENTS_PLAYERCLIP = 0x10000
 CONTENTS_LADDER = 1 << 29
 
 SURF_LIGHT = 0x1
+SURF_SKY = 0x4
 SURF_WARP = 0x8
 SURF_TRANS66 = 0x20
 SURF_NODRAW = 0x80
 
+# All stock baseq2 textures - nothing here needs a texture pack.
 WALL = "e1u1/metal1_1"
 FLOOR = "e1u1/floor3_1"
 PLATFORM = "e1u1/c_met5_2"
@@ -37,6 +39,12 @@ WATER = "e1u1/water1_8"
 GRATE = "e1u1/grate1_1"
 CLIP = "e1u1/clip"
 TRIGGER = "e1u1/trigger"
+
+# Outdoor set. "unit9_" is the sky q2dm5 uses, so it ships with the game.
+GRASS = "e1u1/grass1_3"
+GRASS_RAMP = "e1u1/grass1_4"
+ROCK = "e2u1/rock1_1"
+SKY = "e1u1/sky1"
 
 SHELL = 32          # room wall thickness
 PLATFORM_H = 32     # platform slab thickness
@@ -94,6 +102,44 @@ def box_brush(mins, maxs, tex, contents=0, flags=0, value=0):
     return "\n".join(lines)
 
 
+def slope_brush(mins, maxs, top_lo, top_hi, axis, tex, contents=0, flags=0, value=0):
+    """A box whose top face slopes, i.e. a ramp.
+
+    `axis` is 0 to slope along X or 1 along Y; the top runs from `top_lo` at
+    the low end of that axis to `top_hi` at the high end. Same winding check as
+    box_brush - the tilted top still only needs its normal to point generally
+    upwards for the hint to resolve it.
+    """
+    x1, y1, z1 = mins
+    x2, y2, _ = maxs
+
+    if axis == 0:
+        top = [(x1, y1, top_lo), (x2, y1, top_hi), (x2, y2, top_hi)]
+    else:
+        top = [(x1, y1, top_lo), (x2, y1, top_lo), (x2, y2, top_hi)]
+
+    faces = [
+        ((0, 0, 1), top),
+        ((0, 0, -1), [(x1, y1, z1), (x2, y1, z1), (x2, y2, z1)]),
+        ((-1, 0, 0), [(x1, y1, z1), (x1, y1, z1 + 16), (x1, y2, z1 + 16)]),
+        ((1, 0, 0), [(x2, y1, z1), (x2, y1, z1 + 16), (x2, y2, z1 + 16)]),
+        ((0, -1, 0), [(x1, y1, z1), (x2, y1, z1), (x2, y1, z1 + 16)]),
+        ((0, 1, 0), [(x1, y2, z1), (x2, y2, z1), (x2, y2, z1 + 16)]),
+    ]
+
+    lines = ["{"]
+
+    for want, (p0, p1, p2) in faces:
+        if dot(cross(sub(p0, p1), sub(p2, p1)), want) < 0:
+            p0, p2 = p2, p0
+
+        pts = " ".join("( %d %d %d )" % p for p in (p0, p1, p2))
+        lines.append("%s %s 0 0 0 1 1 %d %d %d" % (pts, tex, contents, flags, value))
+
+    lines.append("}")
+    return "\n".join(lines)
+
+
 class MapBuilder:
     """Collects world brushes and entities, then emits .map source."""
 
@@ -107,18 +153,28 @@ class MapBuilder:
     def brush(self, mins, maxs, tex=WALL, contents=0, flags=0, value=0):
         self.world.append(box_brush(mins, maxs, tex, contents, flags, value))
 
-    def room(self, mins, maxs, floor_tex=FLOOR, wall_tex=WALL):
-        """A sealed box. Everything else must live inside it or the map leaks."""
+    def room(self, mins, maxs, floor_tex=FLOOR, wall_tex=WALL, ceil_tex=None, ceil_flags=0):
+        """A sealed box. Everything else must live inside it or the map leaks.
+
+        Pass ceil_tex/ceil_flags to make the lid sky - SURF_SKY plus a `sky`
+        worldspawn key is what turns a box into an outdoor space.
+        """
         x1, y1, z1 = mins
         x2, y2, z2 = maxs
         s = SHELL
 
         self.brush((x1 - s, y1 - s, z1 - s), (x2 + s, y2 + s, z1), floor_tex)
-        self.brush((x1 - s, y1 - s, z2), (x2 + s, y2 + s, z2 + s), wall_tex)
+        self.brush((x1 - s, y1 - s, z2), (x2 + s, y2 + s, z2 + s), ceil_tex or wall_tex,
+                   flags=ceil_flags)
         self.brush((x1 - s, y1 - s, z1), (x1, y2 + s, z2), wall_tex)
         self.brush((x2, y1 - s, z1), (x2 + s, y2 + s, z2), wall_tex)
         self.brush((x1 - s, y1 - s, z1), (x2 + s, y1, z2), wall_tex)
         self.brush((x1 - s, y2, z1), (x2 + s, y2 + s, z2), wall_tex)
+
+    def ramp(self, x1, y1, x2, y2, top_lo, top_hi, axis, tex=PLATFORM, thickness=48):
+        """A sloped slab: the surface you actually run down."""
+        base = min(top_lo, top_hi) - thickness
+        self.world.append(slope_brush((x1, y1, base), (x2, y2, 0), top_lo, top_hi, axis, tex))
 
     def platform(self, x1, y1, x2, y2, top, tex=PLATFORM):
         self.brush((x1, y1, top - PLATFORM_H), (x2, y2, top), tex)
@@ -207,34 +263,93 @@ def jumptest1():
 
 
 def jumptest2():
-    """Ascent: a vertical shaft climbed in low gravity. Tests the gravity mset."""
-    m = MapBuilder("jumptest2", "Jump Test 2 - ascent (low gravity)",
-                   mset="gravity 450")
-    # The shaft has to be tall enough for the summit plus headroom - a
-    # platform poking through the ceiling is a leak, and vis fails on it.
-    m.room((0, -320, 0), (1024, 320, 1920))
-    m.lava((0, -320, 0), (1024, 320, 0))
+    """Green Descent: an outdoor downhill circuit.
 
-    m.platform(64, -128, 320, 128, 128)      # start
-    m.spawn((190, 0, 128 + STAND))
+    A ramped lap that spirals clockwise down the walls of a grass canyon and
+    finishes below its own start. Ramps rather than flat pads, so speed carries
+    between jumps - this is the map for testing how the movement actually
+    feels, where the others test individual features.
 
-    # Alternate sides going up. 224 of rise per step is only reachable with
-    # the reduced gravity, which is the point of the map.
-    top = 128
-    left = False
-    for i in range(6):
-        top += 224
-        if left:
-            m.platform(64, -128, 384, 128, top)
-        else:
-            m.platform(640, -128, 960, 128, top)
-        left = not left
+    Checkpoints at the corners exist for a structural reason: on a descending
+    course you can always just drop to the bottom, so without them the whole
+    lap is skippable.
+    """
+    m = MapBuilder("jumptest2", "Jump Test 2 - green descent",
+                   mset="gravity 800 checkpoint_total 3",
+                   sky="unit9_",              # stock baseq2 sky, as used by q2dm5
+                   _sunlight="180", _sunlight_mangle="30 -60 0",
+                   _sunlight_color="255 250 220")
 
-    m.platform(64, -192, 960, 192, top + 224)   # summit spans the shaft
-    m.point("weapon_railgun", (512, 0, top + 224 + STAND))
+    SIZE = 2560
+    TOP = 1280
+    W = 256          # track width; the track hugs the canyon wall, so it reads
+                     # as a ledge cut into the rock rather than a floating slab
 
-    for z in range(256, 1920, 384):
-        m.point("light", (512, 0, z), light=300)
+    m.room((0, 0, 0), (SIZE, SIZE, TOP), floor_tex=GRASS, wall_tex=ROCK,
+           ceil_tex=SKY, ceil_flags=SURF_SKY)
+
+    # The canyon floor is a fall you do not survive. trigger_hurt keeps it
+    # outdoors - lava would look wrong under a sky.
+    m.brush_entity("trigger_hurt", (0, 0, 8), (SIZE, SIZE, 48), TRIGGER, dmg=100)
+
+    # Corner heights, then the height the last leg bottoms out at. The geometry
+    # below has to close exactly, so the segment length is derived rather than
+    # picked: three segments and two gaps must span corner to corner, or the
+    # track overruns the room and the map leaks.
+    HEIGHTS = [960, 768, 576, 384, 224]
+    GAP = 160
+    RUN = SIZE - 2 * W                       # 2048, corner edge to corner edge
+    SEG = (RUN - 2 * GAP) // 3               # 576
+
+    def leg(index, height_from, height_to):
+        step = (height_from - height_to) / 3.0
+
+        for s in range(3):
+            lo = height_from - step * s
+            hi = height_from - step * (s + 1)
+            a = W + s * (SEG + GAP)
+            b = a + SEG
+
+            if index == 0:      # north edge, running +X
+                m.ramp(a, SIZE - W, b, SIZE, lo, hi, 0, GRASS_RAMP)
+            elif index == 1:    # east edge, running -Y
+                m.ramp(SIZE - W, SIZE - b, SIZE, SIZE - a, hi, lo, 1, GRASS_RAMP)
+            elif index == 2:    # south edge, running -X
+                m.ramp(SIZE - b, 0, SIZE - a, W, hi, lo, 0, GRASS_RAMP)
+            else:               # west edge, running +Y
+                m.ramp(0, a, W, b, lo, hi, 1, GRASS_RAMP)
+
+    corners = [
+        (0, SIZE - W, W, SIZE),              # NW - start, highest
+        (SIZE - W, SIZE - W, SIZE, SIZE),    # NE
+        (SIZE - W, 0, SIZE, W),              # SE
+        (0, 0, W, W),                        # SW
+    ]
+
+    for i, (cx1, cy1, cx2, cy2) in enumerate(corners):
+        m.platform(cx1, cy1, cx2, cy2, HEIGHTS[i], GRASS)
+        leg(i, HEIGHTS[i], HEIGHTS[i + 1])
+
+    m.spawn((W // 2, SIZE - W // 2, HEIGHTS[0] + STAND), angle=0)
+
+    # One checkpoint per turn, so the lap has to be run rather than dropped -
+    # on a descending course every shortcut is downwards.
+    keys = ["key_blue_key", "key_red_key", "key_pyramid"]
+    for i, key in enumerate(keys):
+        cx1, cy1, cx2, cy2 = corners[i + 1]
+        m.point(key, ((cx1 + cx2) // 2, (cy1 + cy2) // 2, HEIGHTS[i + 1] + STAND))
+
+    # The last leg runs out onto the finish ledge, directly beneath the start:
+    # a full lap that ends where it began, only lower.
+    m.platform(0, SIZE - W, W * 2, SIZE, HEIGHTS[4], GRASS)
+    m.point("weapon_railgun", (W, SIZE - W // 2, HEIGHTS[4] + STAND))
+
+    # The sun does the real work; these keep it from being pitch black if the
+    # sunlight keys are ignored.
+    for x in (640, 1920):
+        for y in (640, 1920):
+            m.point("light", (x, y, TOP - 256), light=250)
+
     return m
 
 
