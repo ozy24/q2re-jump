@@ -180,6 +180,7 @@ void		Jump_VoteTally(int &yes, int &no, int &needed);
 bool		Jump_HasVoted(edict_t *ent);
 
 // jump_menu.cpp
+void Jump_OpenMainMenu(edict_t *ent);
 void Jump_OpenVoteMenu(edict_t *ent);
 void Jump_CmdMenu(edict_t *ent);
 

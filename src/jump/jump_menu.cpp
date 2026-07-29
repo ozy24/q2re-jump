@@ -1,8 +1,9 @@
-// [Jump] The TAB menu: pick a map to vote for, or answer the vote in progress.
+// [Jump] TAB opens the main options menu (restart, teams, extend, vote map).
+// Map voting lives in a submenu; an active vote opens the yes/no cast UI.
 //
 // Built on the stock PMenu system (ctf/p_ctf_menu.h), which the engine already
 // drives for us: invnext/invprev move the cursor, invuse selects, and inven
-// closes. The only wiring needed is opening it.
+// closes. Submenus follow the MuffMode pattern: close, then open the next menu.
 //
 // Menu entries are copied into the handle by PMenu_Open, so the update
 // function rewrites hnd->entries in place each refresh. The map name for a row
@@ -17,8 +18,8 @@
 
 constexpr int JUMP_MENU_ENTRIES = 18;
 
-// Rows 0-1 are the title block, the last row is Close, and two rows above that
-// are the pager. Everything between is maps.
+// Rows 0-1 are the title block, the last row is Return/Close, and two rows
+// above that are the pager. Everything between is maps.
 constexpr int JUMP_MENU_FIRST_MAP = 2;
 constexpr int JUMP_MENU_CLOSE = JUMP_MENU_ENTRIES - 1;
 constexpr int JUMP_MENU_NEXT = JUMP_MENU_CLOSE - 2;
@@ -35,11 +36,44 @@ static void Jump_MenuSelectMap(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuPrevPage(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuNextPage(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuClose(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuReturnToMain(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateMaps(edict_t *ent);
 
 static void Jump_MenuVoteYes(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuVoteNo(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateVote(edict_t *ent);
+
+static void Jump_MenuUpdateMain(edict_t *ent);
+static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuJoinPractice(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuJoinRanked(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuJoinSpectator(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
+
+static void Jump_OpenCastMenu(edict_t *ent);
+static void Jump_OpenMapMenu(edict_t *ent);
+
+static const pmenu_t jump_main_menu[JUMP_MENU_ENTRIES] = {
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 0  title
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 1  current team
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 2  blank
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 3  restart
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 4  blank
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 5  practice
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 6  ranked
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 7  spectator
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 8  blank
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 9  vote map
+	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 10 extend
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 11
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 13
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 14
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr }, // 16 blank
+	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose }, // 17
+};
 
 static const pmenu_t jump_map_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },   // 0  title
@@ -59,7 +93,7 @@ static const pmenu_t jump_map_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, nullptr },	   // 14 prev page
 	{ "", PMENU_ALIGN_LEFT, nullptr },	   // 15 next page
 	{ "", PMENU_ALIGN_CENTER, nullptr },   // 16 blank
-	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose }, // 17
+	{ "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain }, // 17
 };
 
 static const pmenu_t jump_vote_menu[JUMP_MENU_ENTRIES] = {
@@ -99,6 +133,103 @@ static void Jump_MenuClose(edict_t *ent, pmenuhnd_t *hnd)
 {
 	PMenu_Close(ent);
 	ent->client->update_chase = true;
+}
+
+static void Jump_MenuTeamRow(pmenu_t &entry, jump_team_t team, jump_team_t current, SelectFunc_t select)
+{
+	const char *name = Jump_TeamName(team);
+
+	if (team == current)
+		Jump_MenuSetRow(entry, G_Fmt("{}  (current)", name).data(), PMENU_ALIGN_LEFT, nullptr);
+	else
+		Jump_MenuSetRow(entry, G_Fmt("Join {}", name).data(), PMENU_ALIGN_LEFT, select);
+}
+
+// ---------------------------------------------------------------------------
+// Main options menu
+// ---------------------------------------------------------------------------
+
+static void Jump_MenuUpdateMain(edict_t *ent)
+{
+	pmenuhnd_t *hnd = ent->client->menu;
+
+	if (!hnd)
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+	const jump_team_t team = jc ? jc->team : jump_team_t::spectator;
+
+	Jump_MenuSetRow(hnd->entries[0], "Jump", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[1], G_Fmt("{}", Jump_TeamName(team)).data(), PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[2], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuSetRow(hnd->entries[3], "Restart run", PMENU_ALIGN_LEFT, Jump_MenuRestart);
+	Jump_MenuSetRow(hnd->entries[4], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuTeamRow(hnd->entries[5], jump_team_t::practice, team, Jump_MenuJoinPractice);
+	Jump_MenuTeamRow(hnd->entries[6], jump_team_t::ranked, team, Jump_MenuJoinRanked);
+	Jump_MenuTeamRow(hnd->entries[7], jump_team_t::spectator, team, Jump_MenuJoinSpectator);
+
+	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[9], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
+	Jump_MenuSetRow(hnd->entries[10], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+
+	for (int i = 11; i < JUMP_MENU_CLOSE; i++)
+		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+}
+
+static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_RestartRun(ent);
+}
+
+static void Jump_MenuJoinPractice(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_JoinTeam(ent, jump_team_t::practice);
+}
+
+static void Jump_MenuJoinRanked(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_JoinTeam(ent, jump_team_t::ranked);
+}
+
+static void Jump_MenuJoinSpectator(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_JoinTeam(ent, jump_team_t::spectator);
+}
+
+static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	Jump_OpenMapMenu(ent);
+}
+
+static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_CmdTimeExtend(ent);
+}
+
+void Jump_OpenMainMenu(edict_t *ent)
+{
+	PMenu_Open(ent, jump_main_menu, -1, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateMain);
+}
+
+static void Jump_MenuReturnToMain(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	Jump_OpenMainMenu(ent);
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +299,7 @@ static void Jump_MenuUpdateMaps(edict_t *ent)
 					has_next ? Jump_MenuNextPage : nullptr);
 
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_ENTRIES - 2], "", PMENU_ALIGN_CENTER, nullptr);
-	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain);
 
 	if (total == 0)
 		Jump_MenuSetRow(hnd->entries[JUMP_MENU_FIRST_MAP], "No maps configured", PMENU_ALIGN_LEFT, nullptr);
@@ -216,6 +347,14 @@ static void Jump_MenuNextPage(edict_t *ent, pmenuhnd_t *hnd)
 
 	page->offset += JUMP_MENU_MAPS_PER_PAGE;
 	PMenu_Update(ent);
+}
+
+static void Jump_OpenMapMenu(edict_t *ent)
+{
+	jump_menu_page_t *page = (jump_menu_page_t *) gi.TagMalloc(sizeof(*page), TAG_LEVEL);
+	page->offset = 0;
+
+	PMenu_Open(ent, jump_map_menu, -1, JUMP_MENU_ENTRIES, page, Jump_MenuUpdateMaps);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,22 +419,25 @@ static void Jump_MenuVoteNo(edict_t *ent, pmenuhnd_t *hnd)
 	Jump_CmdVote(ent, false);
 }
 
+static void Jump_OpenCastMenu(edict_t *ent)
+{
+	PMenu_Open(ent, jump_vote_menu, -1, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateVote);
+}
+
 // ---------------------------------------------------------------------------
-// Entry point
+// Entry points
 // ---------------------------------------------------------------------------
 
+// Map vote submenu, or cast UI if a vote is already running.
 void Jump_OpenVoteMenu(edict_t *ent)
 {
 	if (Jump_VoteActive())
 	{
-		PMenu_Open(ent, jump_vote_menu, -1, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateVote);
+		Jump_OpenCastMenu(ent);
 		return;
 	}
 
-	jump_menu_page_t *page = (jump_menu_page_t *) gi.TagMalloc(sizeof(*page), TAG_LEVEL);
-	page->offset = 0;
-
-	PMenu_Open(ent, jump_map_menu, -1, JUMP_MENU_ENTRIES, page, Jump_MenuUpdateMaps);
+	Jump_OpenMapMenu(ent);
 }
 
 // TAB is bound to `inven`, so this is what the key actually reaches. Toggling
@@ -309,5 +451,11 @@ void Jump_CmdMenu(edict_t *ent)
 		return;
 	}
 
-	Jump_OpenVoteMenu(ent);
+	if (Jump_VoteActive())
+	{
+		Jump_OpenCastMenu(ent);
+		return;
+	}
+
+	Jump_OpenMainMenu(ent);
 }

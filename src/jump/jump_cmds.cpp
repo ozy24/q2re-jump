@@ -39,10 +39,24 @@ bool Jump_ClientCommand(edict_t *ent)
 
 	const char *cmd = gi.argv(0);
 
-	// TAB is bound to inven; jump uses it for the vote menu.
-	if (!Q_strcasecmp(cmd, "inven") || !Q_strcasecmp(cmd, "callvote") || !Q_strcasecmp(cmd, "mapvote"))
+	// TAB is bound to inven; opens the main options menu (or cast UI).
+	if (!Q_strcasecmp(cmd, "inven"))
 	{
 		Jump_CmdMenu(ent);
+		return true;
+	}
+
+	// Vote-focused aliases skip the main menu and open the map list (or cast UI).
+	if (!Q_strcasecmp(cmd, "callvote") || !Q_strcasecmp(cmd, "mapvote"))
+	{
+		if (ent->client->menu)
+		{
+			PMenu_Close(ent);
+			ent->client->update_chase = true;
+			return true;
+		}
+
+		Jump_OpenVoteMenu(ent);
 		return true;
 	}
 
