@@ -68,30 +68,37 @@ bool Jump_InitStatusbar()
 
 	statusbar_t sb;
 
-	// A two-column grid hanging off the right edge: labels share one column so
-	// they line up vertically, numbers all right-align to the same anchor.
-	// Offsets are virtual px from the right edge, so they run negative.
+	// Right-edge column: a short label above each number block. Offsets are
+	// virtual px from the right edge (negative). Text is left-aligned from the
+	// cursor, so each label's xr leaves room for its own width.
 	//
-	//         1234.56      run timer
-	//   cp       0/1       checkpoints, only when the map uses them
-	//        PRACTICE      team
-	//   PB       9.87      personal best, only once you have one
+	//            time
+	//         1234.56
+	//      Checkpoint
+	//             0/1
+	//              PB
+	//            9.87
 	//
-	constexpr int right = -8;	  // last digit column ends here
-	constexpr int label = -152;	  // shared left column for "cp" and "PB"
+	//                        PRACTICE   (bottom right)
+	//
+	constexpr int right = -8; // last digit column ends here
 
 	// Digits are 24 tall, so a separator drawn in the 8px text font has to sit
 	// near the bottom of the row to read as a decimal point rather than a
 	// mid-dot.
 	constexpr int sep_drop = 15;
+	constexpr int label_h = 8;
+	constexpr int row_gap = 8;
 
-	// Timer: seconds (4 digits) . tens units, walking left from the anchor.
+	// Timer: label, then seconds (4 digits) . tens units.
 	constexpr int t_units = right - Jump_NumWidth(1);
 	constexpr int t_tens = t_units - Jump_NumWidth(1);
 	constexpr int t_dot = t_tens - 7;
 	constexpr int t_secs = t_dot - Jump_NumWidth(4);
-	constexpr int t_y = 8;
+	constexpr int t_label_y = 4;
+	constexpr int t_y = t_label_y + label_h + 2;
 
+	sb.yt(t_label_y).xr(right - 32).string2("time");
 	sb.yt(t_y).xr(t_secs).num(4, JUMP_STAT_TIME_SEC);
 	sb.yt(t_y + sep_drop).xr(t_dot).string(".");
 	sb.yt(t_y).xr(t_tens).num(1, JUMP_STAT_TIME_HUN_TENS);
@@ -102,12 +109,13 @@ bool Jump_InitStatusbar()
 	constexpr int cp_total = right - Jump_NumWidth(2);
 	constexpr int cp_slash = cp_total - 5;
 	constexpr int cp_have = cp_slash - Jump_NumWidth(2);
-	constexpr int cp_y = 40;
+	constexpr int cp_label_y = t_y + 24 + row_gap;
+	constexpr int cp_y = cp_label_y + label_h + 2;
 
 	sb.ifstat(JUMP_STAT_CHECKPOINT_TOTAL)
-		.yt(cp_y + 4)
-		.xr(label)
-		.string2("cp")
+		.yt(cp_label_y)
+		.xr(right - 80)
+		.string2("Checkpoint")
 		.yt(cp_y)
 		.xr(cp_have)
 		.num(2, JUMP_STAT_CHECKPOINTS)
@@ -119,23 +127,17 @@ bool Jump_InitStatusbar()
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
 		.endifstat();
 
-	// Team. Two branches because a layout script can test a stat but cannot
-	// pick a string from its value.
-	// Text is left-aligned from the cursor, so the x has to leave room for the
-	// longest label rather than sitting at the shared right anchor.
-	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yt(72).xr(-76).string2("PRACTICE").endifstat();
-	sb.ifstat(JUMP_STAT_TEAM_RANKED).yt(72).xr(-60).string2("RANKED").endifstat();
-
-	// Personal best, same shape as the timer one row down.
+	// Personal best sits directly under the timer / checkpoint stack.
 	constexpr int pb_units = right - Jump_NumWidth(1);
 	constexpr int pb_tens = pb_units - Jump_NumWidth(1);
 	constexpr int pb_dot = pb_tens - 7;
 	constexpr int pb_secs = pb_dot - Jump_NumWidth(4);
-	constexpr int pb_y = 88;
+	constexpr int pb_label_y = cp_y + 24 + row_gap;
+	constexpr int pb_y = pb_label_y + label_h + 2;
 
 	sb.ifstat(JUMP_STAT_PB_SEC)
-		.yt(pb_y + 4)
-		.xr(label)
+		.yt(pb_label_y)
+		.xr(right - 16)
 		.string2("PB")
 		.yt(pb_y)
 		.xr(pb_secs)
@@ -150,6 +152,10 @@ bool Jump_InitStatusbar()
 		.xr(pb_units)
 		.num(1, JUMP_STAT_PB_HUN_UNITS)
 		.endifstat();
+
+	// Team mode lives in the bottom-right corner, away from the run column.
+	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(-16).xr(-76).string2("PRACTICE").endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_RANKED).yb(-16).xr(-60).string2("RANKED").endifstat();
 
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();

@@ -2,6 +2,8 @@
 // Licensed under the GNU General Public License 2.0.
 #include "../g_local.h"
 
+#include <string>
+
 // Note that the pmenu entries are duplicated
 // this is so that a static set of pmenu entries can be used
 // for multiple clients and changed without interference
@@ -48,8 +50,11 @@ pmenuhnd_t *PMenu_Open(edict_t *ent, const pmenu_t *entries, int cur, int num, v
 		hnd->cur = i;
 
 	ent->client->showscores = true;
+	ent->client->showinventory = false;
 	ent->client->inmenu = true;
 	ent->client->menu = hnd;
+	ent->client->menutime = level.time + 3_sec;
+	ent->client->menudirty = false;
 
 	if (UpdateFunc)
 		UpdateFunc(ent);
@@ -125,29 +130,57 @@ void PMenu_Do_Update(edict_t *ent)
 
 		sb.yv(32 + i * 8);
 
-		const char *loc_func = "loc_string";
-
 		if (p->align == PMENU_ALIGN_CENTER)
-		{
 			x = 0;
-			loc_func = "loc_cstring";
-		}
 		else if (p->align == PMENU_ALIGN_RIGHT)
-		{
 			x = 260;
-			loc_func = "loc_rstring";
-		}
 		else
 			x = 64;
 
 		sb.xv(x);
 
-		sb.sb << loc_func;
+		const bool highlight = hnd->cur == i || alt;
 
-		if (hnd->cur == i || alt)
-			sb.sb << '2';
+		// Localization keys ($g_...) keep loc_* tokens and optional text_arg1.
+		// Literal menus keep text_arg1 for SelectFunc only — embedding it in
+		// the layout doubles size and can overflow svc_layout.
+		if (t[0] == '$')
+		{
+			const char *loc_func = "loc_string";
 
-		sb.sb << " 1 \"" << t << "\" \"" << p->text_arg1 << "\" ";
+			if (p->align == PMENU_ALIGN_CENTER)
+				loc_func = "loc_cstring";
+			else if (p->align == PMENU_ALIGN_RIGHT)
+				loc_func = "loc_rstring";
+
+			sb.sb << loc_func;
+			if (highlight)
+				sb.sb << '2';
+
+			if (p->text_arg1[0])
+				sb.sb << " 1 \"" << t << "\" \"" << p->text_arg1 << "\" ";
+			else
+				sb.sb << " 0 \"" << t << "\" ";
+		}
+		else
+		{
+			const char *func = "string";
+
+			if (p->align == PMENU_ALIGN_CENTER)
+				func = "cstring";
+			else if (p->align == PMENU_ALIGN_RIGHT)
+				func = "string"; // no plain rstring token; left draw is fine for menus
+
+			sb.sb << func;
+			if (highlight)
+				sb.sb << '2';
+			sb.sb << ' ';
+
+			if (t[0] != '"' && (strchr(t, ' ') || strchr(t, '\n')))
+				sb.sb << '"' << t << "\" ";
+			else
+				sb.sb << t << ' ';
+		}
 
 		if (hnd->cur == i)
 		{
@@ -158,8 +191,16 @@ void PMenu_Do_Update(edict_t *ent)
 		alt = false;
 	}
 
+	std::string layout = sb.sb.str();
+
+	if (layout.size() >= MAX_STRING_CHARS)
+	{
+		gi.Com_Print(G_Fmt("PMenu layout overflow ({}), truncating\n", layout.size()).data());
+		layout.resize(MAX_STRING_CHARS - 1);
+	}
+
 	gi.WriteByte(svc_layout);
-	gi.WriteString(sb.sb.str().c_str());
+	gi.WriteString(layout.c_str());
 }
 
 void PMenu_Update(edict_t *ent)

@@ -1514,7 +1514,9 @@ void ClientEndServerFrame(edict_t *ent)
 		else
 			// ZOID
 			DeathmatchScoreboardMessage(ent, ent->enemy);
-		gi.unicast(ent, false);
+		// Reliable: large svc_layout in the datagram (unicast false) is a
+		// common SZ_GetSpace source when the frame is already busy.
+		gi.unicast(ent, true);
 		ent->client->menutime = level.time + 3_sec;
 	}
 
