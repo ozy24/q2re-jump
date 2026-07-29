@@ -55,6 +55,10 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 
 	Jump_TrackInput(ent, ucmd);
 
+	// Spectator eyecam update runs first so the camera is ready this frame.
+	Jump_SpectatorThink(ent, ucmd);
+	Jump_UpdateChase(ent);
+
 	jump_client_t *jc = Jump_ClientData(ent);
 
 	if (!jc || jc->state != jump_run_state_t::idle)

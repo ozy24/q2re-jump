@@ -45,7 +45,8 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 
 	// --- session: survives map changes, re-keyed on connect ---
-	jump_team_t team = jump_team_t::ranked;
+	jump_team_t team    = jump_team_t::ranked;
+	bool        eyecam  = false; // first-person spectator follow
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 };
 
@@ -178,6 +179,13 @@ const char *Jump_VoteCaller();
 int			Jump_VoteSecondsLeft();
 void		Jump_VoteTally(int &yes, int &no, int &needed);
 bool		Jump_HasVoted(edict_t *ent);
+
+// jump_chase.cpp
+void Jump_EyecamOn(edict_t *ent);
+void Jump_EyecamOff(edict_t *ent);
+void Jump_CmdEyecam(edict_t *ent);
+void Jump_SpectatorThink(edict_t *ent, usercmd_t *ucmd);
+void Jump_UpdateChase(edict_t *ent);
 
 // jump_menu.cpp
 void Jump_OpenMainMenu(edict_t *ent);

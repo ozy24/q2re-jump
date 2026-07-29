@@ -22,8 +22,9 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
-					"  idle           move yourself to spectator\n"
-					"  jumphelp       this list\n"
+				"  idle           move yourself to spectator\n"
+				"  eyecam         toggle first-person follow while spectating\n"
+				"  jumphelp       this list\n"
 					"Bind them, e.g: bind mouse4 store; bind mouse5 recall\n");
 }
 
@@ -155,6 +156,12 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "idle"))
 	{
 		Jump_CmdIdle(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "eyecam"))
+	{
+		Jump_CmdEyecam(ent);
 		return true;
 	}
 
