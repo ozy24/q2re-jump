@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace jump
 {
@@ -129,6 +130,47 @@ int64_t map_records_t::TimeOf(const std::string &id) const
 int map_records_t::PointsOf(const std::string &id) const
 {
 	return PointsForRank(RankOf(id));
+}
+
+bool IsSafeMapToken(const std::string &token)
+{
+	constexpr size_t MAX_MAP_NAME = 64; // MAX_QPATH
+
+	if (token.empty() || token.size() >= MAX_MAP_NAME)
+		return false;
+
+	for (unsigned char c : token)
+	{
+		if (c <= ' ' || c >= 0x7f)
+			return false;
+
+		// Quoting, shell and wildcard characters.
+		if (strchr("\"'`;:*?<>|\\", c))
+			return false;
+	}
+
+	// No directory traversal, and no empty or dot-only path segments.
+	size_t start = 0;
+
+	while (start <= token.size())
+	{
+		size_t end = token.find('/', start);
+
+		if (end == std::string::npos)
+			end = token.size();
+
+		const std::string segment = token.substr(start, end - start);
+
+		if (segment.empty() || segment == "." || segment == "..")
+			return false;
+
+		if (end == token.size())
+			break;
+
+		start = end + 1;
+	}
+
+	return true;
 }
 
 std::string SanitizeLayoutText(const std::string &text, size_t max_len)

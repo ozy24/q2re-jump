@@ -38,7 +38,7 @@ lobby, so everything below is a console command.
 | `playertimes` | Your completions and points |
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
-| `votemap <map>` | Call a vote to change map |
+| `votemap <map>` | Call a vote to change map (**TAB** opens a menu instead) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
 | `idle` | Move yourself to spectator |
@@ -58,6 +58,21 @@ Upstream q2jump calls these Easy and Hard; those names still work as command
 aliases, but they read as map difficulty rather than what they actually are.
 
 Switching teams abandons the run in progress and clears your stores.
+
+### Voting (TAB)
+
+**TAB** opens the vote menu. With no vote running it lists every configured
+map, paged, with the current map greyed out; pick one and it calls a vote.
+While a vote is running it shows what was called, who called it, the tally and
+the countdown, with Yes and No rows.
+
+Move with the inventory keys (the usual `invnext` / `invprev` binds), select
+with `invuse`, and TAB again to dismiss. `votemap <map>`, `yes` and `no` still
+work from the console.
+
+A vote passes at 75% of connected players and runs for 30 seconds, resolving
+early once it cannot pass. The menu is never forced open on anyone — being
+interrupted mid-run by a popup is the last thing you want on a jump server.
 
 ### The scoreboard
 
@@ -163,11 +178,24 @@ Cosmetic leftovers (`jump_time`, `jump_score`, `jumpmod_effect`,
 | `jump_debug` | `0` | Verbose mod logging |
 | `jump_hud` | `0` | **Client-side**, unlike the others. Off means you see the exact stock-client view; `1` adds the coloured PB delta after a finish |
 
-### Map rotation
+### Map rotation and the vote pool
 
-Create `jump/maplist.txt` next to the DLL, one map per line (`#` starts a
-comment). It is loaded into the engine's own `g_map_list`, so rotation, voting
-and `nextmap` all behave normally.
+Two cvars, matching MuffMode's meaning, both plain whitespace-separated lists of
+map names:
+
+| Cvar | Meaning |
+|---|---|
+| `g_map_list` | the rotation — played in order, and votable |
+| `g_map_pool` | votable only, never rotated into automatically |
+
+`jump/maplist.txt` next to the DLL (one map per line, `#` starts a comment) is
+loaded into `g_map_list` at startup, so you can keep the rotation in a file
+rather than a long cvar. The vote menu offers the pool first, then the list,
+de-duplicated.
+
+Map names are validated before use: anything with quotes, shell characters,
+`..` or an over-long path is rejected, since the name ends up in a `gamemap`
+command.
 
 ### Per-map settings (msets)
 

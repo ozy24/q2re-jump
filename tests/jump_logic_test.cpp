@@ -141,6 +141,36 @@ static void TestSafeName()
 	CHECK_EQ(jump::SafeName("..."), "_");
 }
 
+static void TestIsSafeMapToken()
+{
+	CHECK(jump::IsSafeMapToken("q2dm1"));
+	CHECK(jump::IsSafeMapToken("jumptest1"));
+	CHECK(jump::IsSafeMapToken("packs/slip_map3"));
+	CHECK(jump::IsSafeMapToken("map-01_final"));
+
+	CHECK(!jump::IsSafeMapToken(""));
+	CHECK(!jump::IsSafeMapToken("has space"));
+
+	// Directory traversal, in every shape.
+	CHECK(!jump::IsSafeMapToken(".."));
+	CHECK(!jump::IsSafeMapToken("../secret"));
+	CHECK(!jump::IsSafeMapToken("maps/../../etc"));
+	CHECK(!jump::IsSafeMapToken("maps//double"));
+	CHECK(!jump::IsSafeMapToken("./here"));
+	CHECK(!jump::IsSafeMapToken("trailing/"));
+
+	// Characters that would break out of `gamemap "<name>"`.
+	CHECK(!jump::IsSafeMapToken("evil\"map"));
+	CHECK(!jump::IsSafeMapToken("evil;quit"));
+	CHECK(!jump::IsSafeMapToken("back\\slash"));
+	CHECK(!jump::IsSafeMapToken("star*"));
+	CHECK(!jump::IsSafeMapToken("tick`cmd`"));
+
+	// Over-long names would overflow MAX_QPATH.
+	CHECK(!jump::IsSafeMapToken(std::string(64, 'a')));
+	CHECK(jump::IsSafeMapToken(std::string(63, 'a')));
+}
+
 static void TestSanitizeLayoutText()
 {
 	CHECK_EQ(jump::SanitizeLayoutText("chris"), "chris");
@@ -220,6 +250,7 @@ int main()
 	TestPoints();
 	TestSafeName();
 	TestSanitizeLayoutText();
+	TestIsSafeMapToken();
 	TestRecords();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);

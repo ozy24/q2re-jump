@@ -39,6 +39,13 @@ bool Jump_ClientCommand(edict_t *ent)
 
 	const char *cmd = gi.argv(0);
 
+	// TAB is bound to inven; jump uses it for the vote menu.
+	if (!Q_strcasecmp(cmd, "inven") || !Q_strcasecmp(cmd, "callvote") || !Q_strcasecmp(cmd, "mapvote"))
+	{
+		Jump_CmdMenu(ent);
+		return true;
+	}
+
 	if (!Q_strcasecmp(cmd, "kill"))
 	{
 		Jump_CmdKill(ent);

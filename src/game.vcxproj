@@ -174,6 +174,7 @@
     <ClCompile Include="jump\jump_files.cpp" />
     <ClCompile Include="jump\jump_records.cpp" />
     <ClCompile Include="jump\jump_scoreboard.cpp" />
+    <ClCompile Include="jump\jump_menu.cpp" />
     <ClCompile Include="jump\jump_mset.cpp" />
     <ClCompile Include="jump\jump_vote.cpp" />
     <ClCompile Include="jump\jump_team.cpp" />

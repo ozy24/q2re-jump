@@ -24,6 +24,7 @@ struct jump_vote_t
 	char			 target[MAX_QPATH] = { 0 };
 	int32_t			 minutes = 0;
 	char			 caller[MAX_NETNAME] = { 0 };
+	char			 description[64] = { 0 };
 	bool			 ballots[MAX_CLIENTS] = { false };
 	bool			 voted[MAX_CLIENTS] = { false };
 };
@@ -33,6 +34,8 @@ static std::vector<std::string> jump_maplist;
 
 constexpr float JUMP_VOTE_PASS_FRACTION = 0.75f; // matches Q2JumpRefresh
 constexpr int	JUMP_VOTE_SECONDS = 30;
+
+static int Jump_VoterCount();
 
 // ---------------------------------------------------------------------------
 // Map list
@@ -92,13 +95,113 @@ void Jump_LoadMapList()
 	gi.Com_PrintFmt("[jump] loaded {} map(s) into the rotation\n", jump_maplist.size());
 }
 
+// Every map that can be voted for: g_map_pool first, then g_map_list, the same
+// order and meaning MuffMode uses. The pool is votable but never auto-rotated;
+// the list is the rotation and is votable too. Both are plain whitespace
+// separated cvar strings of map names.
+std::vector<std::string> Jump_CollectVotableMaps()
+{
+	std::vector<std::string> maps;
+
+	const cvar_t *sources[] = { jump_map_pool, g_map_list };
+
+	for (const cvar_t *source : sources)
+	{
+		if (!source || !source->string || !source->string[0])
+			continue;
+
+		const char *cursor = source->string;
+
+		while (true)
+		{
+			const char *token = COM_ParseEx(&cursor, " ");
+
+			if (!token || !*token)
+				break;
+
+			if (!jump::IsSafeMapToken(token))
+				continue;
+
+			bool duplicate = false;
+
+			for (const auto &existing : maps)
+			{
+				if (!Q_strcasecmp(existing.c_str(), token))
+				{
+					duplicate = true;
+					break;
+				}
+			}
+
+			if (!duplicate)
+				maps.emplace_back(token);
+		}
+	}
+
+	return maps;
+}
+
 static bool Jump_MapInList(const char *name)
 {
-	for (const auto &map : jump_maplist)
+	for (const auto &map : Jump_CollectVotableMaps())
 		if (!Q_strcasecmp(map.c_str(), name))
 			return true;
 
 	return false;
+}
+
+bool Jump_VoteActive()
+{
+	return jump_vote.type != jump_vote_type_t::none;
+}
+
+const char *Jump_VoteDescription()
+{
+	return jump_vote.description;
+}
+
+const char *Jump_VoteCaller()
+{
+	return jump_vote.caller;
+}
+
+int Jump_VoteSecondsLeft()
+{
+	if (!Jump_VoteActive())
+		return 0;
+
+	const int64_t ms = (jump_vote.ends - level.time).milliseconds();
+
+	return ms > 0 ? (int) ((ms + 999) / 1000) : 0;
+}
+
+void Jump_VoteTally(int &yes, int &no, int &needed)
+{
+	yes = no = 0;
+
+	const int voters = Jump_VoterCount();
+
+	for (auto player : active_players())
+	{
+		const int index = (int) (player->client - game.clients);
+
+		if (!jump_vote.voted[index])
+			continue;
+
+		if (jump_vote.ballots[index])
+			yes++;
+		else
+			no++;
+	}
+
+	needed = (int) (voters * JUMP_VOTE_PASS_FRACTION + 0.999f);
+}
+
+bool Jump_HasVoted(edict_t *ent)
+{
+	const int index = (int) (ent->client - game.clients);
+
+	return index >= 0 && index < (int) MAX_CLIENTS && jump_vote.voted[index];
 }
 
 void Jump_CmdMapList(edict_t *ent)
@@ -161,6 +264,7 @@ static void Jump_StartVote(edict_t *ent, jump_vote_type_t type, const char *desc
 	jump_vote.minutes = minutes;
 	jump_vote.ends = level.time + gtime_t::from_sec(JUMP_VOTE_SECONDS);
 	Q_strlcpy(jump_vote.caller, Jump_DisplayName(ent), sizeof(jump_vote.caller));
+	Q_strlcpy(jump_vote.description, description, sizeof(jump_vote.description));
 
 	// The caller is counted as a yes so a solo host can pass their own vote.
 	const int index = (int) (ent->client - game.clients);
@@ -261,34 +365,47 @@ static bool Jump_VoteBusy(edict_t *ent)
 	return false;
 }
 
-void Jump_CmdVoteMap(edict_t *ent)
+// Shared by the console command and the vote menu.
+bool Jump_StartMapVote(edict_t *ent, const char *map)
 {
 	if (Jump_VoteBusy(ent))
-		return;
+		return false;
 
-	if (gi.argc() < 2)
+	// The name ends up in `gamemap "<map>"`, so validate rather than trust it.
+	if (!jump::IsSafeMapToken(map))
 	{
-		gi.Client_Print(ent, PRINT_HIGH, "Usage: votemap <map>\n");
-		return;
+		gi.Client_Print(ent, PRINT_HIGH, "That is not a valid map name.\n");
+		return false;
 	}
-
-	const char *map = gi.argv(1);
 
 	if (!Q_strcasecmp(map, level.mapname))
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "That map is already running.\n");
-		return;
+		return false;
 	}
 
-	// Only maps in the rotation, so a typo can't strand the server on a map
-	// nobody has.
-	if (!jump_maplist.empty() && !Jump_MapInList(map))
+	// Only configured maps, so a typo can't strand the server on a map nobody
+	// has.
+	if (!Jump_MapInList(map))
 	{
-		gi.Client_Print(ent, PRINT_HIGH, G_Fmt("'{}' is not in the maplist.\n", map).data());
-		return;
+		gi.Client_Print(ent, PRINT_HIGH,
+						G_Fmt("'{}' is not in g_map_list or g_map_pool.\n", map).data());
+		return false;
 	}
 
 	Jump_StartVote(ent, jump_vote_type_t::map, G_Fmt("change map to {}", map).data(), map, 0);
+	return true;
+}
+
+void Jump_CmdVoteMap(edict_t *ent)
+{
+	if (gi.argc() < 2)
+	{
+		gi.Client_Print(ent, PRINT_HIGH, "Usage: votemap <map>   (or press TAB for the menu)\n");
+		return;
+	}
+
+	Jump_StartMapVote(ent, gi.argv(1));
 }
 
 void Jump_CmdNominate(edict_t *ent)

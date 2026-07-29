@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,6 +90,7 @@ extern cvar_t *jump_box_models;
 extern cvar_t *jump_data_dir;
 extern cvar_t *jump_records_max;
 extern cvar_t *jump_idle_time;
+extern cvar_t *jump_map_pool;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -165,6 +167,21 @@ void Jump_CmdVote(edict_t *ent, bool yes);
 void Jump_CmdMapList(edict_t *ent);
 void Jump_CmdIdle(edict_t *ent);
 void Jump_VoteClientDisconnect(edict_t *ent);
+bool Jump_StartMapVote(edict_t *ent, const char *map);
+
+// Every votable map: g_map_pool first, then g_map_list, de-duplicated.
+std::vector<std::string> Jump_CollectVotableMaps();
+
+bool		Jump_VoteActive();
+const char *Jump_VoteDescription();
+const char *Jump_VoteCaller();
+int			Jump_VoteSecondsLeft();
+void		Jump_VoteTally(int &yes, int &no, int &needed);
+bool		Jump_HasVoted(edict_t *ent);
+
+// jump_menu.cpp
+void Jump_OpenVoteMenu(edict_t *ent);
+void Jump_CmdMenu(edict_t *ent);
 
 // jump_scoreboard.cpp (Jump_ScoreboardMessage is declared in jump.h)
 void Jump_CmdMapTimes(edict_t *ent);

@@ -117,6 +117,14 @@ struct map_records_t
 // Returns "_" for input that reduces to nothing.
 std::string SafeName(const std::string &name);
 
+// True when a token is usable as a map name.
+//
+// Map names reach the engine through `gamemap "<name>"`, so this is a
+// validator rather than a sanitiser: anything that could break out of the
+// quoting, walk the filesystem, or overflow a path is rejected outright.
+// Mirrors the rules MuffMode applies to the same cvars.
+bool IsSafeMapToken(const std::string &token);
+
 // Make untrusted text safe to embed in a quoted layout-string token.
 //
 // This is a crash guard, not cosmetics: the client parses the layout it is

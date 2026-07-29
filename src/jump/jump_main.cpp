@@ -14,6 +14,7 @@ cvar_t *jump_box_models;
 cvar_t *jump_data_dir;
 cvar_t *jump_records_max;
 cvar_t *jump_idle_time;
+cvar_t *jump_map_pool;
 
 bool Jump_Active()
 {
@@ -56,6 +57,10 @@ void Jump_Init()
 
 	// Seconds of no input before a player is moved to spectator; 0 disables.
 	jump_idle_time = gi.cvar("jump_idle_time", "300", CVAR_NOFLAGS);
+
+	// Maps that can be voted for but are not in the rotation. Same format as
+	// the engine's g_map_list: whitespace separated map names.
+	jump_map_pool = gi.cvar("g_map_pool", "", CVAR_NOFLAGS);
 
 	if (!g_jump->integer)
 		return;
