@@ -31,8 +31,19 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 
 	std::string layout;
 
+	// The client font is proportional by default (scr_usekfont), so columns
+	// cannot be made to line up by padding with spaces - each cell needs its
+	// own cursor. These are xv offsets in the 320-wide virtual layout space.
+	constexpr int col_rank = 16;
+	constexpr int col_name = 48;
+	constexpr int col_time = 190;
+	constexpr int col_date = 240;
+
 	layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - best times\" ", jump_level.mapname).data();
-	layout += "xv 0 yv 16 string2 \"rank name                time      date\" ";
+
+	layout += G_Fmt("yv 16 xv {} string2 rank xv {} string2 name xv {} string2 time xv {} string2 date ", col_rank,
+					col_name, col_time, col_date)
+				  .data();
 
 	int y = 32;
 	int shown = 0;
@@ -42,12 +53,13 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 		const jump::record_t &rec = records.times[i];
 
 		// Highlight the viewer's own row.
-		const char *token = (rec.id == self_id) ? "string2" : "string";
+		const char *tok = (rec.id == self_id) ? "string2" : "string";
 
-		const std::string row =
-			G_Fmt("xv 0 yv {} {} \"{:>3}  {:<18.18} {:>9} {:<10.10}\" ", y, token, (int) i + 1, rec.name.c_str(),
-				  jump::FormatTime(rec.time_ms).c_str(), rec.date.substr(0, 10).c_str())
-				.data();
+		// Names can contain spaces, so every cell is quoted.
+		const std::string row = G_Fmt("yv {} xv {} {} \"{}\" xv {} {} \"{:.18}\" xv {} {} \"{}\" xv {} {} \"{:.10}\" ",
+									  y, col_rank, tok, (int) i + 1, col_name, tok, rec.name.c_str(), col_time, tok,
+									  jump::FormatTime(rec.time_ms).c_str(), col_date, tok, rec.date.c_str())
+									.data();
 
 		if (!Jump_AppendRow(layout, row))
 			break;
@@ -56,17 +68,21 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	}
 
 	if (records.times.empty())
-		layout += G_Fmt("xv 0 yv {} string \"no times recorded yet\" ", y).data();
+		layout += G_Fmt("xv {} yv {} string \"no times recorded yet\" ", col_rank, y).data();
 
 	// The viewer's own standing, always visible even if they're off the board.
 	const int rank = records.RankOf(self_id);
 
+	Jump_Log("scoreboard: self id=%s rank=%d of %d record(s)", self_id.c_str(), rank, (int) records.times.size());
+
 	y += 16;
 
 	if (rank > 0)
-		layout += G_Fmt("xv 0 yv {} string2 \"you: rank {} ({} points)\" ", y, rank, jump::PointsForRank(rank)).data();
+		layout += G_Fmt("xv {} yv {} string2 \"you: rank {} ({} points)\" ", col_rank, y, rank,
+						 jump::PointsForRank(rank))
+				  .data();
 	else
-		layout += G_Fmt("xv 0 yv {} string \"you: no time on this map\" ", y).data();
+		layout += G_Fmt("xv {} yv {} string \"you: no time on this map\" ", col_rank, y).data();
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(layout.c_str());
@@ -112,7 +128,7 @@ void Jump_CmdPlayerTimes(edict_t *ent)
 	Jump_PlayerTotals(id, points, completions, firsts);
 
 	gi.Client_Print(ent, PRINT_HIGH,
-					G_Fmt("{}: {} map(s) completed, {} first place(s), {} points\n", ent->client->pers.netname,
+					G_Fmt("{}: {} map(s) completed, {} first place(s), {} points\n", Jump_DisplayName(ent),
 						  completions, firsts, points)
 						.data());
 
@@ -140,7 +156,7 @@ void Jump_CmdRanks(edict_t *ent)
 		Jump_PlayerTotals(Jump_PlayerId(player), points, completions, firsts);
 
 		gi.Client_Print(ent, PRINT_HIGH,
-						G_Fmt("{:<20.20} {:>6} pts  {:>4} maps  {:>3} firsts\n", player->client->pers.netname, points,
+						G_Fmt("{:<20.20} {:>6} pts  {:>4} maps  {:>3} firsts\n", Jump_DisplayName(player), points,
 							  completions, firsts)
 							.data());
 	}

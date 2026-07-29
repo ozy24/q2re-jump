@@ -76,7 +76,7 @@ void Jump_CmdStore(edict_t *ent)
 	jc->stores.Push(slot);
 
 	Jump_PlaceStoreMarker(ent, *jc, ent->s.origin);
-	Jump_Log("%s stored (%d held)", ent->client->pers.netname, jc->stores.count);
+	Jump_Log("%s stored (%d held)", Jump_DisplayName(ent), jc->stores.count);
 }
 
 void Jump_CmdRecall(edict_t *ent, int which)
@@ -132,7 +132,7 @@ void Jump_CmdRecall(edict_t *ent, int which)
 		jc->checkpoints = slot->checkpoints;
 	}
 
-	Jump_Log("%s recalled store %d", ent->client->pers.netname, which);
+	Jump_Log("%s recalled store %d", Jump_DisplayName(ent), which);
 }
 
 // Upstream's Cmd_Kill_f refuses to run for the first five seconds after a

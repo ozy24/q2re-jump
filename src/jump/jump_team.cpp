@@ -47,7 +47,7 @@ bool Jump_AssignSkin(edict_t *ent, const char *skin)
 	const int playernum = ent - g_edicts - 1;
 
 	gi.configstring(CS_PLAYERSKINS + playernum,
-					G_Fmt("{}\\{}\\default", ent->client->pers.netname, Jump_TeamSkin(jc->team)).data());
+					G_Fmt("{}\\{}\\default", Jump_DisplayName(ent), Jump_TeamSkin(jc->team)).data());
 
 	(void) skin;
 	return true;
@@ -87,7 +87,7 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	Jump_AssignSkin(ent, nullptr);
 
 	gi.Broadcast_Print(PRINT_HIGH,
-					   G_Fmt("{} joined {}\n", ent->client->pers.netname, Jump_TeamName(team)).data());
+					   G_Fmt("{} joined {}\n", Jump_DisplayName(ent), Jump_TeamName(team)).data());
 }
 
 void Jump_CmdTeam(edict_t *ent)

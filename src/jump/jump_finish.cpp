@@ -170,12 +170,12 @@ void Jump_Finish(edict_t *ent)
 
 	gi.Broadcast_Print(
 		PRINT_HIGH,
-		G_Fmt("{} finished in {} seconds{}\n", ent->client->pers.netname, time_str.c_str(), suffix.c_str()).data());
+		G_Fmt("{} finished in {} seconds{}\n", Jump_DisplayName(ent), time_str.c_str(), suffix.c_str()).data());
 
 	if (rank == 1 && previous_record != 0)
-		gi.Broadcast_Print(PRINT_CHAT, G_Fmt("{} has set a 1st place!\n", ent->client->pers.netname).data());
+		gi.Broadcast_Print(PRINT_CHAT, G_Fmt("{} has set a 1st place!\n", Jump_DisplayName(ent)).data());
 
-	Jump_Log("%s finished: %lld ms (rank %d)", ent->client->pers.netname, (long long) time_ms, rank);
+	Jump_Log("%s finished: %lld ms (rank %d)", Jump_DisplayName(ent), (long long) time_ms, rank);
 }
 
 bool Jump_ItemTouch(edict_t *ent, edict_t *other)

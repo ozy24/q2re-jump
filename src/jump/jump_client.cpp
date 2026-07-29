@@ -38,6 +38,11 @@ void Jump_ClientSpawn(edict_t *ent)
 	Jump_StripInventory(ent);
 	Jump_ClearCheckpointFlags(ent);
 
+	// Pick the player's stored best for this map back up. This has to happen
+	// here rather than at level init, because when Jump_InitLevel runs every
+	// client is still flagged disconnected.
+	jc->pb_time_ms = Jump_PersonalBest(ent);
+
 	// Health is deliberately left at the default. Inflating it does nothing
 	// useful once combat damage is zeroed, and it makes hazards take seconds
 	// to kill instead of ending the run.
@@ -66,7 +71,7 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 	{
 		jc->state = jump_run_state_t::running;
 		jc->run_start = level.time;
-		Jump_Log("%s started a run", ent->client->pers.netname);
+		Jump_Log("%s started a run", Jump_DisplayName(ent));
 	}
 }
 

@@ -139,6 +139,7 @@ bool						 Jump_WriteFileAtomic(const std::filesystem::path &path, const std::st
 // jump_records.cpp
 const jump::map_records_t &Jump_Records();
 const char				  *Jump_PlayerId(edict_t *ent);
+const char				  *Jump_DisplayName(edict_t *ent);
 void					   Jump_LoadRecords();
 void					   Jump_SaveRecords();
 int64_t					   Jump_PersonalBest(edict_t *ent);

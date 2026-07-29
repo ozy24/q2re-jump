@@ -42,14 +42,15 @@ void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
 	if (ps->stats[JUMP_STAT_RUN_STATE] != JUMP_RUN_FINISHED)
 		return;
 
+	// Hundredths arrive as two single-digit stats; see jump_stats.h for why.
 	const int32_t pb_sec = ps->stats[JUMP_STAT_PB_SEC];
-	const int32_t pb_hun = ps->stats[JUMP_STAT_PB_MS];
+	const int32_t pb_hun = ps->stats[JUMP_STAT_PB_HUN_TENS] * 10 + ps->stats[JUMP_STAT_PB_HUN_UNITS];
 
 	if (!pb_sec && !pb_hun)
 		return; // first completion, nothing to compare against
 
-	const int32_t delta = (ps->stats[JUMP_STAT_TIME_SEC] * 100 + ps->stats[JUMP_STAT_TIME_MS]) -
-						  (pb_sec * 100 + pb_hun);
+	const int32_t run_hun = ps->stats[JUMP_STAT_TIME_HUN_TENS] * 10 + ps->stats[JUMP_STAT_TIME_HUN_UNITS];
+	const int32_t delta = (ps->stats[JUMP_STAT_TIME_SEC] * 100 + run_hun) - (pb_sec * 100 + pb_hun);
 	const int32_t mag = delta < 0 ? -delta : delta;
 
 	char buffer[32];

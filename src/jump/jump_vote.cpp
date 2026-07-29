@@ -160,7 +160,7 @@ static void Jump_StartVote(edict_t *ent, jump_vote_type_t type, const char *desc
 
 	jump_vote.minutes = minutes;
 	jump_vote.ends = level.time + gtime_t::from_sec(JUMP_VOTE_SECONDS);
-	Q_strlcpy(jump_vote.caller, ent->client->pers.netname, sizeof(jump_vote.caller));
+	Q_strlcpy(jump_vote.caller, Jump_DisplayName(ent), sizeof(jump_vote.caller));
 
 	// The caller is counted as a yes so a solo host can pass their own vote.
 	const int index = (int) (ent->client - game.clients);
@@ -169,7 +169,7 @@ static void Jump_StartVote(edict_t *ent, jump_vote_type_t type, const char *desc
 	jump_vote.ballots[index] = true;
 
 	gi.Broadcast_Print(PRINT_CHAT, G_Fmt("{} called a vote: {}\nType yes or no ({} seconds).\n",
-										 ent->client->pers.netname, description, JUMP_VOTE_SECONDS)
+										 Jump_DisplayName(ent), description, JUMP_VOTE_SECONDS)
 									   .data());
 }
 

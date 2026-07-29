@@ -99,14 +99,9 @@ void Jump_InitLevel(const char *entities)
 	Jump_LoadMsets(entities);
 	Jump_LoadRecords();
 
-	// Seed each connected player's PB display from the table.
-	for (uint32_t i = 0; i < game.maxclients; i++)
-	{
-		edict_t *ent = &g_edicts[i + 1];
-
-		if (ent->client && ent->client->pers.connected)
-			jump_clients[i].pb_time_ms = Jump_PersonalBest(ent);
-	}
+	// PB is seeded per client in Jump_ClientSpawn, not here: SpawnEntities
+	// flags every client disconnected a few lines above this hook, so there is
+	// nobody to seed yet.
 
 	if (jump_level.active && !was_active)
 		Jump_Log("level init: %s", jump_level.mapname);

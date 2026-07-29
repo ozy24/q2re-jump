@@ -35,14 +35,41 @@ static std::string Jump_TimestampUtc()
 	return buf;
 }
 
+// pers.netname is NOT a display name. ClientUserinfoChanged overwrites it with
+// an encoded lobby token ("##P0" for slot 0) that the client decodes, and it is
+// only meaningful as an argument to the Loc* print imports. Anything the mod
+// writes to a file, or bakes into a plain string, has to read the real name out
+// of the saved userinfo instead.
+const char *Jump_DisplayName(edict_t *ent)
+{
+	// Rotating buffers so two names can appear in one expression without the
+	// second call overwriting the first, the same trick G_Fmt uses.
+	static char	  names[4][MAX_INFO_VALUE];
+	static size_t next = 0;
+
+	char *name = names[next];
+	next = (next + 1) % std::size(names);
+
+	name[0] = '\0';
+
+	if (ent && ent->client)
+		gi.Info_ValueForKey(ent->client->pers.userinfo, "name", name, MAX_INFO_VALUE);
+
+	if (!name[0])
+		Q_strlcpy(name, "player", MAX_INFO_VALUE);
+
+	return name;
+}
+
 const char *Jump_PlayerId(edict_t *ent)
 {
-	// The engine supplies a stable per-account id; fall back to the name so
-	// records still work in setups that don't provide one.
+	// The engine supplies a stable per-account id.
 	if (ent->client->pers.social_id[0])
 		return ent->client->pers.social_id;
 
-	return ent->client->pers.netname;
+	// Fall back to the display name, never to netname: that token is a client
+	// slot number, so every host would key their records as "##P0".
+	return Jump_DisplayName(ent);
 }
 
 // ---------------------------------------------------------------------------
@@ -192,9 +219,11 @@ int Jump_SubmitTime(edict_t *ent, int64_t time_ms)
 	jump::record_t rec;
 
 	rec.id = Jump_PlayerId(ent);
-	rec.name = ent->client->pers.netname;
+	rec.name = Jump_DisplayName(ent);
 	rec.time_ms = time_ms;
 	rec.date = Jump_TimestampUtc();
+
+	Jump_Log("submit: id=%s name=%s time=%lld", rec.id.c_str(), rec.name.c_str(), (long long) time_ms);
 
 	const int rank = jump_records.Submit(rec);
 
