@@ -516,8 +516,9 @@ bool KillBox(edict_t *ent, bool from_spawning, mod_id_t mod, bool bsp_clipping)
 
 	contents_t mask = CONTENTS_MONSTER | CONTENTS_PLAYER;
 
-	// [Paril-KEX] don't gib other players in coop if we're not colliding
-	if (from_spawning && ent->client && coop->integer && !G_ShouldPlayersCollide(false))
+	// [Paril-KEX] don't gib other players if we're not colliding
+	// [Jump] also covers deathmatch when g_disable_player_collision is set
+	if (from_spawning && ent->client && !G_ShouldPlayersCollide(false))
 		mask &= ~CONTENTS_PLAYER;
 
 	int		 i, num;

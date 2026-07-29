@@ -2001,6 +2001,10 @@ void PutClientInServer(edict_t *ent)
 	// ranging doesn't count this client
 	bool valid_spawn = false;
 	bool force_spawn = client->awaiting_respawn && level.time > client->respawn_timeout;
+	// [Jump] Players don't collide and telefrags are disabled, so an occupied
+	// pad must not put us in the stock 3-second spawn limbo.
+	if (Jump_Active())
+		force_spawn = true;
 	bool is_landmark = false;
 
 	if (use_squad_respawn)
