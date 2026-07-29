@@ -45,3 +45,6 @@ maps/*.ent
 maps/*.prt
 maps/*.log
 maps/*.json
+
+# staged build artifacts
+/game_x64.*

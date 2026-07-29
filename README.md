@@ -82,7 +82,7 @@ Copy `dist/game_x64.dll` into your Quake II install's game folder, e.g.:
 └─ src/
    ├─ game.sln / game.vcxproj  # MSBuild project (Release|x64 → dll)
    ├─ vcpkg.json               # manifest dependencies
-   ├─ build.bat                # one-shot build + deploy + launch
+   ├─ build.bat                # build DLL + run unit tests
    ├─ .vscode/tasks.json       # VS Code build tasks
    ├─ g_*.cpp / p_*.cpp        # upstream game logic
    ├─ m_*.cpp                  # monster logic
