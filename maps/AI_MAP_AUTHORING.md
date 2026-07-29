@@ -183,6 +183,29 @@ remaster that is the user-data folder, not the install folder:
   without changing behaviour, so a parser bug shows up as a log error rather
   than as broken gameplay.
 
+## 9. When you build a series, generate them from one script
+
+`make_jumptest.py` builds all eight maps from a shared `MapBuilder` (room,
+platform, lava, water, ladder, brush entity) with one function per map. Adding
+a map is a function, not a copy of a file. `build_jumptest.bat` takes map names
+so you can iterate on one without recompiling the set.
+
+Design each map around **one** feature. `jumptest4` exists to test checkpoint
+counting and the barrier entity; `jumptest7` exists to test rocket knockback.
+When a map fails, that tells you which code path is broken. A single map
+exercising everything tells you nothing.
+
+**Leaks are the failure you will actually hit.** `vis` fails, `qbsp` writes a
+`.pts` file, and the usual cause is a brush poking through the shell:
+
+```
+Leak file written to jumptest2.pts
+```
+
+That was a summit platform placed above the room's ceiling. The room helper
+takes the interior bounds, so every piece of geometry must fit inside them -
+check the tallest or furthest object against the room before compiling.
+
 ## What this process does not give you
 
 Be honest about this in the handover:

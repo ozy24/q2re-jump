@@ -1,13 +1,29 @@
-# Testing the port with jumptest1
+# Testing the port with the jumptest maps
 
-`jumptest1` is a linear race built to exercise the mod rather than your aim:
-nine platforms over a lava floor, one checkpoint, a railgun at the end. Gaps run
-96 to 144 units; a standard running jump covers roughly 200, so every jump
-should be comfortable. If any of them feel impossible, that is a finding about
-rerelease physics and worth reporting.
+Eight small maps, each aimed at a different part of the mod, so a failure points
+at one code path instead of "something is broken". Several of them exercise
+entities that had never been compiled into a map before, so they are the first
+real test of that code.
 
-Falling into the lava kills you, which is what makes the two teams feel
-different: practice lets you store on each platform and recall after a miss,
+| Map | Tests | Notes |
+|---|---|---|
+| `jumptest1` | the basics | nine platforms over lava, one checkpoint, weapon finish |
+| `jumptest2` | the **gravity mset** | vertical shaft, `gravity 450` - the 224-unit steps are only reachable because of it |
+| `jumptest3` | precision, **store/recall** | 48-unit pads that weave side to side |
+| `jumptest4` | **checkpoint counting** and `jump_cpwall` | five keys to collect, then a barrier that refuses to open without them |
+| `jumptest5` | **teleporters** and the `fasttele` mset | four ledges joined only by teleports |
+| `jumptest6` | **water and ladders** | swim a pool, climb a ladder, then jump |
+| `jumptest7` | the **rocket mset**, `trigger_weapon`, and knockback | the ledge is out of jump range; you must rocket jump |
+| `jumptest8` | **legacy entities** | `trigger_finish` brush, `one_way_wall`, `jump_clip` |
+
+Gaps elsewhere run 96-144 units against a running jump of roughly 200, so the
+maps test the mod rather than your aim. `jumptest2`, `jumptest3` and `jumptest7`
+are deliberately harder, since the thing being tested *is* the movement. If a
+jump feels impossible, that is a finding about rerelease physics worth
+reporting.
+
+Falling into the lava kills you, which is what makes the two modes differ in
+practice: practice lets you store on each platform and recall after a miss,
 ranked makes you start over from the spawn.
 
 ## Running it
@@ -23,6 +39,8 @@ In the console:
 deathmatch 1
 map jumptest1
 ```
+
+Press **TAB** for the vote menu to hop between them.
 
 Rebuild either with `src\build.bat` and `maps\build_jumptest.bat`.
 

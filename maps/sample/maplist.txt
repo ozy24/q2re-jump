@@ -1,0 +1,12 @@
+# Jump map rotation. One map per line; # starts a comment.
+# Loaded into the engine's g_map_list at startup.
+#
+# Copy to:  <dir containing game_x64.dll>\jump\maplist.txt
+jumptest1
+jumptest2
+jumptest3
+jumptest4
+jumptest5
+jumptest6
+jumptest7
+jumptest8

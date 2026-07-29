@@ -1,6 +1,6 @@
 {
 "classname" "worldspawn"
-"message" "Jump Test 1"
+"message" "Jump Test 1 - the basics"
 "mset" "gravity 800 checkpoint_total 1"
 {
 ( 2592 416 0 ) ( 2592 -416 0 ) ( -32 -416 0 ) e1u1/floor3_1 0 0 0 1 1 0 0 0
