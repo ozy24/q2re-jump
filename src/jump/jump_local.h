@@ -45,7 +45,7 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 
 	// --- session: survives map changes, re-keyed on connect ---
-	jump_team_t team = jump_team_t::practice;
+	jump_team_t team = jump_team_t::ranked;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 };
 
