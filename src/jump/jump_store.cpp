@@ -53,7 +53,7 @@ void Jump_CmdStore(edict_t *ent)
 	if (!Jump_CanStore(ent, jc))
 		return;
 
-	if (jc->team == jump_team_t::hard)
+	if (jc->team == jump_team_t::ranked)
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "Stores are disabled on Hard. Use \"team easy\" to practice.\n");
 		return;
@@ -86,9 +86,9 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	if (!Jump_CanStore(ent, jc))
 		return;
 
-	// There is no recall on Hard: the only way back is a fresh run. This is
-	// what keeps Hard times comparable.
-	if (jc->team == jump_team_t::hard)
+	// There is no recall on Ranked: the only way back is a fresh run. This is
+	// what keeps ranked times comparable.
+	if (jc->team == jump_team_t::ranked)
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "No recall on Hard - restarting your run.\n");
 		Jump_RestartRun(ent);
@@ -137,7 +137,7 @@ void Jump_CmdRecall(edict_t *ent, int which)
 
 // Upstream's Cmd_Kill_f refuses to run for the first five seconds after a
 // spawn, which is unusable in a mode whose core loop is "miss the jump, go
-// again". Jump handles it instead: on Easy a stored position is the natural
+// again". Jump handles it instead: on Practice a stored position is the natural
 // place to resume from, otherwise it's a clean run from the spawn.
 void Jump_CmdKill(edict_t *ent)
 {
@@ -146,7 +146,7 @@ void Jump_CmdKill(edict_t *ent)
 	if (!jc || ent->client->resp.spectator)
 		return;
 
-	if (jc->team == jump_team_t::easy && !jc->stores.Empty())
+	if (jc->team == jump_team_t::practice && !jc->stores.Empty())
 	{
 		Jump_CmdRecall(ent, 1);
 		return;

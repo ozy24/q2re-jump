@@ -7,8 +7,8 @@ should be comfortable. If any of them feel impossible, that is a finding about
 rerelease physics and worth reporting.
 
 Falling into the lava kills you, which is what makes the two teams feel
-different: Easy can store on each platform and recall after a miss, Hard has to
-start over from the spawn.
+different: practice lets you store on each platform and recall after a miss,
+ranked makes you start over from the spawn.
 
 ## Running it
 
@@ -50,21 +50,21 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
 
 ### Teams
 
-- [ ] `team easy` — `store` places a marker, `recall` returns you to it with the
+- [ ] `team practice` — `store` places a marker, `recall` returns you to it with the
       elapsed time carried over (the timer does **not** reset to zero).
 - [ ] `recall 2` returns you to the store before last.
 - [ ] `reset` clears your stores; `recall` then says you have none.
-- [ ] `kill` on Easy with a store recalls you to it; with no stores it restarts
+- [ ] `kill` on practice with a store recalls you to it; with no stores it restarts
       you at the spawn. Either works immediately, with no cooldown.
-- [ ] Finishing on Easy prints a private message and does **not** broadcast.
-- [ ] `team hard` — `store` is refused, and `recall` restarts you at the spawn
+- [ ] Finishing on practice prints a private message and does **not** broadcast.
+- [ ] `team ranked` — `store` is refused, and `recall` restarts you at the spawn
       with a fresh timer.
-- [ ] Finishing on Hard broadcasts and records the time.
+- [ ] Finishing on ranked broadcasts and records the time.
 - [ ] `team spectator` puts you in spectator; teams change your skin colour.
 
 ### Records
 
-- [ ] `maptimes` lists your time after a Hard finish.
+- [ ] `maptimes` lists your time after a ranked finish.
 - [ ] `playertimes` shows one completion and 25 points for first place.
 - [ ] Press `Tab` (score) to see the map times board.
 - [ ] Finishing slower than your PB keeps the old time; faster replaces it, and

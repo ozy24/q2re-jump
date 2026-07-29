@@ -13,11 +13,13 @@
 // Types
 // ---------------------------------------------------------------------------
 
+// Upstream q2jump calls these Easy and Hard, which reads as map difficulty
+// rather than what they actually are: a practice mode and a timed one.
 enum class jump_team_t : uint8_t
 {
 	spectator = 0,
-	easy = 1,
-	hard = 2
+	practice = 1,
+	ranked = 2
 };
 
 enum class jump_run_state_t : uint8_t
@@ -42,7 +44,7 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 
 	// --- session: survives map changes, re-keyed on connect ---
-	jump_team_t team = jump_team_t::easy;
+	jump_team_t team = jump_team_t::practice;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 };
 

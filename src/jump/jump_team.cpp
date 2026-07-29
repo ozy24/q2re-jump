@@ -1,8 +1,9 @@
-// [Jump] Easy / Hard / Spectator teams.
+// [Jump] Practice / Ranked / Spectator teams.
 //
-// Easy is the practice team: recall teleports you and carries your elapsed
-// time with it, and finishes are never recorded. Hard is the competitive team:
-// there is no recall, so the only way back is a fresh run from the spawn.
+// Practice lets you store and recall, carrying your elapsed time with you, and
+// its finishes are never recorded. Ranked has no recall at all, so the only
+// way to a time is one clean run from the spawn - which is what makes ranked
+// times comparable.
 
 #include "../g_local.h"
 #include "jump_local.h"
@@ -11,10 +12,10 @@ const char *Jump_TeamName(jump_team_t team)
 {
 	switch (team)
 	{
-	case jump_team_t::easy:
-		return "Easy";
-	case jump_team_t::hard:
-		return "Hard";
+	case jump_team_t::practice:
+		return "Practice";
+	case jump_team_t::ranked:
+		return "Ranked";
 	default:
 		return "Spectator";
 	}
@@ -25,9 +26,9 @@ static const char *Jump_TeamSkin(jump_team_t team)
 {
 	switch (team)
 	{
-	case jump_team_t::easy:
+	case jump_team_t::practice:
 		return "female/ctf_r";
-	case jump_team_t::hard:
+	case jump_team_t::ranked:
 		return "female/ctf_b";
 	default:
 		return "female/invis";
@@ -69,7 +70,7 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	jc->team = team;
 
 	// Switching teams always abandons the run in progress, and the stores go
-	// with it: a Hard player must not inherit an Easy player's shortcuts.
+	// with it: a ranked run must not inherit shortcuts stored in practice.
 	Jump_ResetRun(*jc);
 	jc->stores.Clear();
 	Jump_FreeStoreMarker(*jc);
@@ -99,21 +100,27 @@ void Jump_CmdTeam(edict_t *ent)
 
 	if (gi.argc() < 2)
 	{
-		gi.Client_Print(ent, PRINT_HIGH,
-						G_Fmt("You are on {}. Use: team easy | hard | spectator\n", Jump_TeamName(jc->team)).data());
+		gi.Client_Print(
+			ent, PRINT_HIGH,
+			G_Fmt("You are on {}. Use: team practice | ranked | spectator\n", Jump_TeamName(jc->team)).data());
 		return;
 	}
 
 	const char *name = gi.argv(1);
 
-	if (!Q_strcasecmp(name, "easy") || !Q_strcasecmp(name, "e"))
-		Jump_JoinTeam(ent, jump_team_t::easy);
-	else if (!Q_strcasecmp(name, "hard") || !Q_strcasecmp(name, "h"))
-		Jump_JoinTeam(ent, jump_team_t::hard);
+	// "easy" and "hard" stay as aliases: that is what these are called on every
+	// other jump server, and muscle memory shouldn't be punished.
+	if (!Q_strcasecmp(name, "practice") || !Q_strcasecmp(name, "p") || !Q_strcasecmp(name, "easy") ||
+		!Q_strcasecmp(name, "e"))
+		Jump_JoinTeam(ent, jump_team_t::practice);
+	else if (!Q_strcasecmp(name, "ranked") || !Q_strcasecmp(name, "r") || !Q_strcasecmp(name, "hard") ||
+			 !Q_strcasecmp(name, "h"))
+		Jump_JoinTeam(ent, jump_team_t::ranked);
 	else if (!Q_strcasecmp(name, "spectator") || !Q_strcasecmp(name, "spec") || !Q_strcasecmp(name, "s") ||
 			 !Q_strcasecmp(name, "observer"))
 		Jump_JoinTeam(ent, jump_team_t::spectator);
 	else
-		gi.Client_Print(ent, PRINT_HIGH,
-						G_Fmt("Team '{}' does not exist. Valid teams: easy, hard, spectator\n", name).data());
+		gi.Client_Print(
+			ent, PRINT_HIGH,
+			G_Fmt("Team '{}' does not exist. Valid teams: practice, ranked, spectator\n", name).data());
 }

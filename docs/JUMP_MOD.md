@@ -29,11 +29,11 @@ lobby, so everything below is a console command.
 
 | Command | What it does |
 |---|---|
-| `store` | Save your position (Easy only) |
+| `store` | Save your position (practice only) |
 | `recall [1-5]` | Return to a saved position; 1 is the most recent |
 | `reset` | Discard all saved positions |
-| `kill` | Restart the run from the spawn |
-| `team easy\|hard\|spectator` | Change team |
+| `kill` | Go again: recalls on practice, restarts on ranked |
+| `team practice\|ranked\|spectator` | Change team (`easy`/`hard` still work as aliases) |
 | `maptimes` | Best times on this map |
 | `playertimes` | Your completions and points |
 | `ranks` | Points for everyone connected |
@@ -46,12 +46,16 @@ lobby, so everything below is a console command.
 
 ### Teams
 
-**Easy** is practice. You can store and recall freely, and recalling carries
-your elapsed time with it. Easy runs are timed for your own benefit but are
-never broadcast and never recorded.
+**Practice** is for learning a map. You can store and recall freely, and
+recalling carries your elapsed time with it. Practice runs are timed for your
+own benefit but are never broadcast and never recorded.
 
-**Hard** is competitive. `store` is refused and `recall` restarts your run from
-the spawn, so the only way to a time is a clean run. Only Hard times are saved.
+**Ranked** is for setting times. `store` is refused and `recall` restarts your
+run from the spawn, so the only way to a time is one clean run. Only ranked
+times are saved.
+
+Upstream q2jump calls these Easy and Hard; those names still work as command
+aliases, but they read as map difficulty rather than what they actually are.
 
 Switching teams abandons the run in progress and clears your stores.
 

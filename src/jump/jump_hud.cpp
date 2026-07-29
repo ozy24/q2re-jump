@@ -50,8 +50,8 @@ void Jump_SetStats(edict_t *ent)
 
 	ent->client->ps.stats[JUMP_STAT_RUN_STATE] = (int16_t) jc->state;
 	ent->client->ps.stats[JUMP_STAT_STORES] = (int16_t) jc->stores.count;
-	ent->client->ps.stats[JUMP_STAT_TEAM_EASY] = jc->team == jump_team_t::easy;
-	ent->client->ps.stats[JUMP_STAT_TEAM_HARD] = jc->team == jump_team_t::hard;
+	ent->client->ps.stats[JUMP_STAT_TEAM_PRACTICE] = jc->team == jump_team_t::practice;
+	ent->client->ps.stats[JUMP_STAT_TEAM_RANKED] = jc->team == jump_team_t::ranked;
 
 	ent->client->ps.stats[JUMP_STAT_PB_SEC] = (int16_t) min<int64_t>(pb_ms / 1000, 9999);
 	ent->client->ps.stats[JUMP_STAT_PB_HUN_TENS] = (int16_t) (pb_hundredths / 10);
@@ -68,75 +68,85 @@ bool Jump_InitStatusbar()
 
 	statusbar_t sb;
 
-	// Everything hangs off the right edge in one column. Offsets are virtual
-	// px from that edge, so they are negative and get more negative leftwards.
+	// A two-column grid hanging off the right edge: labels share one column so
+	// they line up vertically, numbers all right-align to the same anchor.
+	// Offsets are virtual px from the right edge, so they run negative.
 	//
 	//         1234.56      run timer
-	//      cp    0/ 1      checkpoints, only when the map uses them
-	//            EASY      team
-	//      PB    9.87      personal best, only once you have one
+	//   cp       0/1       checkpoints, only when the map uses them
+	//        PRACTICE      team
+	//   PB       9.87      personal best, only once you have one
 	//
-	// Right-hand anchor: the last digit column ends 8px in from the edge.
-	constexpr int right = -8;
+	constexpr int right = -8;	  // last digit column ends here
+	constexpr int label = -152;	  // shared left column for "cp" and "PB"
 
-	// Timer: seconds (4 digits) . tens units. Walk leftwards from the anchor.
-	constexpr int t_units = right - Jump_NumWidth(1);			  // units digit box
-	constexpr int t_tens = t_units - Jump_NumWidth(1);			  // tens digit box
-	constexpr int t_dot = t_tens - 6;							  // the "." itself
-	constexpr int t_secs = t_dot - Jump_NumWidth(4);				  // seconds box
+	// Digits are 24 tall, so a separator drawn in the 8px text font has to sit
+	// near the bottom of the row to read as a decimal point rather than a
+	// mid-dot.
+	constexpr int sep_drop = 15;
 
-	sb.yt(8).xr(t_secs).num(4, JUMP_STAT_TIME_SEC);
-	sb.yt(16).xr(t_dot).string(".");
-	sb.yt(8).xr(t_tens).num(1, JUMP_STAT_TIME_HUN_TENS);
-	sb.yt(8).xr(t_units).num(1, JUMP_STAT_TIME_HUN_UNITS);
+	// Timer: seconds (4 digits) . tens units, walking left from the anchor.
+	constexpr int t_units = right - Jump_NumWidth(1);
+	constexpr int t_tens = t_units - Jump_NumWidth(1);
+	constexpr int t_dot = t_tens - 7;
+	constexpr int t_secs = t_dot - Jump_NumWidth(4);
+	constexpr int t_y = 8;
 
-	// Checkpoints. Totals go to 28 on old maps, so both fields are 2 wide.
+	sb.yt(t_y).xr(t_secs).num(4, JUMP_STAT_TIME_SEC);
+	sb.yt(t_y + sep_drop).xr(t_dot).string(".");
+	sb.yt(t_y).xr(t_tens).num(1, JUMP_STAT_TIME_HUN_TENS);
+	sb.yt(t_y).xr(t_units).num(1, JUMP_STAT_TIME_HUN_UNITS);
+
+	// Checkpoints. Old maps go up to 28, so both fields are two digits wide;
+	// a one-digit value simply leaves its left cell blank.
 	constexpr int cp_total = right - Jump_NumWidth(2);
-	constexpr int cp_slash = cp_total - 6;
+	constexpr int cp_slash = cp_total - 5;
 	constexpr int cp_have = cp_slash - Jump_NumWidth(2);
-	constexpr int cp_label = cp_have - 26;
+	constexpr int cp_y = 40;
 
 	sb.ifstat(JUMP_STAT_CHECKPOINT_TOTAL)
-		.yt(44)
-		.xr(cp_label)
+		.yt(cp_y + 4)
+		.xr(label)
 		.string2("cp")
-		.yt(40)
+		.yt(cp_y)
 		.xr(cp_have)
 		.num(2, JUMP_STAT_CHECKPOINTS)
-		.yt(48)
+		.yt(cp_y + 6)
 		.xr(cp_slash)
 		.string("/")
-		.yt(40)
+		.yt(cp_y)
 		.xr(cp_total)
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
 		.endifstat();
 
 	// Team. Two branches because a layout script can test a stat but cannot
 	// pick a string from its value.
-	sb.ifstat(JUMP_STAT_TEAM_EASY).yt(72).xr(-40).string2("EASY").endifstat();
-	sb.ifstat(JUMP_STAT_TEAM_HARD).yt(72).xr(-40).string2("HARD").endifstat();
+	// Text is left-aligned from the cursor, so the x has to leave room for the
+	// longest label rather than sitting at the shared right anchor.
+	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yt(72).xr(-76).string2("PRACTICE").endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_RANKED).yt(72).xr(-60).string2("RANKED").endifstat();
 
 	// Personal best, same shape as the timer one row down.
 	constexpr int pb_units = right - Jump_NumWidth(1);
 	constexpr int pb_tens = pb_units - Jump_NumWidth(1);
-	constexpr int pb_dot = pb_tens - 6;
+	constexpr int pb_dot = pb_tens - 7;
 	constexpr int pb_secs = pb_dot - Jump_NumWidth(4);
-	constexpr int pb_label = pb_secs - 26;
+	constexpr int pb_y = 88;
 
 	sb.ifstat(JUMP_STAT_PB_SEC)
-		.yt(92)
-		.xr(pb_label)
+		.yt(pb_y + 4)
+		.xr(label)
 		.string2("PB")
-		.yt(88)
+		.yt(pb_y)
 		.xr(pb_secs)
 		.num(4, JUMP_STAT_PB_SEC)
-		.yt(96)
+		.yt(pb_y + sep_drop)
 		.xr(pb_dot)
 		.string(".")
-		.yt(88)
+		.yt(pb_y)
 		.xr(pb_tens)
 		.num(1, JUMP_STAT_PB_HUN_TENS)
-		.yt(88)
+		.yt(pb_y)
 		.xr(pb_units)
 		.num(1, JUMP_STAT_PB_HUN_UNITS)
 		.endifstat();

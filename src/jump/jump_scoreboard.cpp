@@ -35,8 +35,8 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 	// cannot be made to line up by padding with spaces - each cell needs its
 	// own cursor. These are xv offsets in the 320-wide virtual layout space.
 	constexpr int col_rank = 16;
-	constexpr int col_name = 48;
-	constexpr int col_time = 190;
+	constexpr int col_name = 76;
+	constexpr int col_time = 186;
 	constexpr int col_date = 240;
 
 	layout += G_Fmt("xv 0 yv 0 cstring2 \"{} - best times\" ", jump_level.mapname).data();
@@ -75,14 +75,19 @@ bool Jump_ScoreboardMessage(edict_t *ent)
 
 	Jump_Log("scoreboard: self id=%s rank=%d of %d record(s)", self_id.c_str(), rank, (int) records.times.size());
 
-	y += 16;
+	y += 14;
 
+	// Spell out what the points are - "25 points" on its own means nothing
+	// until you know they come from where you place.
 	if (rank > 0)
-		layout += G_Fmt("xv {} yv {} string2 \"you: rank {} ({} points)\" ", col_rank, y, rank,
-						 jump::PointsForRank(rank))
-				  .data();
+		layout += G_Fmt("xv {} yv {} string2 \"you are {} of {} here, worth {} points\" ", col_rank, y, rank,
+						(int) records.times.size(), jump::PointsForRank(rank))
+					  .data();
 	else
-		layout += G_Fmt("xv {} yv {} string \"you: no time on this map\" ", col_rank, y).data();
+		layout += G_Fmt("xv {} yv {} string \"you have no time on this map yet\" ", col_rank, y).data();
+
+	y += 12;
+	layout += G_Fmt("xv {} yv {} string \"points by place: 25 20 16 13 11 10 9 8 7 6 5 4 3 2 1\" ", col_rank, y).data();
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(layout.c_str());

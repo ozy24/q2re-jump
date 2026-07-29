@@ -19,8 +19,8 @@ constexpr player_stat_t JUMP_STAT_TIME_HUN_TENS = STAT_CTF_TEAM1_CAPS;		 // 19: 
 constexpr player_stat_t JUMP_STAT_TIME_HUN_UNITS = STAT_CTF_TEAM2_PIC;		 // 20: hundredths, units digit
 constexpr player_stat_t JUMP_STAT_RUN_STATE = STAT_CTF_TEAM2_CAPS;			 // 21: jump_run_state_t
 constexpr player_stat_t JUMP_STAT_STORES = STAT_CTF_FLAG_PIC;				 // 22: stores held
-constexpr player_stat_t JUMP_STAT_TEAM_EASY = STAT_CTF_JOINED_TEAM1_PIC;	 // 23: 1 while on Easy
-constexpr player_stat_t JUMP_STAT_TEAM_HARD = STAT_CTF_JOINED_TEAM2_PIC;	 // 24: 1 while on Hard
+constexpr player_stat_t JUMP_STAT_TEAM_PRACTICE = STAT_CTF_JOINED_TEAM1_PIC; // 23: 1 while on Practice
+constexpr player_stat_t JUMP_STAT_TEAM_RANKED = STAT_CTF_JOINED_TEAM2_PIC;	 // 24: 1 while on Ranked
 constexpr player_stat_t JUMP_STAT_CHECKPOINTS = STAT_CTF_TEAM1_HEADER;		 // 25: checkpoints taken
 constexpr player_stat_t JUMP_STAT_CHECKPOINT_TOTAL = STAT_CTF_TEAM2_HEADER;	 // 26: checkpoints required
 

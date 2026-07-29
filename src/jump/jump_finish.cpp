@@ -137,9 +137,9 @@ void Jump_Finish(edict_t *ent)
 	// starts a new run until you ask for one.
 	gi.LocCenter_Print(ent, G_Fmt("Finished in {}\nkill to run again", time_str.c_str()).data());
 
-	// Easy is the practice team: the run is timed for your own benefit but is
-	// never broadcast and never recorded.
-	if (jc->team != jump_team_t::hard)
+	// Practice runs are timed for your own benefit but are never broadcast and
+	// never recorded.
+	if (jc->team != jump_team_t::ranked)
 	{
 		gi.Client_Print(ent, PRINT_HIGH,
 						G_Fmt("You would have finished in {} seconds (Easy times are not recorded).\n",
