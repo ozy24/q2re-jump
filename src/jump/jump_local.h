@@ -43,6 +43,7 @@ struct jump_client_t
 	jump::store_ring_t	 stores;
 	edict_t				*store_marker = nullptr;
 	gtime_t				 last_input_time = 0_ms;
+	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
 	// --- session: survives map changes, re-keyed on connect ---
 	jump_team_t team    = jump_team_t::ranked;

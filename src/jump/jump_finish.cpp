@@ -121,8 +121,14 @@ void Jump_Finish(edict_t *ent)
 
 	if (total > 0 && jc->checkpoints < total)
 	{
-		gi.Client_Print(ent, PRINT_HIGH,
-						G_Fmt("You need all {} checkpoints to finish ({} taken).\n", total, jc->checkpoints).data());
+		// Standing on the finish weapon fires every frame; don't spam.
+		if (jc->finish_deny_time <= level.time)
+		{
+			jc->finish_deny_time = level.time + 3_sec;
+			gi.Client_Print(ent, PRINT_HIGH,
+							G_Fmt("You need all {} checkpoints to finish ({} taken).\n", total, jc->checkpoints)
+								.data());
+		}
 		return;
 	}
 
