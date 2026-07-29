@@ -84,9 +84,9 @@ So a stock player sees the full HUD — timer, checkpoints, stores, team, person
 message and the times board. The single thing they miss is the coloured delta against their
 personal best after a finish, which is drawn client-side.
 
-To see the stock view yourself, set `jump_hud 0`. That disables the mod's one client-side drawing
-call, and since the modded client is otherwise the stock client, the result is exactly what a
-vanilla player sees. `jump_hud 1` brings it back.
+**That client-side element is off by default**, so out of the box you see exactly what everyone
+else sees — which is the useful default when you are hosting. `jump_hud 1` opts in to the delta;
+`jump_hud 0` returns to the shared view. The setting is archived, so it persists.
 
 ## Map compatibility
 
@@ -150,7 +150,7 @@ Cosmetic leftovers (`jump_time`, `jump_score`, `jumpmod_effect`,
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
-| `jump_hud` | `1` | **Client-side**, unlike the others. `0` hides the mod's one client-drawn element, giving the exact stock-client view |
+| `jump_hud` | `0` | **Client-side**, unlike the others. Off means you see the exact stock-client view; `1` adds the coloured PB delta after a finish |
 
 ### Map rotation
 

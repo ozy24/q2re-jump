@@ -10,8 +10,8 @@
 // thing a layout script genuinely cannot express: a signed, coloured delta
 // against your personal best once a run is banked.
 //
-// `jump_hud 0` turns it off, which reproduces the stock-client view exactly -
-// the modded cgame is the stock cgame plus this single call.
+// It is off by default, so out of the box everyone - including the host of a
+// listen server - sees exactly what a stock client sees. `jump_hud 1` opts in.
 
 #include "../cg_local.h"
 #include "jump_stats.h"
@@ -23,7 +23,9 @@ static cvar_t *jump_hud;
 
 void Jump_InitClientCvars()
 {
-	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
+	// Default off: the stock-client view is the one everybody shares, so it is
+	// the honest thing to show by default.
+	jump_hud = cgi.cvar("jump_hud", "0", CVAR_ARCHIVE);
 }
 
 void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
@@ -31,7 +33,7 @@ void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
 	if (!ps->stats[JUMP_STAT_ENABLED])
 		return;
 
-	if (jump_hud && !jump_hud->integer)
+	if (!jump_hud || !jump_hud->integer)
 		return;
 
 	if (ps->stats[STAT_LAYOUTS] & LAYOUTS_HIDE_HUD)

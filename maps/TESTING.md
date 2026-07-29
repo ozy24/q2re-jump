@@ -88,9 +88,10 @@ Bind the two commands first: `bind mouse4 store` and `bind mouse5 recall`.
 
 - [ ] The statusbar shows timer, checkpoints, stores, team and PB. All of this
       is server-drawn, so a vanilla player sees it too.
-- [ ] `jump_hud 0` — only the coloured PB delta after a finish disappears.
-      Everything else is unchanged. That is exactly what a stock client sees.
-- [ ] `jump_hud 1` restores it, and the setting survives a restart.
+- [ ] By default (`jump_hud 0`) you are seeing exactly what a stock client
+      sees — no client-drawn elements at all.
+- [ ] `jump_hud 1` adds one thing: the coloured PB delta after a finish.
+      Nothing else changes, and the setting survives a restart.
 
 ## Things I could not test
 
