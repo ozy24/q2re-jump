@@ -1,7 +1,7 @@
 {
 "classname" "worldspawn"
 "message" "Jump Test 5 - teleport chain"
-"mset" "gravity 800 fasttele 1"
+"mset" "fasttele 1"
 {
 ( 2592 352 0 ) ( 2592 -352 0 ) ( -32 -352 0 ) e1u1/floor3_1 0 0 0 1 1 0 0 0
 ( -32 -352 -32 ) ( 2592 -352 -32 ) ( 2592 352 -32 ) e1u1/floor3_1 0 0 0 1 1 0 0 0

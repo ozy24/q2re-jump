@@ -1,7 +1,7 @@
 {
 "classname" "worldspawn"
 "message" "Jump Test 8 - legacy entities"
-"mset" "gravity 800 checkpoint_total 1"
+"mset" "checkpoint_total 1"
 {
 ( 2336 416 0 ) ( 2336 -416 0 ) ( -32 -416 0 ) e1u1/floor3_1 0 0 0 1 1 0 0 0
 ( -32 -416 -32 ) ( 2336 -416 -32 ) ( 2336 416 -32 ) e1u1/floor3_1 0 0 0 1 1 0 0 0

@@ -1,7 +1,6 @@
 {
 "classname" "worldspawn"
 "message" "Jump Test 6 - water and ladders"
-"mset" "gravity 800"
 {
 ( 2080 352 0 ) ( 2080 -352 0 ) ( -32 -352 0 ) e1u1/floor3_1 0 0 0 1 1 0 0 0
 ( -32 -352 -32 ) ( 2080 -352 -32 ) ( 2080 352 -32 ) e1u1/floor3_1 0 0 0 1 1 0 0 0
