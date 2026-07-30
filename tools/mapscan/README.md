@@ -100,6 +100,40 @@ for *does it load*; the static scan is the only source for *can it be
 completed*. Load-verdict disagreements are listed rather than resolved — each
 one is either a scanner bug or engine behaviour that was not modelled.
 
+## Filing the corpus (`sort_corpus.py`)
+
+```bat
+python tools\mapscan\sort_corpus.py                 :: dry run
+python tools\mapscan\sort_corpus.py --apply         :: move into folders
+python tools\mapscan\sort_corpus.py --undo --apply  :: back to flat
+```
+
+Moves each map into `playable/`, `degraded/`, `unfinishable/`, `not-jump/`,
+`broken/` or `strays/` based on `out/maps_final.csv`. Every move is recorded in
+`_sorted.csv` inside the corpus, which is what `--undo` reads, so it is
+reversible without re-running the audit. `.filelist` manifests and stray `.map`
+source stay at the top level — they are not maps.
+
+Two consequences worth knowing:
+
+- **`map <name>` stops resolving.** Once a map lives in a folder the engine wants
+  `map playable/<name>`. The tooling handles this — `scan_bsp.py` walks
+  recursively and records a `mappath` column, and the engine driver uses it for
+  the `map` command while keeping the bare stem as the log marker so every
+  downstream join stays stable.
+- **Records are keyed on the map name.** `Jump_MapTimesPath` runs the name
+  through `jump::SafeName`, so `playable/42` is stored as `playable_42.json`. If
+  you serve maps out of the sorted tree and a later audit moves one between
+  folders, its records are orphaned. Treat the sorted tree as a curation view and
+  serve from a flat directory.
+
+**There is deliberately no difficulty split.** Nothing in a BSP says how hard a
+map is: only ~10% carry a difficulty word in the filename or worldspawn title,
+and a good share of those are thematic ("hell", "torture") rather than a rating.
+Difficulty is an empirical property — the mod already records per-map times and
+completions, so completion rate and median time answer it properly once a server
+has traffic.
+
 ## Full run
 
 ```bat
@@ -108,6 +142,7 @@ powershell -File tools\mapscan\setup_scan_dir.ps1
 powershell -File tools\mapscan\run_engine_scan.ps1
 python     tools\mapscan\parse_log.py
 python     tools\mapscan\merge.py
+python     tools\mapscan\sort_corpus.py --apply      :: optional
 ```
 
 Output lands in `out/` (gitignored).

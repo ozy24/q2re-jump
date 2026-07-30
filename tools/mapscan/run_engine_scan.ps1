@@ -57,7 +57,9 @@ New-Item -ItemType Directory -Force $rawDir, $JumpDataDir | Out-Null
 $skipped = @()
 
 if ($Only.Count) {
-    $names = $Only
+    # -Only takes bare names and assumes a flat corpus, which is what smoke
+    # testing wants.
+    $names = @($Only | ForEach-Object { [pscustomobject]@{ name = $_; path = $_ } })
 } else {
     $csv = Join-Path $OutDir 'maps.csv'
     if (-not (Test-Path $csv)) { throw "missing $csv -- run scan_bsp.py first" }
@@ -77,7 +79,12 @@ if ($Only.Count) {
             $skipped += [pscustomobject]@{ name = $r.name; reason = 'unquotable_name' }
             continue
         }
-        $names += $r.name
+        # mappath carries any subfolder (sort_corpus.py files the corpus into
+        # playable/, not-jump/ and so on). "map <stem>" stops resolving once the
+        # maps move, so the command needs the path - but the log marker stays the
+        # bare stem, or every downstream join would have to learn about folders.
+        $path = if ($r.PSObject.Properties['mappath'] -and $r.mappath) { $r.mappath } else { $r.name }
+        $names += [pscustomobject]@{ name = $r.name; path = $path }
     }
 }
 if ($Limit -gt 0) { $names = $names | Select-Object -First $Limit }
@@ -87,7 +94,7 @@ if ($Resume -and (Test-Path $doneFile)) {
     $already = [System.Collections.Generic.HashSet[string]]::new(
         [string[]](Get-Content $doneFile), [System.StringComparer]::OrdinalIgnoreCase)
     $before = $names.Count
-    $names = @($names | Where-Object { -not $already.Contains($_) })
+    $names = @($names | Where-Object { -not $already.Contains($_.name) })
     Write-Host "resuming: $($before - $names.Count) already done, $($names.Count) to go"
 } elseif (-not $Resume) {
     Remove-Item $doneFile -ErrorAction SilentlyContinue
@@ -114,12 +121,14 @@ $cli = @(
 # Returns the name of the map it died on, or $null if the batch completed.
 # ---------------------------------------------------------------------------
 function Invoke-Batch {
-    param([string[]]$Batch, [string]$CfgName, [string]$OutFile)
+    # [object[]] not [string[]]: each entry is a {name, path} pair, and a string
+    # cast would silently flatten them to empty names.
+    param([object[]]$Batch, [string]$CfgName, [string]$OutFile)
 
     $lines = New-Object System.Collections.Generic.List[string]
     foreach ($n in $Batch) {
-        $lines.Add("echo ===MAPSCAN $n===")
-        $lines.Add("map `"$n`"")
+        $lines.Add("echo ===MAPSCAN $($n.name)===")
+        $lines.Add("map `"$($n.path)`"")
         $lines.Add('wait')
         $lines.Add('wait')
     }
@@ -159,8 +168,9 @@ function Invoke-Batch {
     $text = if (Test-Path $OutFile) { Get-Content $OutFile -Raw } else { '' }
     if ($text -match '===MAPSCAN-DONE===') { return $null }
 
+    # Markers carry the bare name, so the victim is a name, not a path.
     $seen = @([regex]::Matches($text, '(?m)^===MAPSCAN (.+?)===\s*$') | ForEach-Object { $_.Groups[1].Value })
-    if (-not $seen.Count) { return $Batch[0] }   # died before the first map
+    if (-not $seen.Count) { return $Batch[0].name }   # died before the first map
     return $seen[-1]
 }
 
@@ -170,7 +180,7 @@ function Invoke-Batch {
 
 $casualties = @()
 $chunkIndex = 0
-$queue = [System.Collections.Generic.Queue[string]]::new()
+$queue = [System.Collections.Generic.Queue[object]]::new()
 $names | ForEach-Object { $queue.Enqueue($_) }
 $startedAt = Get-Date
 
@@ -190,16 +200,16 @@ while ($queue.Count) {
         Write-Warning "  died on '$victim' -- resuming after it"
         $casualties += [pscustomobject]@{ name = $victim; chunk = $tag }
         # Push everything after the victim back onto the front of the queue.
-        $idx = [array]::IndexOf($batch, $victim)
+        $idx = [array]::IndexOf(@($batch | ForEach-Object { $_.name }), $victim)
         $rest = if ($idx -ge 0 -and $idx + 1 -lt $batch.Count) { $batch[($idx + 1)..($batch.Count - 1)] } else { @() }
         $remaining = @($rest) + @($queue.ToArray())
         $queue.Clear()
         $remaining | ForEach-Object { $queue.Enqueue($_) }
-        $doneNames = if ($idx -gt 0) { $batch[0..($idx - 1)] } else { @() }
+        $done = if ($idx -gt 0) { $batch[0..($idx - 1)] } else { @() }
     } else {
-        $doneNames = $batch
+        $done = $batch
     }
-    if ($doneNames.Count) { Add-Content -Path $doneFile -Value $doneNames }
+    if ($done.Count) { Add-Content -Path $doneFile -Value @($done | ForEach-Object { $_.name }) }
 }
 
 if ($skipped.Count) {

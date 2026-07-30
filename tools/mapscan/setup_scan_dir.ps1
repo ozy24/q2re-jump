@@ -77,8 +77,14 @@ Copy-Item $Dll (Join-Path $scanDir 'game_x64.dll') -Force
 $dllInfo = Get-Item (Join-Path $scanDir 'game_x64.dll')
 Write-Host "copied game_x64.dll ($($dllInfo.Length) bytes, built $($dllInfo.LastWriteTime))"
 
-$bspCount = @(Get-ChildItem (Join-Path $mapsLink '*.bsp')).Count
+# Recursive: sort_corpus.py may have filed the corpus into playable/, not-jump/
+# and so on, in which case nothing sits at the top level.
+$bspCount = @(Get-ChildItem $mapsLink -Recurse -Filter *.bsp -File).Count
+$subdirs = @(Get-ChildItem $mapsLink -Directory)
 Write-Host "$bspCount .bsp visible through the junction"
+if ($subdirs.Count) {
+    Write-Host "sorted into $($subdirs.Count) folder(s): maps must be loaded as '<folder>/<name>'"
+}
 
 # Sanity: baseq2 must still have no active game DLL, so a stray run can't
 # silently test the wrong module.

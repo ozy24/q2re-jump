@@ -709,6 +709,7 @@ def classify(bsp: Bsp, vocab: Vocab) -> dict:
 
 CSV_FIELDS = [
     "name",
+    "mappath",
     "file",
     "tier",
     "flags",
@@ -752,9 +753,20 @@ CSV_FIELDS = [
 ]
 
 
-def scan_one(path: Path, vocab: Vocab) -> tuple[dict, Counter, Counter]:
+def scan_one(path: Path, vocab: Vocab, root: Path) -> tuple[dict, Counter, Counter]:
+    # `name` stays the bare stem so every downstream join stays stable no matter
+    # how the corpus is filed. `mappath` is what the engine needs: once the maps
+    # live in subfolders, `map <stem>` no longer resolves - it wants
+    # `map playable/<stem>`.
+    try:
+        rel = path.relative_to(root).with_suffix("")
+        mappath = rel.as_posix().lower()
+    except ValueError:
+        mappath = path.stem.lower()
+
     row = {
         "name": path.stem.lower(),
+        "mappath": mappath,
         "file": path.name,
         "size": path.stat().st_size,
         "tier": "",
@@ -903,8 +915,11 @@ def main(argv: list[str]) -> int:
 
     vocab = Vocab(args.src)
     exts = {e if e.startswith(".") else "." + e for e in args.ext.split(",")}
+    # Recursive: sort_corpus.py files the corpus into playable/, not-jump/ and
+    # so on, and a corpus that has been sorted must still be scannable.
     files = sorted(
-        p for p in args.maps_dir.iterdir() if p.is_file() and p.suffix.lower() in exts
+        p for p in args.maps_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in exts
     )
     if args.limit:
         files = files[: args.limit]
@@ -917,7 +932,7 @@ def main(argv: list[str]) -> int:
     corpus_classnames = Counter()
     maps_per_classname = Counter()
     for i, path in enumerate(files, 1):
-        row, classnames, _unknown = scan_one(path, vocab)
+        row, classnames, _unknown = scan_one(path, vocab, args.maps_dir)
         rows.append(row)
         corpus_classnames.update(classnames)
         maps_per_classname.update(classnames.keys())
