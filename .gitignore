@@ -48,3 +48,10 @@ maps/*.json
 
 # staged build artifacts
 /game_x64.*
+
+# map compatibility scan reports (regenerate with tools/mapscan)
+/tools/mapscan/out/
+
+# Python bytecode
+__pycache__/
+*.pyc
