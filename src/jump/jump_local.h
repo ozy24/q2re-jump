@@ -142,6 +142,7 @@ void		Jump_CmdTeam(edict_t *ent);
 // jump_files.cpp
 const std::filesystem::path &Jump_DataRoot();
 std::filesystem::path		 Jump_MapTimesPath(const char *mapname);
+std::filesystem::path		 Jump_MsetPath(const char *mapname);
 bool						 Jump_ReadFile(const std::filesystem::path &path, std::string &out);
 bool						 Jump_WriteFileAtomic(const std::filesystem::path &path, const std::string &contents);
 
@@ -158,7 +159,9 @@ void					   Jump_PlayerTotals(const std::string &id, int &points, int &completio
 
 // jump_mset.cpp
 void Jump_LoadMsets(const char *entities);
+void Jump_MsetFrame();
 bool Jump_IsUsableWeapon(item_id_t id);
+bool Jump_ApplyMset(const std::string &key, const std::string &value);
 
 // jump_vote.cpp
 void Jump_LoadMapList();

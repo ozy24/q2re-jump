@@ -11,6 +11,7 @@
 #include "jump_local.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 jump_mset_t jump_mset;
@@ -24,7 +25,9 @@ static bool Jump_ParseBool(const std::string &value)
 	return atoi(value.c_str()) != 0;
 }
 
-static void Jump_ApplyMset(const std::string &key, const std::string &value)
+// Returns false when the key is not a known mset, so the `sv jump_mset` command
+// can report a typo rather than silently accepting it.
+bool Jump_ApplyMset(const std::string &key, const std::string &value)
 {
 	if (key == "gravity")
 	{
@@ -53,10 +56,12 @@ static void Jump_ApplyMset(const std::string &key, const std::string &value)
 	else
 	{
 		Jump_Log("unknown mset '%s'", key.c_str());
-		return;
+		return false;
 	}
 
 	Jump_Log("mset %s = %s", key.c_str(), value.c_str());
+
+	return true;
 }
 
 // Space-separated "key value key value ..." as used by the worldspawn key.
@@ -147,7 +152,7 @@ static void Jump_LoadWorldspawnMsets(const char *entities)
 
 static void Jump_LoadMsetFile(const char *mapname)
 {
-	const std::filesystem::path path = Jump_DataRoot() / "mset" / (jump::SafeName(mapname) + ".cfg");
+	const std::filesystem::path path = Jump_MsetPath(mapname);
 
 	std::string text;
 
@@ -191,6 +196,31 @@ static void Jump_LoadMsetFile(const char *mapname)
 	Jump_Log("applied msets from %s", path.string().c_str());
 }
 
+// Gravity is a server cvar, so it has to be pushed there to take effect. Always
+// pushed, even when the map doesn't ask for it, or the previous map's value
+// carries over.
+static void Jump_PushGravityCvar()
+{
+	gi.cvar_set("sv_gravity", G_Fmt("{}", jump_mset.gravity_set ? jump_mset.gravity : 800).data());
+}
+
+// Deferred because SP_worldspawn sets sv_gravity from the map's own `gravity`
+// key (g_spawn.cpp:1552-1561) and worldspawn spawns *after* Jump_InitLevel, so
+// anything written during the mset load is overwritten a moment later. Latch the
+// intent and push it on the next frame instead.
+static bool jump_gravity_pending = false;
+
+// One-shot on purpose: a map is still free to change gravity at runtime with
+// target_gravity, and re-asserting the mset every frame would fight it.
+void Jump_MsetFrame()
+{
+	if (!jump_gravity_pending)
+		return;
+
+	jump_gravity_pending = false;
+	Jump_PushGravityCvar();
+}
+
 void Jump_LoadMsets(const char *entities)
 {
 	jump_mset = {};
@@ -201,10 +231,7 @@ void Jump_LoadMsets(const char *entities)
 	Jump_LoadWorldspawnMsets(entities);
 	Jump_LoadMsetFile(jump_level.mapname);
 
-	// Gravity is a server cvar, so it has to be re-set on every level even
-	// when the map doesn't ask for it, or the previous map's value carries
-	// over.
-	gi.cvar_set("sv_gravity", G_Fmt("{}", jump_mset.gravity_set ? jump_mset.gravity : 800).data());
+	jump_gravity_pending = true;
 }
 
 bool Jump_FastTeleport()
@@ -228,4 +255,127 @@ bool Jump_IsUsableWeapon(item_id_t id)
 	default:
 		return false;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// `sv jump_mset` - authoring the settings the corpus never shipped
+//
+// Classic q2jump kept msets on the server rather than in the BSP, so almost no
+// map in the wild carries a worldspawn mset. Without one every weapon ends the
+// run, which is wrong on any map that hands out a rocket launcher as a tool.
+// Tuning live and writing the result out beats editing cfg files blind.
+//
+// This hangs off ServerCommand rather than the client command dispatch because
+// `sv` is console/rcon only: there is no privilege model on client commands, and
+// these settings decide whether a run counts.
+// ---------------------------------------------------------------------------
+
+// Current values in the same `key value` form Jump_LoadMsetFile parses, so a
+// listing and a saved file always agree.
+static std::vector<std::pair<std::string, std::string>> Jump_MsetPairs()
+{
+	const auto flag = [](bool v) -> std::string { return v ? "1" : "0"; };
+
+	return {
+		{ "gravity", std::to_string(jump_mset.gravity) },
+		{ "checkpoint_total", std::to_string(jump_mset.checkpoint_total) },
+		{ "damage", flag(jump_mset.damage) },
+		{ "fasttele", flag(jump_mset.fasttele) },
+		{ "rocket", flag(jump_mset.weapon_rocket) },
+		{ "grenadelauncher", flag(jump_mset.weapon_grenadelauncher) },
+		{ "hyperblaster", flag(jump_mset.weapon_hyperblaster) },
+		{ "bfg", flag(jump_mset.weapon_bfg) },
+	};
+}
+
+static void Jump_MsetList()
+{
+	gi.Com_PrintFmt("msets for {}:\n", jump_level.mapname);
+
+	for (const auto &pair : Jump_MsetPairs())
+		gi.Com_PrintFmt("  {} {}\n", pair.first, pair.second);
+
+	gi.Com_PrintFmt("checkpoints required: {}\n", Jump_CheckpointTotal());
+}
+
+static void Jump_MsetSave()
+{
+	const std::filesystem::path path = Jump_MsetPath(jump_level.mapname);
+
+	std::string out = G_Fmt("# msets for {}\n", jump_level.mapname).data();
+
+	for (const auto &pair : Jump_MsetPairs())
+		out += G_Fmt("{} {}\n", pair.first, pair.second).data();
+
+	if (Jump_WriteFileAtomic(path, out))
+		gi.Com_PrintFmt("wrote {}\n", path.string());
+	else
+		gi.Com_PrintFmt("could not write {}\n", path.string());
+}
+
+static void Jump_MsetSet(const char *key, const char *value)
+{
+	if (!Jump_ApplyMset(key, value))
+	{
+		gi.Com_PrintFmt("unknown mset '{}'\n", key);
+		return;
+	}
+
+	// Mirror the two side effects a level load performs, so a live change behaves
+	// the same as one read from the file.
+	Jump_PushGravityCvar();
+	Jump_InvalidateCheckpointTotal();
+
+	gi.Com_PrintFmt("{} {}\n", key, value);
+}
+
+bool Jump_ServerCommand()
+{
+	if (Q_strcasecmp(gi.argv(1), "jump_mset") != 0)
+		return false;
+
+	if (!Jump_Active())
+	{
+		gi.Com_PrintFmt("jump mode is not active\n");
+		return true;
+	}
+
+	const int argc = gi.argc();
+
+	if (argc < 3)
+	{
+		Jump_MsetList();
+		gi.Com_PrintFmt("usage: sv jump_mset [<key> <value> | save | reload]\n");
+		return true;
+	}
+
+	const char *key = gi.argv(2);
+
+	if (Q_strcasecmp(key, "save") == 0)
+	{
+		Jump_MsetSave();
+		return true;
+	}
+
+	if (Q_strcasecmp(key, "reload") == 0)
+	{
+		// Re-reads the file over the current values. Keys the file omits keep
+		// whatever they hold now, so this is "pick up my edits", not a full
+		// reset - restart the map for that.
+		Jump_LoadMsetFile(jump_level.mapname);
+		Jump_PushGravityCvar();
+		Jump_InvalidateCheckpointTotal();
+		Jump_MsetList();
+		return true;
+	}
+
+	if (argc < 4)
+	{
+		gi.Com_PrintFmt("usage: sv jump_mset <key> <value>\n");
+		return true;
+	}
+
+	Jump_MsetSet(key, gi.argv(3));
+
+	return true;
 }

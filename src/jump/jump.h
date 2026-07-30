@@ -59,6 +59,18 @@ bool Jump_ItemTouch(edict_t *ent, edict_t *other);
 // ED_CallSpawn: returns true when this classname is a jump entity.
 bool Jump_CallSpawn(edict_t *ent);
 
+// trigger_push_touch: a push whose `target` starts with "checkpoint" is a
+// checkpoint barrier. Returns true when the player has earned their way past,
+// meaning no push should be applied at all.
+bool Jump_PushBarrier(edict_t *self, edict_t *other);
+
+// use_target_changelevel: a player reaching a map exit ends their run. Returns
+// true when jump handled it, which suppresses the level change.
+bool Jump_LevelExit(edict_t *activator);
+
+// ServerCommand: returns true when jump handled an `sv <cmd>` console command.
+bool Jump_ServerCommand();
+
 // G_InitStatusbar: returns true when jump installed its own statusbar.
 bool Jump_InitStatusbar();
 

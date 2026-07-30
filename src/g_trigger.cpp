@@ -484,6 +484,10 @@ static cached_soundindex windsound;
 
 TOUCH(trigger_push_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool other_touching_self) -> void
 {
+	// [Jump] pushes targeting "checkpoint..." are checkpoint barriers
+	if (Jump_PushBarrier(self, other))
+		return;
+
 	if (self->spawnflags.has(SPAWNFLAG_PUSH_CLIP))
 	{
 		trace_t clip = gi.clip(self, other->s.origin, other->mins, other->maxs, other->s.origin, G_GetClipMask(other));

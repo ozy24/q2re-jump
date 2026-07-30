@@ -68,6 +68,16 @@ std::filesystem::path Jump_MapTimesPath(const char *mapname)
 	return dir / (jump::SafeName(mapname ? mapname : "") + ".json");
 }
 
+std::filesystem::path Jump_MsetPath(const char *mapname)
+{
+	const std::filesystem::path dir = Jump_DataRoot() / "mset";
+
+	std::error_code ec;
+	std::filesystem::create_directories(dir, ec);
+
+	return dir / (jump::SafeName(mapname ? mapname : "") + ".cfg");
+}
+
 bool Jump_ReadFile(const std::filesystem::path &path, std::string &out)
 {
 	std::ifstream in(path, std::ios::binary);

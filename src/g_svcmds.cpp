@@ -285,6 +285,11 @@ void ServerCommand()
 	const char *cmd;
 
 	cmd = gi.argv(1);
+
+	// [Jump] mod console commands
+	if (Jump_ServerCommand())
+		return;
+
 	if (Q_strcasecmp(cmd, "test") == 0)
 		Svcmd_Test_f();
 	else if (Q_strcasecmp(cmd, "addip") == 0)

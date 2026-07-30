@@ -130,6 +130,14 @@ static void Jump_BarrierPrint(edict_t *self, edict_t *other, const char *message
 	gi.Client_Print(other, PRINT_HIGH, message);
 }
 
+// Shared by every checkpoint barrier so the wording stays identical to upstream
+// in one place.
+static void Jump_CheckpointBarrierPrint(edict_t *self, edict_t *other)
+{
+	Jump_BarrierPrint(self, other,
+					  G_Fmt("You need {} checkpoint(s) to pass this barrier.\n", self->count).data());
+}
+
 // count = checkpoints required. SPAWNFLAG 1 inverts the test, so the barrier
 // closes once you have them rather than opening - upstream uses that to stop
 // players going back for checkpoints they already hold.
@@ -152,8 +160,7 @@ TOUCH(jump_cpbarrier_touch) (edict_t *self, edict_t *other, const trace_t &tr, b
 	Jump_PushBack(other);
 
 	if (!inverted)
-		Jump_BarrierPrint(self, other,
-						  G_Fmt("You need {} checkpoint(s) to pass this barrier.\n", self->count).data());
+		Jump_CheckpointBarrierPrint(self, other);
 }
 
 static void SP_jump_cpbarrier(edict_t *self)
@@ -168,6 +175,41 @@ static void SP_jump_cpbarrier(edict_t *self)
 	self->touch = jump_cpbarrier_touch;
 
 	gi.linkentity(self);
+}
+
+// A trigger_push whose `target` starts with "checkpoint" is a barrier that gates
+// on checkpoints. Unlike jump_cpwall it does not block: upstream leaves the
+// ordinary push to do the shoving, so a player who is short of checkpoints gets
+// the message and then the vanilla push, which is why this returns false there.
+//
+// Returning true means the player passed and must not be pushed at all. That
+// also skips the caller's PUSH_ONCE G_FreeEdict, matching upstream - a one-shot
+// barrier is not consumed by a successful pass.
+bool Jump_PushBarrier(edict_t *self, edict_t *other)
+{
+	if (!Jump_Active() || !self->target)
+		return false;
+
+	if (!jump::IsCheckpointBarrierTarget(self->target))
+		return false;
+
+	if (!other->client || other->client->resp.spectator)
+		return false;
+
+	jump_client_t *jc = Jump_ClientData(other);
+
+	if (!jc)
+		return false;
+
+	// A barrier with no `count` has count 0 and is therefore always open, so a
+	// mapper who forgets the key just gets a plain trigger_push. Upstream does
+	// the same; don't "fix" it, or those maps change behaviour.
+	if (jc->checkpoints >= self->count)
+		return true;
+
+	Jump_CheckpointBarrierPrint(self, other);
+
+	return false;
 }
 
 // Passable in the direction the brush faces, solid against it. SPAWNFLAG 1

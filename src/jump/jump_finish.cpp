@@ -184,6 +184,33 @@ void Jump_Finish(edict_t *ent)
 	Jump_Log("%s finished: %lld ms (rank %d)", Jump_DisplayName(ent), (long long) time_ms, rank);
 }
 
+// A handful of old maps end the course at a target_changelevel rather than on a
+// weapon, so the exit brush is the finish line. Treat reaching it as a finish
+// and swallow the level change: a jump server picks its next map by vote or
+// rotation, and letting any player force a change from inside a map would break
+// that. Finishing here also leaves the player standing where the weapon finish
+// would, so "kill to run again" still reads correctly.
+//
+// This is new behaviour, not a port - neither upstream mod recorded a run on a
+// level change; both simply abandoned it.
+bool Jump_LevelExit(edict_t *activator)
+{
+	if (!Jump_Active())
+		return false;
+
+	// Timelimit-driven changes and exits fired by anything other than a player
+	// leave vanilla alone.
+	if (!activator || !activator->client)
+		return false;
+
+	// Jump_Finish is a no-op unless a run is in progress, and it owns the
+	// checkpoint gate and its own anti-spam, so an idle player walking into the
+	// exit gets the same inert behaviour as before.
+	Jump_Finish(activator);
+
+	return true;
+}
+
 bool Jump_ItemTouch(edict_t *ent, edict_t *other)
 {
 	if (!Jump_Active())

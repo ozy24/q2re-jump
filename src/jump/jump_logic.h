@@ -135,4 +135,17 @@ bool IsSafeMapToken(const std::string &token);
 // collapses into an empty token.
 std::string SanitizeLayoutText(const std::string &text, size_t max_len = 20);
 
+// ---------------------------------------------------------------------------
+// Map entity keys
+// ---------------------------------------------------------------------------
+
+// True when a trigger_push `target` marks it as a checkpoint barrier.
+//
+// Both upstream mods key this on the target *starting with* "checkpoint", so
+// "checkpoint", "checkpoint3" and "checkpointfinal" all match while
+// "mycheckpoint" does not. Upstream compares case-sensitively; this is
+// deliberately case-insensitive, which can only widen the match and costs
+// nothing — every instance in the original corpus is already lowercase.
+bool IsCheckpointBarrierTarget(const std::string &target);
+
 } // namespace jump

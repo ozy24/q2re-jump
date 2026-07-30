@@ -120,6 +120,7 @@ void Jump_RunFrame()
 
 	Jump_VoteFrame();
 	Jump_IdleFrame();
+	Jump_MsetFrame();
 }
 
 void Jump_Shutdown()

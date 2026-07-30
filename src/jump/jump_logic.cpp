@@ -241,4 +241,26 @@ std::string SafeName(const std::string &name)
 	return out;
 }
 
+bool IsCheckpointBarrierTarget(const std::string &target)
+{
+	static const char prefix[] = "checkpoint";
+	static const size_t prefix_len = sizeof(prefix) - 1;
+
+	if (target.size() < prefix_len)
+		return false;
+
+	for (size_t i = 0; i < prefix_len; i++)
+	{
+		char c = target[i];
+
+		if (c >= 'A' && c <= 'Z')
+			c = (char) (c - 'A' + 'a');
+
+		if (c != prefix[i])
+			return false;
+	}
+
+	return true;
+}
+
 } // namespace jump

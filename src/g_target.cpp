@@ -405,6 +405,10 @@ USE(use_target_changelevel) (edict_t *self, edict_t *other, edict_t *activator) 
 	if (level.intermissiontime)
 		return; // already activated
 
+	// [Jump] a map exit is the finish line; the level does not change
+	if (Jump_LevelExit(activator))
+		return;
+
 	if (!deathmatch->integer && !coop->integer)
 	{
 		if (g_edicts[1].health <= 0)

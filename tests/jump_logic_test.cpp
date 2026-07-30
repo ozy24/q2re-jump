@@ -171,6 +171,30 @@ static void TestIsSafeMapToken()
 	CHECK(jump::IsSafeMapToken(std::string(63, 'a')));
 }
 
+static void TestIsCheckpointBarrierTarget()
+{
+	// Upstream keys on a "checkpoint" prefix, so a suffix is allowed.
+	CHECK(jump::IsCheckpointBarrierTarget("checkpoint"));
+	CHECK(jump::IsCheckpointBarrierTarget("checkpoint1"));
+	CHECK(jump::IsCheckpointBarrierTarget("checkpoint_final"));
+
+	// Deliberately case-insensitive where upstream uses strncmp.
+	CHECK(jump::IsCheckpointBarrierTarget("Checkpoint"));
+	CHECK(jump::IsCheckpointBarrierTarget("CHECKPOINT4"));
+
+	// A prefix match only: the marker has to start the target.
+	CHECK(!jump::IsCheckpointBarrierTarget("mycheckpoint"));
+	CHECK(!jump::IsCheckpointBarrierTarget("cp_checkpoint"));
+
+	// Too short to be the marker, and the empty target an entity may carry.
+	CHECK(!jump::IsCheckpointBarrierTarget("check"));
+	CHECK(!jump::IsCheckpointBarrierTarget("checkpoin"));
+	CHECK(!jump::IsCheckpointBarrierTarget(""));
+
+	// Ordinary push targets must not be mistaken for barriers.
+	CHECK(!jump::IsCheckpointBarrierTarget("door01"));
+}
+
 static void TestSanitizeLayoutText()
 {
 	CHECK_EQ(jump::SanitizeLayoutText("chris"), "chris");
@@ -251,6 +275,7 @@ int main()
 	TestSafeName();
 	TestSanitizeLayoutText();
 	TestIsSafeMapToken();
+	TestIsCheckpointBarrierTarget();
 	TestRecords();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);
