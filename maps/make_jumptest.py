@@ -522,6 +522,194 @@ def jumptest8():
     return m
 
 
+# ---------------------------------------------------------------------------
+# 9-12 test the fixes that came out of the corpus audit (tools/mapscan).
+#
+# These are deliberately WALK-ONLY: one flat floor, no gaps, nothing to jump.
+# The features they exercise are all "did the code path fire", and a map that
+# needs skill to finish cannot answer that question - a failure would be
+# ambiguous between a bug and a missed jump. Signposted with trigger_once
+# messages so the map tells you what to do and what to expect.
+# ---------------------------------------------------------------------------
+
+def _flat_room(name, message, length, **worldspawn):
+    """A walk-only corridor: floor at z=0, lights, spawn at the west end."""
+    m = MapBuilder(name, message, **worldspawn)
+    m.room((0, -256, 0), (length, 256, 512))
+    m.spawn((128, 0, STAND), angle=0)
+    m.lights(128, length, 0, 448)
+    return m
+
+
+def _sign(m, x, text, width=64):
+    """A trigger_once that centerprints as you walk through it."""
+    m.brush_entity("trigger_once", (x, -256, 0), (x + width, 256, 320),
+                   message=text)
+
+
+def _gate(m, x, width=64, light=350):
+    """Pillars flanking a trigger volume, so you can see where it is.
+
+    Trigger brushes are invisible, which makes "walk into the zone" impossible
+    to follow. Pillars either side leave a 384-wide gap down the middle - wide
+    enough to walk through without aiming, narrow enough to read as a gateway.
+    """
+    m.brush((x, -256, 0), (x + width, -192, 192), PLATFORM)
+    m.brush((x, 192, 0), (x + width, 256, 192), PLATFORM)
+    m.point("light", (x + width // 2, 0, 288), light=light)
+
+
+def _bay(m, x1, x2, y1, y2, post=16, height=96):
+    """Low posts marking out a patch of floor, for an off-path hazard."""
+    m.brush((x1 - post, y1, 0), (x1, y2, height), PLATFORM)
+    m.brush((x2, y1, 0), (x2 + post, y2, height), PLATFORM)
+    m.point("light", ((x1 + x2) // 2, (y1 + y2) // 2, 256), light=250)
+
+
+def jumptest9():
+    """trigger_hurt with dmg 1: strips the loadout, must NOT kill.
+
+    Before the audit fix this killed the player outright, because
+    MOD_TRIGGER_HURT was treated as a fail condition. The `rocket 1` mset makes
+    the launcher a tool rather than the finish, so there is something to lose.
+
+    Walk east: pick up the RL, cross the dmg-1 zone, confirm you are alive
+    holding a blaster. The side alcove holds a normal trigger_hurt that must
+    still kill - that is the regression half of the test.
+    """
+    m = _flat_room("jumptest9", "Jump Test 9 - weapon strip zone", 2048,
+                   mset="rocket 1")
+
+    _sign(m, 288, "Pick up the rocket launcher.\\nIt should NOT end your run.")
+    m.point("weapon_rocketlauncher", (480, 0, STAND))
+
+    _sign(m, 704, "Walk through the lit gateway ahead.\\n"
+                  "Expect: you SURVIVE and lose the launcher.")
+
+    # dmg 1 - the whole point of the map. Silent so the electro sound does not
+    # imply damage was taken. Gated so the volume is visible.
+    # Full corridor width: the pillars leave no way past, but a trigger that
+    # stops where they start would let a wall-hugger slip by if they ever moved.
+    _gate(m, 960, 128)
+    m.brush_entity("trigger_hurt", (960, -256, 0), (1088, 256, 256),
+                   dmg=1, spawnflags=4)
+
+    _sign(m, 1216, "Still alive, holding a blaster?\\nThat is the fix working.")
+
+    # Regression: an ordinary trigger_hurt must still end the run. Set into the
+    # north side of the corridor so you have to step into it deliberately - and
+    # kept inside the room, unlike the first attempt at this, which poked
+    # through the wall.
+    _bay(m, 1424, 1552, 96, 240)
+    m.brush_entity("trigger_hurt", (1424, 96, 0), (1552, 240, 128), dmg=5)
+    _sign(m, 1344, "Optional: the lit patch to your RIGHT is a\\n"
+                   "normal trigger_hurt. It SHOULD kill you.")
+
+    m.point("weapon_railgun", (1920, 0, STAND))
+    return m
+
+
+def jumptest10():
+    """trigger_push checkpoint barrier.
+
+    Two checkpoints sit in plain sight either side of the corridor. The barrier
+    across the corridor passes you through once you hold both and shoves you
+    back before that. It pushes rather than blocks - that is what makes it a
+    trigger_push barrier and not a jump_cpwall.
+    """
+    m = _flat_room("jumptest10", "Jump Test 10 - push barrier", 2304,
+                   mset="checkpoint_total 2")
+
+    _sign(m, 288, "Walk straight at the lit gateway FIRST.\\n"
+                  "Expect: shoved back, told you need 2.")
+
+    # Barrier at x=1024, shoving west (angle 180) at speed*10 = 300 ups, the
+    # same gentle nudge makorace1 uses. Gated so you can see what stopped you.
+    _gate(m, 1024)
+    m.brush_entity("trigger_push", (1024, -256, 0), (1088, 256, 256),
+                   target="checkpoint", count=2, angle=180, speed=30)
+
+    # Checkpoints in side bays, reachable on foot.
+    m.brush((640, -256, 0), (672, -160, 512), WALL)
+    m.brush((896, -256, 0), (928, -160, 512), WALL)
+    m.point("key_blue_key", (784, -200, STAND))
+    m.point("light", (784, -200, 256), light=250)
+
+    m.brush((640, 160, 0), (672, 256, 512), WALL)
+    m.brush((896, 160, 0), (928, 256, 512), WALL)
+    m.point("key_red_key", (784, 200, STAND))
+    m.point("light", (784, 200, 256), light=250)
+
+    _sign(m, 1152, "Through the barrier.\\nNow finish on the railgun.")
+    m.point("weapon_railgun", (2176, 0, STAND))
+    return m
+
+
+def jumptest11():
+    """Finishing at a map exit.
+
+    There is no weapon and no trigger_finish here, so the exit is the ONLY way
+    to finish - if Jump_LevelExit does not fire, the map is uncompletable and
+    the test fails loudly rather than silently.
+
+    The changelevel points at jumptest1, so a broken suppression is obvious:
+    you would be dumped into another map instead of seeing your time.
+    """
+    m = _flat_room("jumptest11", "Jump Test 11 - exit as the finish", 1536)
+
+    _sign(m, 288, "No weapon on this map.\\nWalk east to the lit gateway - that\\n"
+                  "is the finish.")
+    _sign(m, 1024, "Expect: 'Finished in ...' AND the map\\nstays on jumptest11.")
+
+    # The exit has to be *visible*: target_changelevel is SVF_NOCLIENT and the
+    # trigger firing it is an invisible brush, so without a gateway and a bright
+    # light there is nothing on screen to walk towards.
+    _gate(m, 1280, 64, light=500)
+    m.brush((1440, -256, 0), (1472, 256, 320), PLATFORM)   # back wall of the recess
+    m.point("light", (1380, 0, 200), light=400)
+
+    # A touch trigger firing the changelevel, which is how every corpus map does
+    # it - target_changelevel is never touched directly.
+    m.brush_entity("trigger_multiple", (1344, -256, 0), (1440, 256, 320),
+                   target="theexit", wait=5)
+    m.point("target_changelevel", (1392, 0, 64),
+            targetname="theexit", map="jumptest1")
+    return m
+
+
+def jumptest12():
+    """Hazards and the gravity mset - both regression checks.
+
+    `gravity 200` is instantly visible: you float. It is here because the mset
+    never actually reached sv_gravity until the audit fix (SP_worldspawn
+    overwrote it), so "does jumping feel wrong" is the test.
+
+    The lava and water are the other half: the trigger_hurt fix narrowed the
+    fatal-hazard branch, so lava must still end a run.
+    """
+    m = _flat_room("jumptest12", "Jump Test 12 - low gravity and hazards", 2304,
+                   mset="gravity 200")
+
+    _sign(m, 288, "Gravity should be 200, not 800.\\nJump: you should float.")
+
+    # Pools sit ON the floor (z 0..48), the way jumptest1's lava does. Sinking
+    # them below z=0 buries them inside the room's floor brush, which spans
+    # z=-32..0 - invisible and unreachable. Both leave ~160 units of walkway on
+    # each side so they are opt-in rather than a wall across the corridor.
+    m.lava((768, -96, 0), (1152, 96, 0))
+    m.point("light", (960, 0, 256), light=300)
+    _sign(m, 704, "Step into the LAVA on purpose (centre).\\n"
+                  "Expect: it ENDS your run.")
+
+    # Water: harmless, and proves the hazard branch only kills where it should.
+    m.water((1536, -160, 0), (1920, 160, 48))
+    m.point("light", (1728, 0, 256), light=300)
+    _sign(m, 1472, "The WATER ahead is harmless - walk in.")
+
+    m.point("weapon_railgun", (2176, 0, STAND))
+    return m
+
+
 MAPS = {
     "jumptest1": jumptest1,
     "jumptest2": jumptest2,
@@ -531,6 +719,10 @@ MAPS = {
     "jumptest6": jumptest6,
     "jumptest7": jumptest7,
     "jumptest8": jumptest8,
+    "jumptest9": jumptest9,
+    "jumptest10": jumptest10,
+    "jumptest11": jumptest11,
+    "jumptest12": jumptest12,
 }
 
 

@@ -24,7 +24,7 @@ if not exist "%Q2_TOOLS%\qbsp.exe" (
 )
 
 set "MAPS=%*"
-if "%MAPS%"=="" set "MAPS=jumptest1 jumptest2 jumptest3 jumptest4 jumptest5 jumptest6 jumptest7 jumptest8"
+if "%MAPS%"=="" set "MAPS=jumptest1 jumptest2 jumptest3 jumptest4 jumptest5 jumptest6 jumptest7 jumptest8 jumptest9 jumptest10 jumptest11 jumptest12"
 
 echo === generating .map source ===
 python make_jumptest.py %MAPS% || exit /b 1
