@@ -116,8 +116,42 @@ else sees — which is the useful default when you are hosting. `jump_hud 1` opt
 
 ## Map compatibility
 
-Nothing below has been confirmed in game yet — it describes what the code
-supports, not what has been played.
+Measured against the full original q2jump corpus — 4,252 maps — by
+`tools/mapscan`. Every map was parsed statically *and* loaded for real in
+`q2reproded.exe` with this DLL. The two passes agreed on the load verdict for
+all 4,252, so the numbers below are observed, not inferred. What they do **not**
+cover is physics: a map counted as playable here may still have jumps that are
+impossible under stock movement.
+
+| Verdict | Maps | |
+|---|---|---|
+| Playable | 2,746 | Loads, has a finish path, hits no known gap |
+| Degraded | 64 | Finishable, but loses decorative content |
+| Unfinishable | 298 | Loads, but the run can never be completed or recorded |
+| Not a jump map | 1,132 | Another mod's map — mostly Quake 2 Paintball |
+| Will not load | 12 | 10 Quake 1 BSPs, one truncated, one malformed |
+
+Narrowing to maps that actually look like jump maps (excluding paintball, CTF
+and single-player content) gives **2,131**, of which 2,052 are playable, 16
+degraded and 63 unfinishable.
+
+### The corpus does not use the Refresh-era entities
+
+This is the single most useful thing the scan turned up, and it reshapes the gap
+list below. Verified twice — by entity-lump parse and by a raw byte search of
+every file:
+
+| Entity | Maps using it |
+|---|---|
+| `weapon_finish` | 35 |
+| any `key_*` item (checkpoints) | 87 |
+| `jump_time` / `jump_score` | 1 |
+| `trigger_finish`, `cpbox_*`, `jumpbox_*`, `jump_clip`, `one_way_wall`, `jump_cpwall`, `jump_cpbrush`, `trigger_weapon`, `trigger_lapcounter`, `trigger_lapcp`, `cp_clear`, `trigger_quad` | **0** |
+
+Classic maps finish on an ordinary **weapon pickup** and checkpoint on **key
+items** — both already handled. The `trigger_finish` / `cpbox_*` vocabulary
+belongs to Q2JumpRefresh and does not appear in this corpus at all. Support for
+it is still correct to have; it just is not what makes these 4,252 maps work.
 
 ### Supported entities
 
@@ -133,36 +167,134 @@ supports, not what has been played.
 | `jump_cpwall`, `jump_cpbrush` | Checkpoint barrier; spawnflag 1 inverts the test |
 | `trigger_weapon` | Gives the weapon named by `count` (blaster 1 … rail 9, BFG 0) |
 
-Cosmetic leftovers (`jump_time`, `jump_score`, `jumpmod_effect`,
-`jump_cpeffect`) are removed silently rather than logging an error.
+Ten legacy classnames are removed silently rather than logging an error —
+`jump_time`, `jump_score`, `jumpmod_effect`, `jump_cpeffect`,
+`trigger_lapcounter`, `trigger_lapcp`, `trigger_quad`, `trigger_quad_clear`,
+`cp_clear` and `trigger_single_cp_clear`. The list lives in
+`jump_ignored_classnames[]` in `src/jump/jump_ents.cpp`; anything that walls off
+part of a map must get a real spawn function instead of going here.
 
 ### What works
 
-- **Classic q2jump maps** are the main target. Finish-by-weapon, key
-  checkpoints, cpboxes, clip walls, one-way walls and checkpoint barriers are
-  all handled.
-- **Q2JumpRefresh-era maps** using `trigger_finish` and `cpbox_*` work.
+- **Classic q2jump maps** are the main target and the bulk of the corpus.
+  Finish-by-weapon and key checkpoints carry almost all of them.
+- **Q2JumpRefresh-era maps** using `trigger_finish` and `cpbox_*` work, though
+  none appear in the original corpus.
 - **Stock deathmatch maps** load and time correctly, but the first weapon you
-  touch ends the run, so they are only useful for smoke-testing.
+  touch ends the run, so they are only useful for smoke-testing. They are
+  counted as playable above; treat that as "loads and times", not "worth
+  playing".
 
 ### Known gaps
 
-- **Physics.** This runs stock rerelease movement. Maps built around the old
-  engine's 125 fps behaviour may have jumps that are harder or outright
-  impossible. This is a deliberate design decision, not a bug — see the top of
-  this document.
-- **Lap maps.** `trigger_lapcounter` and `trigger_lapcp` are ignored, so lap
-  counting does not gate the finish.
-- **`trigger_push` checkpoint barriers.** The Refresh variant keyed on a
-  `target` of `checkpoint…` is not implemented; use `jump_cpwall` instead.
-- **`trigger_hurt` with `dmg 1`** does not strip weapons the way Refresh does.
-- **`trigger_quad`, `cp_clear`, `trigger_single_cp_clear`** are ignored.
-- **Box models.** `jumpbox_*` and `cpbox_*` reference `models/jump/*box3`,
-  which ship with jump map packs rather than with Quake II. Without them the
-  boxes are still solid and still work, but may not draw; set
-  `jump_box_models 0` if a missing model causes trouble.
-- **Invisible brushes and prediction.** `jump_clip` is invisible, so the client
-  cannot predict against it and you may see a one-frame correction on contact.
+Impact is the number of maps affected out of the 4,252 scanned.
+
+| Gap | Maps | |
+|---|---|---|
+| **Physics** | unmeasured | Stock rerelease movement. Jumps built around the old engine's 125 fps behaviour may be harder or impossible. Deliberate — see the top of this document. Only playtesting can quantify it, and it is very likely the largest real-world gap. |
+| **No mset data exists** | ~122 | See below. The most actionable gap remaining. |
+| **Worldspawn `nextmap` with no exit entity** | 6 | `nextmap` is consumed by `EndDMLevel` on the timelimit, never by a player, so it ends nothing. Not fixable from the mod side: the map has no player-reachable exit. |
+| **Lap maps** | 0 | `trigger_lapcounter` / `trigger_lapcp` ignored, so lap counting does not gate the finish. No corpus map uses them. |
+| **`trigger_quad`, `cp_clear`, `trigger_single_cp_clear`** | 0 | Ignored. No corpus map uses them. |
+| **Box models** | 0 | `jumpbox_*` / `cpbox_*` reference `models/jump/*box3`, which ship with map packs rather than with Quake II. Boxes stay solid either way; set `jump_box_models 0` if a missing model causes trouble. No corpus map uses them. |
+| **Invisible brushes and prediction** | 0 | `jump_clip` is invisible, so the client cannot predict against it and you may see a one-frame correction on contact. No corpus map uses it. |
+
+Separately, **298 maps have no finish entity of any kind**, which is now the only
+thing left making a map unfinishable. Those are practice and test maps
+(`aimtrain`, `admintryouts`, `arcrates`) — there is nothing to implement, they
+simply have no finish line.
+
+### Gaps the audit closed
+
+| Fix | Maps | |
+|---|---|---|
+| **`trigger_hurt` with `dmg 1`** | 24 | Used to **kill the player outright** — `MOD_TRIGGER_HURT` was listed among the fail conditions, so a zone the map meant as "drop your weapon here" ended the run. Now resets the loadout to the blaster and the run continues. |
+| **Finish at a map exit** | 5 | A `target_changelevel` reached by a player now records the run. The level deliberately does **not** change: a jump server picks its next map by vote or rotation. New behaviour — no upstream mod recorded a run on a level change. |
+| **`trigger_push` checkpoint barriers** | 2 | A push whose `target` starts with `checkpoint` passes you through at or above its `count`, and otherwise prints and lets the ordinary push shove you back. It gates, it does not block — that is the difference from `jump_cpwall`. |
+| **The `gravity` mset never applied** | all | Found while testing the above. `SP_worldspawn` sets `sv_gravity` from the map's own key and spawns *after* `Jump_InitLevel`, so the mset was overwritten a moment after being written. Now latched and applied on the next frame — a one-shot, so a map's own `target_gravity` still works. |
+
+Decorative losses are minor: the most common unsupported classname is
+`func_model` (95 maps), an old mapping-tool model placer with no Q2RE spawn
+function. Those maps lose scenery and stay completable. Roughly 270 legacy
+entity keys are rejected with `<key> is not a valid field`; every one is
+paintball team plumbing, editor metadata or a typo. **No map loses jump
+behaviour to a rejected key.**
+
+### Weapons that are tools, not finish lines
+
+No map in the corpus carries a worldspawn `mset`, and no `mset/<map>.cfg` files
+ship with the mod. So every map runs on defaults, and the default is that *any*
+weapon ends the run.
+
+That is right for the 1,879 of those 2,131 that carry exactly one weapon pickup —
+it is the finish, and it works. It is wrong wherever a weapon is meant as a
+tool: rocket jumping, grenade boosting. **122 maps carry more than one weapon
+type**, which is the population where a run may end early:
+
+| Weapon | Maps containing it | …as the only weapon |
+|---|---|---|
+| `weapon_rocketlauncher` | 132 | 28 |
+| `weapon_bfg` | 77 | 41 |
+| `weapon_grenadelauncher` | 55 | 6 |
+| `weapon_hyperblaster` | 53 | 18 |
+
+Where the gated weapon is the *only* weapon it is the finish and needs nothing.
+The rest need an mset per map — `rocket 1`, `hyperblaster 1` and so on — and
+that data has to be written by hand or recovered from an old server. The code
+path already exists (`Jump_IsUsableWeapon`); what is missing is the data.
+
+`sv jump_mset` exists to make that data tractable. It is a console/rcon command
+rather than a client one, because these settings decide whether a run counts:
+
+```
+sv jump_mset                  list every mset and the checkpoint requirement
+sv jump_mset rocket 1         apply live to the running map
+sv jump_mset save             write mset/<map>.cfg
+sv jump_mset reload           re-read that file
+```
+
+The workflow is to play the map, set the weapons that are tools rather than
+finish lines, confirm the run behaves, then `save`. `reload` re-reads the file
+over the current values, so keys the file omits keep what they hold now —
+restart the map for a clean slate. An unknown key is reported rather than
+silently ignored.
+
+### Maps that will not load
+
+Twelve of the 4,252, all confirmed against the engine:
+
+- **Ten Quake 1 BSPs** — `1on1r`, `bases`, `genders2`, `h4rdcore`, `mbasesr`,
+  `rs_zz1`, `tf2k`, `vote40`, `well6`, `xpress3`. Wrong game; nothing to fix.
+- **`tehjump6`** — truncated file (`Visibility lump out of bounds`).
+- **`putt-jumps`** — its entity lump begins with a stray `; worldspawn`, giving
+  `ED_LoadFromFile: found ";" when expecting {`. Worth knowing that this one
+  aborts via `ERR_DROP`, and the engine's `longjmp` **discards the pending
+  command buffer** — so a map like this in a rotation silently drops whatever
+  was queued behind it. Keep it out of `maplist.txt`.
+
+The corpus also holds ten `.tmp` interrupted downloads and one `.bsp_old`, which
+`map <name>` cannot reach in any case — the ten `.tmp` files are truncated, the
+`.bsp_old` is intact. Forty-three groups of maps are byte-identical under
+different filenames.
+
+### Re-running the audit
+
+`tools/mapscan/README.md` has the details. The short version, about five minutes
+end to end:
+
+```bat
+python     tools\mapscan\scan_bsp.py --ext .bsp,.tmp,.bsp_old
+powershell -File tools\mapscan\setup_scan_dir.ps1
+powershell -File tools\mapscan\run_engine_scan.ps1
+python     tools\mapscan\parse_log.py
+python     tools\mapscan\merge.py
+```
+
+Per-map verdicts land in `tools/mapscan/out/maps_final.csv`, with `report.md` and
+`gaps.md` alongside. The scanner parses its entity vocabularies out of
+`jump_ents.cpp`, `g_spawn.cpp` and `g_items.cpp`, so adding a spawn function
+changes the numbers on the next run without touching the tool. Re-run it after
+any change to the entity contract.
 
 ## Server configuration
 
@@ -214,6 +346,23 @@ Two sources, applied in order so the server always wins per key:
 | `grenadelauncher` | `0` | As above for the grenade launcher |
 | `hyperblaster` | `0` | As above for the hyperblaster |
 | `bfg` | `0` | As above for the BFG |
+
+Almost no map in the wild carries a worldspawn `mset` — classic q2jump kept these
+server-side — so in practice everything comes from the cfg files, and those have
+to be written. `sv jump_mset` (console/rcon only) does that without editing files
+blind:
+
+| Command | Effect |
+|---|---|
+| `sv jump_mset` | List every key, its current value, and the checkpoint requirement |
+| `sv jump_mset <key> <value>` | Apply live to the running map |
+| `sv jump_mset save` | Write `jump/mset/<mapname>.cfg` |
+| `sv jump_mset reload` | Re-read that file over the current values |
+
+`gravity` is pushed to `sv_gravity` and a checkpoint change invalidates the
+cached total, so a live edit behaves exactly like one read from the file.
+`reload` does not undo live edits to keys the file omits — restart the map for
+that. See "Weapons that are tools, not finish lines" for why this matters.
 
 ### Records
 

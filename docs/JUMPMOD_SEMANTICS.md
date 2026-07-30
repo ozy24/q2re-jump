@@ -82,7 +82,9 @@ Time display `"%lld.%03lld"` (B `jump_utils.cpp:95-100`); deltas rendered `-x.xx
   `"You must pick up this checkpoint in order. This is checkpoint %d.\n"` (5 s anti-spam).
   Duplicates ignored per-entity. No-op when checkpoint total is 0.
 - `trigger_weapon` — gives weapon by Q2 number (blaster 1 … rail 9, **bfg 0**, hand grenades 11).
-- `trigger_hurt` with `dmg == 1` strips all weapons.
+- `trigger_hurt` with `dmg == 1` strips all weapons. **A differs** — it clears only the rocket
+  launcher and re-arms the blaster; see divergence 8. Neither mod touches ammo, both still apply
+  the 1 damage, both repeat per touch, and neither gates it on a spawnflag.
 - `trigger_push` with `target` prefixed `"checkpoint"` + `count N` = barrier; passes if
   checkpoints ≥ N, else pushed with `"You need %d checkpoint(s) to pass this barrier.\n"`.
 - Items and ammo are inert (`TouchDoNothing`).
@@ -236,3 +238,18 @@ A: `MAX_RECORD_FRAMES 200000`, demos in `<game>/jumpdemo/<map>.dj2` (1st place) 
    wins. → **B**.
 7. **Spawn point** — B code prefers `info_player_deathmatch` then `info_player_start`; B docs
    recommend `info_player_start`. Q2RE already falls back this way, so no change needed.
+8. **`trigger_hurt dmg 1`** — §5 above records only B's behaviour, but the mods disagree. A
+   (`g_trigger.c:806-814`) clears the *rocket launcher slot only* and force-switches to the blaster;
+   B (`jump.cpp:664-696`) clears all ten weapon slots and leaves `newweapon` null, so the player
+   ends up holding nothing — and it leaks the BFG through, because `FindItem("BFG10K")` is not
+   followed by the matching inventory clear. → **B's intent, A's end state**: reset to the standard
+   jump loadout via `Jump_StripInventory`, so every tool weapon is gone and the player still holds
+   a blaster. Avoids B's weaponless state and B's BFG bug in one move.
+9. **Finishing at a map exit** — **neither mod does this.** Both leave `use_target_changelevel`
+   vanilla and abandon the in-progress run; A's `BeginIntermission` only flushes stat files and
+   stops demo recording. → **new behaviour, not a port**: `Jump_LevelExit` records the run when a
+   player reaches a `target_changelevel` and suppresses the level change, because a jump server
+   chooses its next map by vote or rotation. A handful of old series maps (`4c3jump1`…) put the
+   finish line on the exit brush and are otherwise dead ends. Note that in jump mode the vanilla
+   path never reached `BeginIntermission` anyway: `g_dm_allow_exit` defaults to `0`, so the exit
+   damaged the firing trigger and returned.

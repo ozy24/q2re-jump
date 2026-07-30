@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A port of the **q2jump** mod (Quake II trickjump/racing) onto the **Quake II Remastered (KEX)**
 game DLL. Output is a drop-in `game_x64.dll`.
 
-Note `README.md` is still the upstream *mod template* readme and does not describe the jump mod.
-`docs/JUMP_MOD.md` is the real user-facing documentation.
+`README.md` is the player-facing introduction and the build instructions.
+`docs/JUMP_MOD.md` is the full reference — commands, server config, map compatibility.
 
 ## Commands
 
@@ -48,7 +48,7 @@ folder shadows the install directory, so a stale copy silently means testing an 
 ### Thin vanilla
 
 All mod logic lives in `src/jump/`. Upstream files carry only small hooks tagged `// [Jump]` —
-currently ~100 lines across 13 files. Read `docs/THIN_VANILLA_PRINCIPLES.md` before adding one.
+currently ~110 lines across 16 files. Read `docs/THIN_VANILLA_PRINCIPLES.md` before adding one.
 `grep -rn '\[Jump\]' src --include=*.cpp | grep -v /jump/` lists every upstream touch point.
 
 Everything is gated on the latched `g_jump` cvar; every public `Jump_*` entry point early-returns
@@ -117,6 +117,14 @@ slots are currently taken; adding a display value means reclaiming one.
 `maps/make_jumptest.py` generates all eight test maps from a shared `MapBuilder`; one function per
 map, each targeting one feature so a failure identifies the code path. Compiled BSPs are
 build artifacts and are gitignored — the generator is the source of truth.
+
+`tools/mapscan/` audits the real 4,252-map q2jump corpus against the entity contract — statically,
+and by loading every map headlessly in `q2reproded.exe` with this DLL (q2repro accepts game API
+2023, so the *same* module runs). It parses its vocabularies out of `jump_ents.cpp`, `g_spawn.cpp`
+and `g_items.cpp`, so it cannot drift; **re-run it after changing the entity contract** and update
+the measured numbers in `docs/JUMP_MOD.md`. The headline result: the corpus uses none of the
+Refresh-era entities (`trigger_finish`, `cpbox_*`, `jumpbox_*`, lap counters — all zero maps),
+finishing on plain weapon pickups and key items instead.
 
 Read `maps/AI_MAP_AUTHORING.md` before touching the brush emitter. The essentials: brush winding
 is *derived* (qbsp takes the normal as `(p0-p1)×(p2-p1)`, and one reversed face compiles cleanly
