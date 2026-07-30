@@ -101,6 +101,24 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &
 	if (!jump_mset.damage)
 		return true;
 
+	// A trigger_hurt with `dmg 1` is not a hazard at all: jump maps use it to
+	// take a weapon back off the player partway through a course. Only
+	// hurt_touch raises MOD_TRIGGER_HURT, and it passes the trigger itself as
+	// the attacker, so its `dmg` key is readable here and needs no upstream
+	// hook. dmg 0 is coerced to 5 in SP_trigger_hurt, so 1 is always deliberate.
+	//
+	// The two upstream mods disagree on what to strip: classic q2jump removes
+	// only the rocket launcher then re-arms the blaster, while Refresh clears
+	// all ten weapons and leaves the player holding nothing (and leaks the BFG
+	// through a missing line). Resetting to the standard jump loadout gets
+	// Refresh's intent without either wrinkle.
+	if (mod.id == MOD_TRIGGER_HURT && targ->client && attacker && attacker->dmg == 1)
+	{
+		Jump_StripInventory(targ);
+		ChangeWeapon(targ);
+		return true;
+	}
+
 	// World hazards are a fail condition, not a health bar: lava does 3 damage
 	// a tick, so left alone it would let a player wade out of the pit and
 	// carry on. Touching one ends the run outright.
@@ -123,8 +141,6 @@ bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &
 	// through T_Damage rather than being swallowed here: knockback is applied
 	// independently of the damage value, and that knockback is what makes
 	// rocket jumping work on maps that enable the rocket mset.
-	(void) targ;
-	(void) attacker;
 	damage = 0;
 
 	return false;
