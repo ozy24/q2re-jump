@@ -12,6 +12,9 @@ Jump mode is switched on and off with one server cvar: **`g_jump`** — `1`
 (the default) enables it, `0` restores stock deathmatch entirely. It is
 latched, so a change needs a map restart to take effect.
 
+Release notes live in [`CHANGELOG.md`](CHANGELOG.md); the running server
+reports its own version with `jump_version`.
+
 ---
 
 ## What playing it is actually like

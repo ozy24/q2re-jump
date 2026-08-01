@@ -161,7 +161,11 @@ void Jump_Finish(edict_t *ent)
 
 	const int rank = Jump_SubmitTime(ent, time_ms);
 
-	jc->pb_time_ms = (previous_pb == 0 || time_ms < previous_pb) ? time_ms : previous_pb;
+	const bool improved_pb = previous_pb == 0 || time_ms < previous_pb;
+	jc->pb_time_ms = improved_pb ? time_ms : previous_pb;
+
+	if (improved_pb)
+		Jump_UpdatePbString(ent);
 
 	std::string suffix;
 

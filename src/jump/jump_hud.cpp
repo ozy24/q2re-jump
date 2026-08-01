@@ -37,28 +37,50 @@ void Jump_SetStats(edict_t *ent)
 		return;
 
 	const int64_t ms = Jump_RunTimeMs(*jc);
-	const int64_t hundredths = (ms % 1000) / 10;
-
-	const int64_t pb_ms = jc->pb_time_ms;
-	const int64_t pb_hundredths = (pb_ms % 1000) / 10;
+	const int64_t thousandths = ms % 1000;
 
 	ent->client->ps.stats[JUMP_STAT_ENABLED] = 1;
 
 	ent->client->ps.stats[JUMP_STAT_TIME_SEC] = (int16_t) min<int64_t>(ms / 1000, 9999);
-	ent->client->ps.stats[JUMP_STAT_TIME_HUN_TENS] = (int16_t) (hundredths / 10);
-	ent->client->ps.stats[JUMP_STAT_TIME_HUN_UNITS] = (int16_t) (hundredths % 10);
+	ent->client->ps.stats[JUMP_STAT_TIME_HUN_TENS] = (int16_t) (thousandths / 100);
+	ent->client->ps.stats[JUMP_STAT_TIME_HUN_UNITS] = (int16_t) ((thousandths / 10) % 10);
+	ent->client->ps.stats[JUMP_STAT_TIME_THOU] = (int16_t) (thousandths % 10);
 
 	ent->client->ps.stats[JUMP_STAT_RUN_STATE] = (int16_t) jc->state;
 	ent->client->ps.stats[JUMP_STAT_STORES] = (int16_t) jc->stores.count;
 	ent->client->ps.stats[JUMP_STAT_TEAM_PRACTICE] = jc->team == jump_team_t::practice;
 	ent->client->ps.stats[JUMP_STAT_TEAM_RANKED] = jc->team == jump_team_t::ranked;
 
-	ent->client->ps.stats[JUMP_STAT_PB_SEC] = (int16_t) min<int64_t>(pb_ms / 1000, 9999);
-	ent->client->ps.stats[JUMP_STAT_PB_HUN_TENS] = (int16_t) (pb_hundredths / 10);
-	ent->client->ps.stats[JUMP_STAT_PB_HUN_UNITS] = (int16_t) (pb_hundredths % 10);
+	// The text itself is refreshed only when pb_time_ms changes
+	// (Jump_UpdatePbString); this just points the stat at the player's own
+	// slot, gated the same way JUMP_STAT_PB_SEC used to be (0 = no PB yet).
+	const ptrdiff_t pb_index = ent->client - game.clients;
+
+	ent->client->ps.stats[JUMP_STAT_PB_STRING] =
+		(jc->pb_time_ms > 0 && pb_index >= 0 && pb_index < JUMP_MAX_PB_STRING_CLIENTS)
+			? (int16_t) (CONFIG_JUMP_PB_STRING + pb_index)
+			: 0;
 
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
+}
+
+void Jump_UpdatePbString(edict_t *ent)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || jc->pb_time_ms <= 0)
+		return;
+
+	const ptrdiff_t index = ent->client - game.clients;
+
+	if (index < 0 || index >= JUMP_MAX_PB_STRING_CLIENTS)
+		return;
+
+	gi.configstring((int) (CONFIG_JUMP_PB_STRING + index), jump::FormatTime(jc->pb_time_ms).c_str());
 }
 
 bool Jump_InitStatusbar()
@@ -90,8 +112,9 @@ bool Jump_InitStatusbar()
 	constexpr int label_h = 8;
 	constexpr int row_gap = 8;
 
-	// Timer: label, then seconds (4 digits) . tens units.
-	constexpr int t_units = right - Jump_NumWidth(1);
+	// Timer: label, then seconds (4 digits) . tenths hundredths thousandths.
+	constexpr int t_thou = right - Jump_NumWidth(1);
+	constexpr int t_units = t_thou - Jump_NumWidth(1);
 	constexpr int t_tens = t_units - Jump_NumWidth(1);
 	constexpr int t_dot = t_tens - 7;
 	constexpr int t_secs = t_dot - Jump_NumWidth(4);
@@ -103,6 +126,7 @@ bool Jump_InitStatusbar()
 	sb.yt(t_y + sep_drop).xr(t_dot).string(".");
 	sb.yt(t_y).xr(t_tens).num(1, JUMP_STAT_TIME_HUN_TENS);
 	sb.yt(t_y).xr(t_units).num(1, JUMP_STAT_TIME_HUN_UNITS);
+	sb.yt(t_y).xr(t_thou).num(1, JUMP_STAT_TIME_THOU);
 
 	// Checkpoints. Old maps go up to 28, so both fields are two digits wide;
 	// a one-digit value simply leaves its left cell blank.
@@ -127,30 +151,21 @@ bool Jump_InitStatusbar()
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
 		.endifstat();
 
-	// Personal best sits directly under the timer / checkpoint stack.
-	constexpr int pb_units = right - Jump_NumWidth(1);
-	constexpr int pb_tens = pb_units - Jump_NumWidth(1);
-	constexpr int pb_dot = pb_tens - 7;
-	constexpr int pb_secs = pb_dot - Jump_NumWidth(4);
+	// Personal best sits directly under the timer / checkpoint stack. Unlike
+	// the num-box fields above, a stat_string draws left-to-right from the
+	// cursor with no fixed width, so it cannot be right-aligned to a fixed
+	// edge the way the digit fields are - anchored to the timer's left edge
+	// (t_secs) instead so it still lines up with something above it.
 	constexpr int pb_label_y = cp_y + 24 + row_gap;
 	constexpr int pb_y = pb_label_y + label_h + 2;
 
-	sb.ifstat(JUMP_STAT_PB_SEC)
+	sb.ifstat(JUMP_STAT_PB_STRING)
 		.yt(pb_label_y)
 		.xr(right - 16)
 		.string2("PB")
 		.yt(pb_y)
-		.xr(pb_secs)
-		.num(4, JUMP_STAT_PB_SEC)
-		.yt(pb_y + sep_drop)
-		.xr(pb_dot)
-		.string(".")
-		.yt(pb_y)
-		.xr(pb_tens)
-		.num(1, JUMP_STAT_PB_HUN_TENS)
-		.yt(pb_y)
-		.xr(pb_units)
-		.num(1, JUMP_STAT_PB_HUN_UNITS)
+		.xr(t_secs)
+		.stat_string(JUMP_STAT_PB_STRING)
 		.endifstat();
 
 	// Team mode lives in the bottom-right corner, away from the run column.

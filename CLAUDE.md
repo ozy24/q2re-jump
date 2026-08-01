@@ -86,8 +86,17 @@ records merge/rank/points, and the two safety functions below.
 The stat table is full, so jump reuses the CTF block (18–31), aliased in `jump_stats.h`. Safe only
 because `Jump_Init()` forces `ctf`/`teamplay` off and `Jump_SetStats()` runs *after* `SetCTFStats()`
 in `G_SetStats`. **Slot 27 (`STAT_CTF_TECH`) must stay unused** — the stock statusbar draws a pic
-from it in every deathmatch game, so a value there renders as an arbitrary image. All 13 usable
-slots are currently taken; adding a display value means reclaiming one.
+from it in every deathmatch game, so a value there renders as an arbitrary image. 12 of the 13
+usable slots are taken; slot 30 is spare.
+
+Personal best is the one exception to "one stat per digit": it changes only on a new PB, not every
+frame, so it is a `stat_string` (`JUMP_STAT_PB_STRING`) pointing at a per-client configstring
+(`CONFIG_JUMP_PB_STRING` in `bg_local.h`, 64 slots) holding the fully-formatted `jump::FormatTime`
+string. That is what freed the slot for the run timer's third decimal digit
+(`JUMP_STAT_TIME_THOU`). Don't do this for anything that changes every frame — a configstring write
+broadcasts to every connected client, not just the owner, so it is only a win for rare updates.
+`Jump_UpdatePbString()` (`jump_hud.cpp`) is the only thing that should write that configstring, and
+only when the value actually changed.
 
 ## Traps that have already caused bugs
 

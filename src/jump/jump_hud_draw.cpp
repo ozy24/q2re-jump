@@ -14,6 +14,7 @@
 // listen server - sees exactly what a stock client sees. `jump_hud 1` opts in.
 
 #include "../cg_local.h"
+#include "jump_logic.h"
 #include "jump_stats.h"
 #include "jump_hud_draw.h"
 
@@ -42,21 +43,24 @@ void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
 	if (ps->stats[JUMP_STAT_RUN_STATE] != JUMP_RUN_FINISHED)
 		return;
 
-	// Hundredths arrive as two single-digit stats; see jump_stats.h for why.
-	const int32_t pb_sec = ps->stats[JUMP_STAT_PB_SEC];
-	const int32_t pb_hun = ps->stats[JUMP_STAT_PB_HUN_TENS] * 10 + ps->stats[JUMP_STAT_PB_HUN_UNITS];
+	// PB is a stat_string (jump_stats.h) - the stat holds a configstring
+	// index, 0 while there is nothing to compare against yet.
+	const int32_t pb_index = ps->stats[JUMP_STAT_PB_STRING];
 
-	if (!pb_sec && !pb_hun)
+	if (!pb_index)
 		return; // first completion, nothing to compare against
 
-	const int32_t run_hun = ps->stats[JUMP_STAT_TIME_HUN_TENS] * 10 + ps->stats[JUMP_STAT_TIME_HUN_UNITS];
-	const int32_t delta = (ps->stats[JUMP_STAT_TIME_SEC] * 100 + run_hun) - (pb_sec * 100 + pb_hun);
-	const int32_t mag = delta < 0 ? -delta : delta;
+	long long pb_sec = 0, pb_ms = 0;
+	sscanf(cgi.get_configstring(pb_index), "%lld.%lld", &pb_sec, &pb_ms);
+	const int64_t pb_total_ms = pb_sec * 1000 + pb_ms;
 
-	char buffer[32];
-	snprintf(buffer, sizeof(buffer), "%c%d.%02d", delta < 0 ? '-' : '+', mag / 100, mag % 100);
+	const int64_t run_total_ms = ps->stats[JUMP_STAT_TIME_SEC] * 1000LL +
+								  ps->stats[JUMP_STAT_TIME_HUN_TENS] * 100LL +
+								  ps->stats[JUMP_STAT_TIME_HUN_UNITS] * 10LL + ps->stats[JUMP_STAT_TIME_THOU];
+
+	const std::string text = jump::FormatDelta(run_total_ms - pb_total_ms);
 
 	// Directly under the statusbar's PB line.
-	cgi.SCR_DrawFontString(buffer, (hud_vrect.width - 16.f) * scale, 104.f * scale, scale,
-						   delta <= 0 ? rgba_green : rgba_red, true, text_align_t::RIGHT);
+	cgi.SCR_DrawFontString(text.c_str(), (hud_vrect.width - 16.f) * scale, 104.f * scale, scale,
+						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
 }

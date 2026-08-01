@@ -70,6 +70,14 @@ enum
 
 	CONFIG_STORY,
 
+	// [Jump] One slot per potential player, holding their own pre-formatted
+	// personal-best time string (e.g. "12.345") for display via stat_string.
+	// Sized well below MAX_CLIENTS - CS_GENERAL only has headroom for ~245
+	// more strings and no real jump server runs anywhere near that many
+	// players; see JUMP_MAX_PB_STRING_CLIENTS in jump/jump_stats.h.
+	CONFIG_JUMP_PB_STRING,
+	CONFIG_JUMP_PB_STRING_END = CONFIG_JUMP_PB_STRING + 64 - 1,
+
 	CONFIG_LAST
 };
 

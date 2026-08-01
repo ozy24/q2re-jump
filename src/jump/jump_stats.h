@@ -7,16 +7,17 @@
 // Only bg_local.h is required to use this header, so the cgame can include it
 // without dragging in any server-side declarations.
 //
-// Fractions are published as two single-digit stats rather than one 0-99
-// value. The statusbar's `num` token right-aligns inside a fixed field and
-// never pads, so a hundredths value of 5 would draw as " 5" and a time of
-// 25.05 would read as "25. 5". One digit per field cannot do that.
+// The live run timer's fraction is published as three single-digit stats
+// rather than one 0-999 value. The statusbar's `num` token right-aligns
+// inside a fixed field and never pads, so a value of 5 would draw as "  5"
+// and a time of 25.005 would read as "25.  5". One digit per field cannot do
+// that. Personal best sidesteps the problem entirely - see below.
 
 #pragma once
 
 constexpr player_stat_t JUMP_STAT_TIME_SEC = STAT_CTF_TEAM1_PIC;			 // 18: run time, whole seconds
-constexpr player_stat_t JUMP_STAT_TIME_HUN_TENS = STAT_CTF_TEAM1_CAPS;		 // 19: hundredths, tens digit
-constexpr player_stat_t JUMP_STAT_TIME_HUN_UNITS = STAT_CTF_TEAM2_PIC;		 // 20: hundredths, units digit
+constexpr player_stat_t JUMP_STAT_TIME_HUN_TENS = STAT_CTF_TEAM1_CAPS;		 // 19: run time, first decimal digit
+constexpr player_stat_t JUMP_STAT_TIME_HUN_UNITS = STAT_CTF_TEAM2_PIC;		 // 20: run time, second decimal digit
 constexpr player_stat_t JUMP_STAT_RUN_STATE = STAT_CTF_TEAM2_CAPS;			 // 21: jump_run_state_t
 constexpr player_stat_t JUMP_STAT_STORES = STAT_CTF_FLAG_PIC;				 // 22: stores held
 constexpr player_stat_t JUMP_STAT_TEAM_PRACTICE = STAT_CTF_JOINED_TEAM1_PIC; // 23: 1 while on Practice
@@ -29,13 +30,25 @@ constexpr player_stat_t JUMP_STAT_CHECKPOINT_TOTAL = STAT_CTF_TEAM2_HEADER;	 // 
 // (g_spawn.cpp, after the teamplay branch), so any value we put there would
 // render as an arbitrary image the moment the stock script ran.
 
-constexpr player_stat_t JUMP_STAT_PB_SEC = STAT_CTF_ID_VIEW;			// 28: personal best, whole seconds
-constexpr player_stat_t JUMP_STAT_PB_HUN_TENS = STAT_CTF_MATCH;			// 29: PB hundredths, tens digit
-constexpr player_stat_t JUMP_STAT_PB_HUN_UNITS = STAT_CTF_ID_VIEW_COLOR; // 30: PB hundredths, units digit
-constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO;			// 31: 1 while jump mode owns the level
+// Personal best is a `stat_string`, not three digit stats: it changes only on
+// a new PB (a rare event), so it can afford to be a fully-formatted string
+// ("12.345", via jump::FormatTime) fetched from a per-client configstring
+// instead of costing one slot per digit. See CONFIG_JUMP_PB_STRING in
+// bg_local.h and Jump_UpdatePbString() in jump_hud.cpp. 0 means "no PB yet",
+// matching the old ifstat(JUMP_STAT_PB_SEC) gate.
+constexpr player_stat_t JUMP_STAT_PB_STRING = STAT_CTF_ID_VIEW; // 28: stat_string -> CONFIG_JUMP_PB_STRING + client#
 
-// That is all 13 usable slots (18-31 less 27). Adding another display value
-// means reclaiming one of these, not finding a spare.
+// The two slots that freed up: one becomes the run timer's third decimal
+// digit (matching PB's millisecond precision), one stays spare.
+constexpr player_stat_t JUMP_STAT_TIME_THOU = STAT_CTF_MATCH; // 29: run time, third decimal digit
+// 30 (STAT_CTF_ID_VIEW_COLOR) is spare.
+constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO; // 31: 1 while jump mode owns the level
+
+// Sizing for CONFIG_JUMP_PB_STRING's per-client block in bg_local.h - keep
+// the two in sync. Clients past this index just don't get a PB display.
+constexpr int JUMP_MAX_PB_STRING_CLIENTS = 64;
+
+// 12 of the 13 usable slots (18-31 less 27) are taken; 30 is free.
 
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;

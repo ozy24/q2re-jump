@@ -41,7 +41,15 @@ void Jump_ClientSpawn(edict_t *ent)
 	// Pick the player's stored best for this map back up. This has to happen
 	// here rather than at level init, because when Jump_InitLevel runs every
 	// client is still flagged disconnected.
+	const int64_t previous_pb = jc->pb_time_ms;
 	jc->pb_time_ms = Jump_PersonalBest(ent);
+
+	// Jump_ClientSpawn runs on every respawn, not just the first one, but the
+	// PB configstring only needs writing when the value actually changed -
+	// a configstring update broadcasts to every connected client, not just
+	// this one.
+	if (jc->pb_time_ms != previous_pb)
+		Jump_UpdatePbString(ent);
 
 	// Health is deliberately left at the default. Inflating it does nothing
 	// useful once combat damage is zeroed, and it makes hazards take seconds

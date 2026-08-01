@@ -77,6 +77,11 @@ bool Jump_InitStatusbar();
 // G_SetStats: must run last so it wins over SetCTFStats.
 void Jump_SetStats(edict_t *ent);
 
+// Refreshes ent's CONFIG_JUMP_PB_STRING configstring from jc->pb_time_ms.
+// Call whenever pb_time_ms changes (seeded on connect, improved on finish) -
+// not every frame, since a configstring write broadcasts to every client.
+void Jump_UpdatePbString(edict_t *ent);
+
 // ClientUserinfoChanged: returns true when jump set the player's skin.
 bool Jump_AssignSkin(edict_t *ent, const char *skin);
 
