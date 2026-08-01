@@ -151,21 +151,33 @@ bool Jump_InitStatusbar()
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
 		.endifstat();
 
-	// Personal best sits directly under the timer / checkpoint stack. Unlike
-	// the num-box fields above, a stat_string draws left-to-right from the
-	// cursor with no fixed width, so it cannot be right-aligned to a fixed
-	// edge the way the digit fields are - anchored to the timer's left edge
-	// (t_secs) instead so it still lines up with something above it.
-	constexpr int pb_label_y = cp_y + 24 + row_gap;
-	constexpr int pb_y = pb_label_y + label_h + 2;
+	// Personal best is a stat_string (arbitrary text), not digit stats, so it
+	// can't use the big chunky num font the timer/checkpoints use - see
+	// jump_stats.h for why it's a stat_string at all. Small text reads better
+	// grouped with other small text than orphaned under the big digit stack,
+	// so it sits one row above the team-mode row, sharing its anchor style.
+	//
+	// PRACTICE (8 chars, xr -76) and RANKED (6 chars, xr -60) both end at the
+	// same right edge, xr(-12), since string2 draws at CONCHAR_WIDTH (8) per
+	// char: -76+8*8 = -60+6*8 = -12. A stat_string can't match that - it has
+	// no fixed width to anchor by - but loc_stat_rstring measures the actual
+	// rendered text and draws it ending AT the given x, so it can.
+	constexpr int pb_yb = -16 - row_gap - label_h; // one row above the team label row
+	constexpr int pb_right = -12;					// matches PRACTICE/RANKED's right edge
+
+	// "PB " (3 chars) plus 8 chars of headroom for the value ("9999.999" is
+	// jump::FormatTime's worst case) - overkill for a typical "SS.mmm" run,
+	// but only a corner case would ever need it and label/value must not
+	// overlap when it does.
+	constexpr int pb_label_x = pb_right - (3 + 8) * 8;
 
 	sb.ifstat(JUMP_STAT_PB_STRING)
-		.yt(pb_label_y)
-		.xr(right - 16)
+		.yb(pb_yb)
+		.xr(pb_label_x)
 		.string2("PB")
-		.yt(pb_y)
-		.xr(t_secs)
-		.stat_string(JUMP_STAT_PB_STRING)
+		.yb(pb_yb)
+		.xr(pb_right)
+		.loc_stat_rstring(JUMP_STAT_PB_STRING)
 		.endifstat();
 
 	// Team mode lives in the bottom-right corner, away from the run column.

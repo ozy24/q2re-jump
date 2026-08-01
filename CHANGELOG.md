@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`, currently pre-1.0 so
 expect breaking changes on minor bumps.
 
+## [0.1.2] - 2026-08-01
+
+### Fixed
+
+- The PB HUD readout no longer floats disconnected from its label. It moved from an
+  awkward spot under the timer/checkpoint stack (where a `stat_string`'s lack of a fixed
+  width made it impossible to align against the digit boxes above it) to its own row
+  directly above PRACTICE/RANKED, bottom-right.
+- The value itself now uses `loc_stat_rstring` instead of `stat_string`, which measures
+  its own rendered width and right-aligns — so it ends flush with PRACTICE/RANKED's right
+  edge regardless of how many digits the time has, instead of drifting short of it.
+
 ## [0.1.1] - 2026-08-01
 
 ### Changed
