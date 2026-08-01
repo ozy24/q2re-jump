@@ -8,6 +8,10 @@ This is a port of the classic **q2jump** mod onto the 2023 Quake II Remastered
 (KEX) game DLL, so the maps and the mode that ran on Quake II jump servers for
 twenty years work on the version you already own.
 
+Jump mode is switched on and off with one server cvar: **`g_jump`** — `1`
+(the default) enables it, `0` restores stock deathmatch entirely. It is
+latched, so a change needs a map restart to take effect.
+
 ---
 
 ## What playing it is actually like
@@ -88,8 +92,8 @@ you see is what your players see.
 
 ## Maps
 
-Classic q2jump maps work. The full 4,252-map original corpus has been checked
-against this mod, both by static analysis and by loading every single one:
+Classic q2jump maps work. The full 4,252-map original corpus from http://wiki.q2jump.net/downloads.html has been checked
+against this mod, both by static analysis and by loading every single one autonomously:
 
 | | Maps |
 |---|---|
@@ -118,6 +122,65 @@ one end to the other. See [`maps/TESTING.md`](maps/TESTING.md).
 The audit tooling lives in [`tools/mapscan/`](tools/mapscan/README.md) if you
 want to check a map pack of your own; it reports a per-map verdict and the reason
 behind it.
+
+---
+
+## Feature parity with q2jump
+
+This is a **partial port**. It targets the mechanics that make classic maps
+work — and 2,746 of the 4,252-map corpus play and finish normally with nothing
+missing (see [Maps](#maps)) — but it is not a line-for-line reimplementation of
+either upstream mod. `docs/JUMPMOD_SEMANTICS.md` has the full behavioural
+comparison; this is the summary.
+
+**Ported and working:**
+
+- Practice/Ranked teams (`easy`/`hard` aliases), matching Q2JumpRefresh's
+  store rules — free store/recall in Practice, restart-only in Ranked
+- Store/recall as a 5-deep ring (`store`, `recall [1-5]`, `reset`)
+- Movement-triggered timer at millisecond resolution
+- Finish detection: `trigger_finish`/`weapon_finish` entities and weapon
+  pickups
+- Checkpoints: `key_*` items, `cpbox_*` volumes, ordered/barrier checkpoints
+  via `trigger_push` and `jump_cpwall`/`jump_cpbrush`
+- Q2JumpRefresh's eight core msets (`gravity`, `checkpoints`, `damage`,
+  `fasttele`, `rocket`, `grenadelauncher`, `hyperblaster`, `bfg`), settable
+  live with `sv jump_mset`
+- Per-map records with the standard 15-place points table, `maptimes` /
+  `playertimes` / `ranks`
+- Map vote (`votemap`, `nominate`, TAB menu) and timelimit extension
+  (`timeextend`/`votetime`)
+- Idle-to-spectator, map rotation and vote pool (`g_map_list`/`g_map_pool`)
+- Scoreboard and full HUD over the stock protocol — no client mod required
+
+**Not (yet) ported:**
+
+- **Replay / ghost racing.** Neither the frame-recording demo system (B's
+  10 Hz replay format, A's `.dj2`/`.dj3` files) nor racing against a stored
+  "spark" ghost exists. Finish times are recorded; runs are not.
+- **Noclip in Practice.** Q2JumpRefresh gives the Easy team noclip; this port
+  does not.
+- **Skill/overall rating.** `ranks` shows raw points, completions and firsts
+  per player — there is no normalized score (B's percent-of-maximum, A's
+  "israfel" formula) for comparing players across map counts.
+- **Admin vote types.** Only map-change and timelimit votes exist; B's kick
+  and silence votes are not implemented.
+- **Most of A's mset vocabulary.** Only Q2JumpRefresh's eight keys are
+  wired up. A-only settings — `health`, `falldamage`, `weapons`,
+  `timelimit`, `quad_damage`, `regen`, `singlespawn`, `ezmode`, `allowsrj`,
+  `rocketjump_fix`, `fastdoors`/`slowdoors` and others — have no effect here.
+- **Lap maps and quad entities.** `trigger_lapcounter`, `trigger_lapcp`,
+  `trigger_quad`, `trigger_quad_clear`, `cp_clear`,
+  `trigger_single_cp_clear` are all silently ignored. Zero corpus maps use
+  them, so this has not cost any real map — but it means lap-based courses
+  cannot be authored against this mod.
+- **Chat-command entry.** Everything is a console command (see above); the
+  rerelease's lobby chat can't be repurposed the way IRC-era Quake II
+  clients used chat for jump commands.
+
+Physics is also a deliberate non-goal, not a gap to close: this runs on
+stock rerelease movement rather than emulating the original engine's 125 fps
+quirks, so times are not comparable with classic q2jump servers.
 
 ---
 

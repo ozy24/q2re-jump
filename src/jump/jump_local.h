@@ -87,6 +87,7 @@ extern jump_level_t	 jump_level;
 extern jump_mset_t	 jump_mset;
 
 extern cvar_t *g_jump;
+extern cvar_t *jump_version;
 extern cvar_t *jump_debug;
 extern cvar_t *jump_box_models;
 extern cvar_t *jump_data_dir;

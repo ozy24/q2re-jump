@@ -5,10 +5,12 @@
 
 #include "../g_local.h"
 #include "jump_local.h"
+#include "jump_version.h"
 
 static void Jump_CmdHelp(edict_t *ent)
 {
 	gi.Client_Print(ent, PRINT_HIGH,
+					"q2re-jump v" JUMP_VERSION_STRING "\n"
 					"Jump commands:\n"
 					"  store          save your position\n"
 					"  recall [1-5]   return to a saved position (1 = most recent)\n"

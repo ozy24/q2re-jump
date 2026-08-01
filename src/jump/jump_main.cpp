@@ -2,6 +2,7 @@
 
 #include "../g_local.h"
 #include "jump_local.h"
+#include "jump_version.h"
 
 #include <chrono>
 #include <cstdarg>
@@ -10,6 +11,7 @@ jump_client_t jump_clients[MAX_CLIENTS];
 jump_level_t  jump_level;
 
 cvar_t *g_jump;
+cvar_t *jump_version;
 cvar_t *jump_debug;
 cvar_t *jump_box_models;
 cvar_t *jump_data_dir;
@@ -46,6 +48,10 @@ void Jump_PreInit()
 
 void Jump_Init()
 {
+	// Read-only, purely informational; server admins and status tools read it
+	// off serverinfo rather than parsing a print.
+	jump_version = gi.cvar("jump_version", JUMP_VERSION_STRING, CVAR_SERVERINFO | CVAR_NOSET);
+
 	jump_debug = gi.cvar("jump_debug", "0", CVAR_NOFLAGS);
 
 	// Off-switch for the jumpbox/cpbox models, which ship with the jump map
@@ -76,7 +82,7 @@ void Jump_Init()
 
 	Jump_LoadMapList();
 
-	gi.Com_PrintFmt("==== Jump mode enabled ====\n");
+	gi.Com_PrintFmt("==== Jump mode enabled (v" JUMP_VERSION_STRING ") ====\n");
 }
 
 void Jump_InitLevel(const char *entities)
