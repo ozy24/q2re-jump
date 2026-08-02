@@ -9,6 +9,13 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-02
+
+### Fixed
+
+- Spectators see who they are following on the HUD (`FOLLOWING` + name), plus a
+  `SPECTATOR` mode line — the jump statusbar had omitted the stock chase identity.
+
 ## [0.1.2] - 2026-08-01
 
 ### Fixed

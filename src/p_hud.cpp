@@ -1134,8 +1134,16 @@ void G_SetSpectatorStats(edict_t *ent)
 		cl->ps.stats[STAT_LAYOUTS] |= LAYOUTS_INVENTORY;
 
 	if (cl->chase_target && cl->chase_target->inuse)
-		cl->ps.stats[STAT_CHASE] = CS_PLAYERSKINS +
-								   (cl->chase_target - g_edicts) - 1;
+	{
+		const int playernum = (cl->chase_target - g_edicts) - 1;
+		// [Jump] CS_PLAYERSKINS is "name\skin\dogtag"; KEX stat_string draws
+		// the whole thing. Point at CONFIG_CTF_PLAYER_NAME (clean display name
+		// written before netname encoding) so FOLLOWING shows a real name.
+		if (Jump_Active())
+			cl->ps.stats[STAT_CHASE] = CONFIG_CTF_PLAYER_NAME + playernum;
+		else
+			cl->ps.stats[STAT_CHASE] = CS_PLAYERSKINS + playernum;
+	}
 	else
 		cl->ps.stats[STAT_CHASE] = 0;
 }

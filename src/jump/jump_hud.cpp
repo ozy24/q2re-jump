@@ -187,6 +187,12 @@ bool Jump_InitStatusbar()
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
 
+	// Spectator chase identity — same anchors as stock DM / MuffMode, above
+	// the pickup line. STAT_CHASE points at CONFIG_CTF_PLAYER_NAME (see
+	// G_SetSpectatorStats); xv(80) clears the longer "FOLLOWING" label.
+	sb.ifstat(STAT_CHASE).xv(0).yb(-68).string("FOLLOWING").xv(80).stat_string(STAT_CHASE).endifstat();
+	sb.ifstat(STAT_SPECTATOR).xv(0).yb(-58).string2("SPECTATOR").endifstat();
+
 	// Keep the pickup / centerprint line the rest of the game expects.
 	sb.yb(-50);
 	sb.ifstat(STAT_PICKUP_ICON)

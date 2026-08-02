@@ -6,7 +6,7 @@
 
 #define JUMP_VERSION_MAJOR 0
 #define JUMP_VERSION_MINOR 1
-#define JUMP_VERSION_PATCH 2
+#define JUMP_VERSION_PATCH 3
 
 #define JUMP_VER_STR_HELPER(a, b, c) #a "." #b "." #c
 #define JUMP_VER_STR(a, b, c) JUMP_VER_STR_HELPER(a, b, c)

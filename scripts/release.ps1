@@ -56,6 +56,15 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $encoding)
 }
 
+function Read-Utf8Text([string]$Path) {
+    $encoding = New-Object System.Text.UTF8Encoding $false
+    return [System.IO.File]::ReadAllText($Path, $encoding)
+}
+
+function Read-Utf8Lines([string]$Path) {
+    return @(Get-Content -LiteralPath $Path -Encoding utf8)
+}
+
 function Write-VersionFiles([string]$Target) {
     if ($Target -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$') {
         Fail "Target version must be MAJOR.MINOR.PATCH (got '$Target')."
@@ -69,7 +78,7 @@ function Write-VersionFiles([string]$Target) {
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
         Fail "src/jump/jump_version.h is missing."
     }
-    $header = Get-Content -LiteralPath $headerPath -Raw
+    $header = Read-Utf8Text $headerPath
     $header = [regex]::Replace($header, '(?m)^(\s*#define\s+JUMP_VERSION_MAJOR\s+)\d+(\s*)$', "`${1}$major`${2}")
     $header = [regex]::Replace($header, '(?m)^(\s*#define\s+JUMP_VERSION_MINOR\s+)\d+(\s*)$', "`${1}$minor`${2}")
     $header = [regex]::Replace($header, '(?m)^(\s*#define\s+JUMP_VERSION_PATCH\s+)\d+(\s*)$', "`${1}$patch`${2}")
@@ -88,7 +97,7 @@ function Get-UnreleasedBody {
         Fail "CHANGELOG.md is missing."
     }
 
-    $lines = @(Get-Content -LiteralPath $changelogPath)
+    $lines = @(Read-Utf8Lines $changelogPath)
     $unreleasedIndex = -1
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if ($lines[$i] -match '^## \[Unreleased\]\s*$') {
