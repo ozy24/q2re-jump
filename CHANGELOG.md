@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`, currently pre-1.0 so
 expect breaking changes on minor bumps.
 
+Day-to-day notes go under `[Unreleased]`; the version number is bumped only when
+cutting a tagged release — see [docs/release-process.md](docs/release-process.md).
+
+## [Unreleased]
+
 ## [0.1.2] - 2026-08-01
 
 ### Fixed

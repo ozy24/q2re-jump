@@ -2,12 +2,24 @@
 rem Build the jump game DLL.  Usage: build.bat [Platform] [Toolset]
 rem   Set Q2J_BUILD_CONFIG=Debug beforehand for a debug build (default Release).
 rem   Set Q2J_SKIP_TESTS=1 to skip the unit tests.
+rem   Set Q2J_SKIP_VERSION_CHECK=1 to skip VERSION / changelog alignment check.
 setlocal EnableExtensions
 
 if not defined Q2J_BUILD_CONFIG set "Q2J_BUILD_CONFIG=Release"
 
 set "ROOT=%~dp0"
 pushd "%ROOT%" >nul
+
+if not "%Q2J_SKIP_VERSION_CHECK%"=="1" (
+    echo [VERSION] Checking VERSION / jump_version.h / CHANGELOG.md...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\check-version.ps1"
+    if errorlevel 1 (
+        echo [ERROR] Version check failed.
+        popd >nul
+        exit /b 1
+    )
+    echo.
+)
 
 set "SOLUTION=src\game.sln"
 if not exist "%SOLUTION%" (

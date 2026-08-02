@@ -303,7 +303,7 @@ any change to the entity contract.
 | Cvar | Default | Meaning |
 |---|---|---|
 | `g_jump` | `1` | Master switch. `0` restores stock deathmatch entirely (latched) |
-| `jump_version` | *(set at init)* | Read-only. The mod version, e.g. `0.1.0` |
+| `jump_version` | *(set at init)* | Read-only. The mod version; matches root `VERSION` |
 | `jump_data_dir` | *(empty)* | Where records live; empty means `jump/` next to the DLL |
 | `jump_records_max` | `15` | Rows shown on the times board |
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |

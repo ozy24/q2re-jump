@@ -13,7 +13,8 @@ Jump mode is switched on and off with one server cvar: **`g_jump`** — `1`
 latched, so a change needs a map restart to take effect.
 
 Release notes live in [`CHANGELOG.md`](CHANGELOG.md); the running server
-reports its own version with `jump_version`.
+reports its own version with `jump_version`. How versions are bumped and tagged
+is in [`docs/release-process.md`](docs/release-process.md).
 
 ---
 

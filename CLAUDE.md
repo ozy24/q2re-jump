@@ -22,7 +22,8 @@ deploy.bat           :: push the DLL to the server share, with a timestamped bac
 ```
 
 Environment overrides: `Q2J_BUILD_CONFIG` (default `Release`), `Q2J_SKIP_TESTS=1`,
-`Q2J_GAME_DIR`, `Q2J_EXE`, `Q2J_LAUNCH_ARGS`, `Q2J_DEPLOY_DIR`, `Q2J_SKIP_USERDATA`.
+`Q2J_SKIP_VERSION_CHECK=1`, `Q2J_GAME_DIR`, `Q2J_EXE`, `Q2J_LAUNCH_ARGS`,
+`Q2J_DEPLOY_DIR`, `Q2J_SKIP_USERDATA`.
 
 `build.bat` fails if the unit tests fail. To run them alone:
 
@@ -42,6 +43,18 @@ maps\build_jumptest.bat jumptest4    :: just one
 
 `play.bat` also refreshes the DLL in the KEX **user-data** folder when one exists there. That
 folder shadows the install directory, so a stale copy silently means testing an older build.
+
+## Versioning
+
+SemVer lives in root `VERSION` and `src/jump/jump_version.h` (must match). Bump **only when
+cutting a tagged release**, not on every commit. Day-to-day notes go under `## [Unreleased]`
+in `CHANGELOG.md` when the change is player- or host-visible.
+
+- `scripts/check-version.ps1` — alignment gate (also run by `build.bat`)
+- `scripts/release.ps1 -VersionMode patch` — bumps files and stamps the changelog; does not
+  commit or tag
+- Full steps: `docs/release-process.md`
+- Leave `GAMEVERSION` (`baseq2`) alone — that is not the mod version
 
 ## Architecture
 
