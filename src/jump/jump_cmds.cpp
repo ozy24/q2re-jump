@@ -26,6 +26,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  yes / no       vote on the current call\n"
 				"  idle           move yourself to spectator\n"
 				"  eyecam         toggle first-person follow while spectating\n"
+				"  jumpers        hide/show other players' models and sounds\n"
 				"  jumphelp       this list\n"
 					"Bind them, e.g: bind mouse4 store; bind mouse5 recall\n");
 }
@@ -164,6 +165,12 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "eyecam"))
 	{
 		Jump_CmdEyecam(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "jumpers"))
+	{
+		Jump_CmdJumpers(ent);
 		return true;
 	}
 

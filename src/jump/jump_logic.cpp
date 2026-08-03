@@ -263,4 +263,23 @@ bool IsCheckpointBarrierTarget(const std::string &target)
 	return true;
 }
 
+bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)
+{
+	if (ent_is_viewer)
+		return true;
+
+	if (eyecam_following_target)
+		return false;
+
+	return show_jumpers;
+}
+
+bool PlayerAudibleToViewer(bool show_jumpers, bool ent_is_viewer)
+{
+	if (ent_is_viewer)
+		return true;
+
+	return show_jumpers;
+}
+
 } // namespace jump

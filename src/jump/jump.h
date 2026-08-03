@@ -40,6 +40,12 @@ bool Jump_UpdateEyecam(edict_t *ent);
 void Jump_SyncFollowPresentation(edict_t *ent);
 bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible);
 
+// Rare player body sounds (jump, water, gasp, …) that respect jumpers.
+// Falls back to gi.sound when nobody has jumpers off. Footsteps/falls stay as
+// entity events — instancing already mutes them for jumpers-off viewers.
+void Jump_PlayerSound(edict_t *ent, soundchan_t channel, int soundindex, float volume, float attenuation,
+					  float timeofs);
+
 // Returns true when the command was handled and upstream should stop.
 bool Jump_ClientCommand(edict_t *ent);
 

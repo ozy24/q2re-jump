@@ -54,6 +54,8 @@ void Jump_ClientSpawn(edict_t *ent)
 	// Health is deliberately left at the default. Inflating it does nothing
 	// useful once combat damage is zeroed, and it makes hazards take seconds
 	// to kill instead of ending the run.
+
+	Jump_RefreshPlayerInstancing();
 }
 
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
@@ -98,6 +100,8 @@ void Jump_ClientDisconnect(edict_t *ent)
 
 	Jump_VoteClientDisconnect(ent);
 	*jc = jump_client_t {};
+	Jump_RecountHideJumpers();
+	Jump_RefreshPlayerInstancing();
 }
 
 bool Jump_FilterDamage(edict_t *targ, edict_t *attacker, const mod_t &mod, int &damage)

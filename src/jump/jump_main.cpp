@@ -72,6 +72,13 @@ void Jump_Init()
 	if (!g_jump->integer)
 		return;
 
+	// Footstep samples used when jumpers forces filtered movement audio.
+	gi.soundindex("player/step1.wav");
+	gi.soundindex("player/step2.wav");
+	gi.soundindex("player/step3.wav");
+	gi.soundindex("player/step4.wav");
+	gi.soundindex("player/stepl.wav");
+
 	// Players run through each other and never take fall damage.
 	gi.cvar_set("g_disable_player_collision", "1");
 	gi.cvar_set("g_dm_no_fall_damage", "1");

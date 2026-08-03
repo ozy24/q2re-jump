@@ -266,6 +266,26 @@ static void TestRecords()
 	CHECK(records.RankOf("dave") == 3);
 }
 
+static void TestJumpersPolicy()
+{
+	// Self is always visible / audible.
+	CHECK(jump::PlayerVisibleToViewer(true, false, true));
+	CHECK(jump::PlayerVisibleToViewer(false, false, true));
+	CHECK(jump::PlayerVisibleToViewer(false, true, true));
+	CHECK(jump::PlayerAudibleToViewer(true, true));
+	CHECK(jump::PlayerAudibleToViewer(false, true));
+
+	// Other players follow the jumpers preference.
+	CHECK(jump::PlayerVisibleToViewer(true, false, false));
+	CHECK(!jump::PlayerVisibleToViewer(false, false, false));
+	CHECK(jump::PlayerAudibleToViewer(true, false));
+	CHECK(!jump::PlayerAudibleToViewer(false, false));
+
+	// First-person eyecam always hides the followed body, even with jumpers on.
+	CHECK(!jump::PlayerVisibleToViewer(true, true, false));
+	CHECK(!jump::PlayerVisibleToViewer(false, true, false));
+}
+
 int main()
 {
 	TestFormatTime();
@@ -277,6 +297,7 @@ int main()
 	TestIsSafeMapToken();
 	TestIsCheckpointBarrierTarget();
 	TestRecords();
+	TestJumpersPolicy();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);
 

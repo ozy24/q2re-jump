@@ -42,6 +42,8 @@ lobby, so everything below is a console command.
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
 | `idle` | Move yourself to spectator |
+| `eyecam` | Toggle first-person follow while spectating |
+| `jumpers` | Hide/show other players' models and body sounds |
 | `jumphelp` | Command list in game |
 
 ### Teams

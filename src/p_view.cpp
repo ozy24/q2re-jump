@@ -712,11 +712,11 @@ void P_WorldEffects()
 	{
 		PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
 		if (current_player->watertype & CONTENTS_LAVA)
-			gi.sound(current_player, CHAN_BODY, gi.soundindex("player/lava_in.wav"), 1, ATTN_NORM, 0);
+			Jump_PlayerSound(current_player, CHAN_BODY, gi.soundindex("player/lava_in.wav"), 1, ATTN_NORM, 0); // [Jump]
 		else if (current_player->watertype & CONTENTS_SLIME)
-			gi.sound(current_player, CHAN_BODY, gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0);
+			Jump_PlayerSound(current_player, CHAN_BODY, gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0); // [Jump]
 		else if (current_player->watertype & CONTENTS_WATER)
-			gi.sound(current_player, CHAN_BODY, gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0);
+			Jump_PlayerSound(current_player, CHAN_BODY, gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0); // [Jump]
 		current_player->flags |= FL_INWATER;
 
 		// clear damage_debounce, so the pain sound will play immediately
@@ -729,7 +729,7 @@ void P_WorldEffects()
 	if (old_waterlevel && !waterlevel)
 	{
 		PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
-		gi.sound(current_player, CHAN_BODY, gi.soundindex("player/watr_out.wav"), 1, ATTN_NORM, 0);
+		Jump_PlayerSound(current_player, CHAN_BODY, gi.soundindex("player/watr_out.wav"), 1, ATTN_NORM, 0); // [Jump]
 		current_player->flags &= ~FL_INWATER;
 	}
 
@@ -738,7 +738,7 @@ void P_WorldEffects()
 	//
 	if (old_waterlevel != WATER_UNDER && waterlevel == WATER_UNDER)
 	{
-		gi.sound(current_player, CHAN_BODY, gi.soundindex("player/watr_un.wav"), 1, ATTN_NORM, 0);
+		Jump_PlayerSound(current_player, CHAN_BODY, gi.soundindex("player/watr_un.wav"), 1, ATTN_NORM, 0); // [Jump]
 	}
 
 	//
@@ -748,12 +748,12 @@ void P_WorldEffects()
 	{
 		if (current_player->air_finished < level.time)
 		{ // gasp for air
-			gi.sound(current_player, CHAN_VOICE, gi.soundindex("player/gasp1.wav"), 1, ATTN_NORM, 0);
+			Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("player/gasp1.wav"), 1, ATTN_NORM, 0); // [Jump]
 			PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
 		}
 		else if (current_player->air_finished < level.time + 11_sec)
 		{ // just break surface
-			gi.sound(current_player, CHAN_VOICE, gi.soundindex("player/gasp2.wav"), 1, ATTN_NORM, 0);
+			Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("player/gasp2.wav"), 1, ATTN_NORM, 0); // [Jump]
 		}
 	}
 
@@ -770,9 +770,9 @@ void P_WorldEffects()
 			if (((current_client->breather_time - level.time).milliseconds() % 2500) == 0)
 			{
 				if (!current_client->breather_sound)
-					gi.sound(current_player, CHAN_AUTO, gi.soundindex("player/u_breath1.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_AUTO, gi.soundindex("player/u_breath1.wav"), 1, ATTN_NORM, 0); // [Jump]
 				else
-					gi.sound(current_player, CHAN_AUTO, gi.soundindex("player/u_breath2.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_AUTO, gi.soundindex("player/u_breath2.wav"), 1, ATTN_NORM, 0); // [Jump]
 				current_client->breather_sound ^= 1;
 				PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
 				// FIXME: release a bubble?
@@ -793,11 +793,11 @@ void P_WorldEffects()
 
 				// play a gurp sound instead of a normal pain sound
 				if (current_player->health <= current_player->dmg)
-					gi.sound(current_player, CHAN_VOICE, gi.soundindex("*drown1.wav"), 1, ATTN_NORM, 0); // [Paril-KEX]
+					Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("*drown1.wav"), 1, ATTN_NORM, 0); // [Jump] [Paril-KEX]
 				else if (brandom())
-					gi.sound(current_player, CHAN_VOICE, gi.soundindex("*gurp1.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("*gurp1.wav"), 1, ATTN_NORM, 0); // [Jump]
 				else
-					gi.sound(current_player, CHAN_VOICE, gi.soundindex("*gurp2.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("*gurp2.wav"), 1, ATTN_NORM, 0); // [Jump]
 
 				current_player->pain_debounce_time = level.time;
 
@@ -809,7 +809,7 @@ void P_WorldEffects()
 		{
 			if (current_player->client->next_drown_time < level.time)
 			{
-				gi.sound(current_player, CHAN_VOICE, gi.soundindex(fmt::format("player/wade{}.wav", 1 + ((int32_t) level.time.seconds() % 3)).c_str()), 1, ATTN_NORM, 0);
+				Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex(fmt::format("player/wade{}.wav", 1 + ((int32_t) level.time.seconds() % 3)).c_str()), 1, ATTN_NORM, 0); // [Jump]
 				current_player->client->next_drown_time = level.time + 1_sec;
 			}
 		}
@@ -830,9 +830,9 @@ void P_WorldEffects()
 			if (current_player->health > 0 && current_player->pain_debounce_time <= level.time && current_client->invincible_time < level.time)
 			{
 				if (brandom())
-					gi.sound(current_player, CHAN_VOICE, gi.soundindex("player/burn1.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("player/burn1.wav"), 1, ATTN_NORM, 0); // [Jump]
 				else
-					gi.sound(current_player, CHAN_VOICE, gi.soundindex("player/burn2.wav"), 1, ATTN_NORM, 0);
+					Jump_PlayerSound(current_player, CHAN_VOICE, gi.soundindex("player/burn2.wav"), 1, ATTN_NORM, 0); // [Jump]
 				current_player->pain_debounce_time = level.time + 1_sec;
 			}
 
@@ -1012,7 +1012,9 @@ void G_SetClientEvent(edict_t *ent)
 	else if (ent->groundentity && xyspeed > 225)
 	{
 		if ((int) (current_client->bobtime + bobmove) != bobcycle_run)
+		{
 			ent->s.event = EV_FOOTSTEP;
+		}
 	}
 }
 

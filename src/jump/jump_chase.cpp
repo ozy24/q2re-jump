@@ -1,10 +1,37 @@
-// [Jump] Spectator follow and first-person eyecam.
+// [Jump] Spectator follow, first-person eyecam, and jumpers visibility.
 //
-// This mirrors MuffMode's following_camera.cpp on top of the rerelease's
-// existing chase_target field and ChaseNext/ChasePrev/GetChaseTarget helpers.
+// Follow/eyecam mirrors MuffMode's following_camera.cpp on top of the
+// rerelease's chase_target field. jumpers hides other player models per-viewer
+// via the same SVF_INSTANCED + Entity_IsVisibleToPlayer path.
 
 #include "../g_local.h"
 #include "jump_local.h"
+
+static int jump_hide_jumpers_count = 0;
+
+void Jump_RecountHideJumpers()
+{
+	jump_hide_jumpers_count = 0;
+
+	if (!Jump_Active())
+		return;
+
+	for (uint32_t i = 1; i <= game.maxclients; i++)
+	{
+		edict_t *viewer = g_edicts + i;
+		if (!viewer->inuse || !viewer->client || !viewer->client->pers.connected)
+			continue;
+
+		jump_client_t *jc = Jump_ClientData(viewer);
+		if (jc && !jc->show_jumpers)
+			jump_hide_jumpers_count++;
+	}
+}
+
+bool Jump_AnyHideJumpers()
+{
+	return jump_hide_jumpers_count > 0;
+}
 
 static bool Jump_IsFollowable(edict_t *ent)
 {
@@ -48,7 +75,7 @@ static void Jump_ClearFollowPresentation(edict_t *ent)
 	ent->s.loop_volume = 0;
 }
 
-static void Jump_RefreshFollowInstancing()
+void Jump_RefreshPlayerInstancing()
 {
 	for (uint32_t i = 1; i <= game.maxclients; i++)
 	{
@@ -60,7 +87,20 @@ static void Jump_RefreshFollowInstancing()
 		for (uint32_t j = 1; j <= game.maxclients; j++)
 		{
 			edict_t *viewer = g_edicts + j;
-			if (viewer->inuse && Jump_FirstPersonFollowing(viewer, target))
+			if (!viewer->inuse || !viewer->client || !viewer->client->pers.connected)
+				continue;
+
+			if (Jump_FirstPersonFollowing(viewer, target))
+			{
+				needed = true;
+				break;
+			}
+
+			if (viewer == target)
+				continue;
+
+			jump_client_t *vjc = Jump_ClientData(viewer);
+			if (vjc && !vjc->show_jumpers)
 			{
 				needed = true;
 				break;
@@ -81,7 +121,7 @@ void Jump_FreeFollower(edict_t *ent)
 
 	ent->client->chase_target = nullptr;
 	Jump_ClearFollowPresentation(ent);
-	Jump_RefreshFollowInstancing();
+	Jump_RefreshPlayerInstancing();
 }
 
 void Jump_FreeClientFollowers(edict_t *target)
@@ -109,7 +149,7 @@ void Jump_EyecamOn(edict_t *ent)
 	jc->eyecam = true;
 	if (!ent->client->chase_target)
 		GetChaseTarget(ent);
-	Jump_RefreshFollowInstancing();
+	Jump_RefreshPlayerInstancing();
 }
 
 void Jump_EyecamOff(edict_t *ent)
@@ -122,7 +162,7 @@ void Jump_EyecamOff(edict_t *ent)
 		jc->eyecam = false;
 
 	Jump_ClearFollowPresentation(ent);
-	Jump_RefreshFollowInstancing();
+	Jump_RefreshPlayerInstancing();
 	if (ent->client->chase_target)
 		ent->client->update_chase = true;
 }
@@ -148,6 +188,24 @@ void Jump_CmdEyecam(edict_t *ent)
 	gi.local_sound(ent, CHAN_AUTO, gi.soundindex("misc/menu3.wav"), 1, ATTN_NONE, 0);
 }
 
+void Jump_CmdJumpers(edict_t *ent)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+	if (!jc)
+		return;
+
+	jc->show_jumpers = !jc->show_jumpers;
+	Jump_RecountHideJumpers();
+	Jump_RefreshPlayerInstancing();
+
+	gi.Client_Print(ent, PRINT_HIGH,
+					G_Fmt("Player models/sounds are now {}.\n", jc->show_jumpers ? "ON" : "OFF").data());
+	gi.local_sound(ent, CHAN_AUTO, gi.soundindex("misc/menu3.wav"), 1, ATTN_NONE, 0);
+}
+
 // Handles the same spectator controls as MuffMode:
 // use toggles view, crouch goes back, attack toggles follow, jump goes forward.
 bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd)
@@ -168,7 +226,7 @@ bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd)
 	{
 		client->latched_buttons &= ~BUTTON_CROUCH;
 		ChasePrev(ent);
-		Jump_RefreshFollowInstancing();
+		Jump_RefreshPlayerInstancing();
 	}
 
 	if (!client->menu && (client->latched_buttons & BUTTON_ATTACK))
@@ -178,7 +236,7 @@ bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd)
 			Jump_FreeFollower(ent);
 		else
 			GetChaseTarget(ent);
-		Jump_RefreshFollowInstancing();
+		Jump_RefreshPlayerInstancing();
 	}
 
 	if (!client->menu)
@@ -192,7 +250,7 @@ bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd)
 					ChaseNext(ent);
 				else
 					GetChaseTarget(ent);
-				Jump_RefreshFollowInstancing();
+				Jump_RefreshPlayerInstancing();
 			}
 		}
 		else
@@ -252,7 +310,7 @@ bool Jump_UpdateEyecam(edict_t *ent)
 	AngleVectors(ent->client->v_angle, ent->client->v_forward, nullptr, nullptr);
 	ent->viewheight = 0;
 
-	Jump_RefreshFollowInstancing();
+	Jump_RefreshPlayerInstancing();
 	gi.linkentity(ent);
 	return true;
 }
@@ -280,6 +338,10 @@ bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible)
 	if (!Jump_Active() || !ent || !ent->client)
 		return false;
 
-	visible = !Jump_FirstPersonFollowing(viewer, ent);
+	jump_client_t *vjc = Jump_ClientData(viewer);
+	const bool show_jumpers = !vjc || vjc->show_jumpers;
+	const bool eyecam_following = Jump_FirstPersonFollowing(viewer, ent);
+
+	visible = jump::PlayerVisibleToViewer(show_jumpers, eyecam_following, ent == viewer);
 	return true;
 }

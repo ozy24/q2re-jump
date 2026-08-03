@@ -46,8 +46,9 @@ struct jump_client_t
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
 	// --- session: survives map changes, re-keyed on connect ---
-	jump_team_t team    = jump_team_t::ranked;
-	bool        eyecam  = true; // MuffMode default: first-person spectator follow
+	jump_team_t team         = jump_team_t::ranked;
+	bool        eyecam       = true; // MuffMode default: first-person spectator follow
+	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 };
 
@@ -192,8 +193,13 @@ bool		Jump_HasVoted(edict_t *ent);
 void Jump_EyecamOn(edict_t *ent);
 void Jump_EyecamOff(edict_t *ent);
 void Jump_CmdEyecam(edict_t *ent);
+void Jump_CmdJumpers(edict_t *ent);
 void Jump_FreeFollower(edict_t *ent);
 void Jump_FreeClientFollowers(edict_t *target);
+void Jump_RecountHideJumpers();
+bool Jump_AnyHideJumpers();
+void Jump_RefreshPlayerInstancing();
+
 
 // jump_menu.cpp
 void Jump_OpenMainMenu(edict_t *ent);

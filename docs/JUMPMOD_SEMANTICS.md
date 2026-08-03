@@ -218,6 +218,22 @@ weapon state. 19-step speed table from −100× to +100×. Stored in `local_db.s
 A: `MAX_RECORD_FRAMES 200000`, demos in `<game>/jumpdemo/<map>.dj2` (1st place) and
 `<map>_<uid>.dj3`, same 19-step speed table.
 
+**jumpers** — toggle that hides other players for a clean view of the map.
+- A: `hide_jumpers` (default show ON); models via per-viewer `CS_PLAYERSKINS` invis skins plus
+  global translucent renderfx when anyone has them off; also mutes other players' movement sounds
+  via `jumpmod_sound`; resets on map change; no chase-target exemption.
+- B: `show_jumpers` (default true); models only via per-viewer `CS_PLAYERSKINS`; no sound filter;
+  resets on map change.
+
+**Port decision:** keep the classic name/feedback (`Player models/sounds are now ON./OFF.`),
+hide models with Q2RE `SVF_INSTANCED` + `Entity_IsVisibleToPlayer` (no invis-skin / translucent
+hack). Footsteps/falls/ladder steps stay as entity events — omitted with the model for
+jumpers-off viewers (never fan out as unicasts; that overflows the datagram). Rare body
+sounds (jump, water, gasp, drown, wade, burn) use `gi.local_sound` when anyone has jumpers
+off. Leave weapons / checkpoints / map audio / teleport events alone; no chase-target
+exemption. Preference is a session field (survives map changes like `eyecam`); reconnect
+resets to ON.
+
 **Race** — replays a stored run as a "spark" ghost with a configurable 0–10 s head start.
 
 **Health/ammo** — B forces 1000 health and 1000 ammo everywhere. A uses msets `health` (400) and

@@ -148,4 +148,17 @@ std::string SanitizeLayoutText(const std::string &text, size_t max_len = 20);
 // nothing — every instance in the original corpus is already lowercase.
 bool IsCheckpointBarrierTarget(const std::string &target);
 
+// ---------------------------------------------------------------------------
+// jumpers visibility / audio policy (engine-free)
+// ---------------------------------------------------------------------------
+
+// Whether `ent` should be drawn for `viewer` under the jumpers/eyecam rules.
+// Self is always visible; a first-person followed body is always hidden;
+// otherwise other players are hidden when the viewer has jumpers off.
+bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer);
+
+// Whether `viewer` should hear a sound originating from `source`.
+// Self is always audible; other sources are muted when the viewer has jumpers off.
+bool PlayerAudibleToViewer(bool show_jumpers, bool ent_is_viewer);
+
 } // namespace jump

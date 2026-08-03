@@ -77,6 +77,7 @@ lobby, so the usual "say a command in chat" habit does not work here.
 | `team practice`&#124;`ranked`&#124;`spectator` | Switch team |
 | `maptimes` / `playertimes` / `ranks` | Records for this map / for you / for everyone |
 | `votemap <map>` | Call a map vote — or just press **TAB** for a menu |
+| `jumpers` | Hide/show other players' models and body sounds |
 | `jumphelp` | The full list, in game |
 
 [`docs/JUMP_MOD.md`](docs/JUMP_MOD.md) is the complete reference: every command,
