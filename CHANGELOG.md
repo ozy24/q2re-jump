@@ -9,6 +9,21 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+### Added
+
+- A second scoreboard page listing the players on the server, with two times each: their best
+  ranked run on this map since it loaded, and their all-time best on it. Sorted by the first,
+  so it reads as the session leaderboard, and marked ranked vs practice. Spectators are listed
+  separately alongside who they are watching. The scoreboard key now cycles players → records
+  → closed.
+
+  Two pages rather than one wider board because a scoreboard message is capped at 1024 bytes
+  by the engine, which is not enough for both tables at once; alternating gives each of them
+  the whole buffer. The players page drops whole rows and reports a `+N more` line when a busy
+  server outgrows the budget, and sorts players mid-run to the top so a truncated board still
+  shows whoever is racing. Worst case measured at 7 rows in 953 bytes with 32 players
+  connected.
+
 ## [0.2.0] - 2026-08-03
 
 ### Changed

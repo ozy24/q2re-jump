@@ -30,6 +30,14 @@ enum class jump_run_state_t : uint8_t
 	finished = 2 // reached the finish, waiting for a respawn
 };
 
+// The scoreboard has two pages, because one svc_layout cannot hold both: the
+// F1 key cycles players -> records -> closed.
+enum class jump_board_t : uint8_t
+{
+	players = 0, // who is connected and how they are doing on this map
+	records = 1	 // the map's high score table
+};
+
 // Per-client mod state. Lives in a module-owned array rather than on
 // gclient_t, so it never has to be described to the savegame reflection
 // tables in g_save.cpp.
@@ -38,7 +46,8 @@ struct jump_client_t
 	// --- per map: cleared by Jump_ResetRun / Jump_InitLevel ---
 	jump_run_state_t	 state = jump_run_state_t::idle;
 	int64_t				 run_start_ms = 0; // Jump_NowMs() stamp; 0 when idle
-	int64_t				 last_time_ms = 0; // most recent completed run
+	int64_t				 last_time_ms = 0;	  // most recent completed run
+	int64_t				 session_best_ms = 0; // best ranked run since this map loaded
 	int32_t				 checkpoints = 0;
 	jump::store_ring_t	 stores;
 	edict_t				*store_marker = nullptr;
@@ -50,6 +59,11 @@ struct jump_client_t
 	bool        eyecam       = true; // MuffMode default: first-person spectator follow
 	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
+
+	// Which scoreboard page the next send should build. Only meaningful while
+	// client->showscores is set, which stays the open/closed authority because
+	// it is what gates LAYOUTS_LAYOUT in G_SetStats.
+	jump_board_t board = jump_board_t::players;
 };
 
 // Per-map settings, reloaded on every level change.

@@ -2,6 +2,7 @@
 
 #include "jump_logic.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -130,6 +131,42 @@ int64_t map_records_t::TimeOf(const std::string &id) const
 int map_records_t::PointsOf(const std::string &id) const
 {
 	return PointsForRank(RankOf(id));
+}
+
+// Rows sort into three bands before anything else is compared.
+static int PlayerRowGroup(const player_row_t &row)
+{
+	if (row.spectator)
+		return 2;
+
+	return row.session_ms ? 0 : 1;
+}
+
+void SortPlayerRows(std::vector<player_row_t> &rows)
+{
+	std::stable_sort(rows.begin(), rows.end(), [](const player_row_t &a, const player_row_t &b) {
+		const int ga = PlayerRowGroup(a);
+		const int gb = PlayerRowGroup(b);
+
+		if (ga != gb)
+			return ga < gb;
+
+		// Posted a time on this map: fastest first.
+		if (ga == 0)
+			return a.session_ms < b.session_ms;
+
+		// Yet to post one: by all-time best, with "never finished it" last.
+		if (ga == 1 && a.pb_ms != b.pb_ms)
+		{
+			if (!a.pb_ms || !b.pb_ms)
+				return a.pb_ms != 0;
+
+			return a.pb_ms < b.pb_ms;
+		}
+
+		// Spectators, and every remaining tie, keep collection order.
+		return false;
+	});
 }
 
 bool IsSafeMapToken(const std::string &token)

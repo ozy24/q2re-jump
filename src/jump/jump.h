@@ -94,6 +94,10 @@ bool Jump_AssignSkin(edict_t *ent, const char *skin);
 // DeathmatchScoreboardMessage: returns true when jump sent its own board.
 bool Jump_ScoreboardMessage(edict_t *ent);
 
+// Cmd_Score_f: the scoreboard key cycles players -> records -> closed rather
+// than toggling one board. Returns true when jump handled the press.
+bool Jump_ScoreCycle(edict_t *ent);
+
 // teleporter_touch: true when the map's fasttele mset is on, meaning the
 // teleport freeze should be skipped.
 bool Jump_FastTeleport();

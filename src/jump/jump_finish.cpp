@@ -164,6 +164,12 @@ void Jump_Finish(edict_t *ent)
 	const bool improved_pb = previous_pb == 0 || time_ms < previous_pb;
 	jc->pb_time_ms = improved_pb ? time_ms : previous_pb;
 
+	// Best on this map since it loaded, for the players scoreboard. Ranked only,
+	// same as the PB above: practice runs can recall from a store, so they are
+	// not comparable with anything else on that board.
+	if (!jc->session_best_ms || time_ms < jc->session_best_ms)
+		jc->session_best_ms = time_ms;
+
 	if (improved_pb)
 		Jump_UpdatePbString(ent);
 

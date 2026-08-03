@@ -571,6 +571,10 @@ void Cmd_Score_f(edict_t *ent)
 	if (!deathmatch->integer && !coop->integer)
 		return;
 
+	// [Jump] cycles players -> records -> closed instead of one toggle
+	if (Jump_ScoreCycle(ent))
+		return;
+
 	if (ent->client->showscores)
 	{
 		ent->client->showscores = false;

@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include <string>
+#include <vector>
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -286,6 +287,70 @@ static void TestJumpersPolicy()
 	CHECK(!jump::PlayerVisibleToViewer(false, true, false));
 }
 
+static jump::player_row_t MakeRow(const char *name, int64_t session, int64_t pb, bool spectator)
+{
+	jump::player_row_t row;
+	row.name = name;
+	row.session_ms = session;
+	row.pb_ms = pb;
+	row.spectator = spectator;
+	return row;
+}
+
+static std::string RowOrder(const std::vector<jump::player_row_t> &rows)
+{
+	std::string order;
+
+	for (const jump::player_row_t &row : rows)
+	{
+		if (!order.empty())
+			order += ",";
+		order += row.name;
+	}
+
+	return order;
+}
+
+static void TestSortPlayerRows()
+{
+	// Whoever has posted a time today leads, fastest first; then the rest by
+	// all-time best; spectators last.
+	std::vector<jump::player_row_t> rows = {
+		MakeRow("spec", 0, 1000, true),		 MakeRow("yet_to_run_slow", 0, 9000, false),
+		MakeRow("posted_slow", 8000, 0, false), MakeRow("yet_to_run_fast", 0, 2000, false),
+		MakeRow("posted_fast", 3000, 0, false),
+	};
+
+	jump::SortPlayerRows(rows);
+	CHECK_EQ(RowOrder(rows), "posted_fast,posted_slow,yet_to_run_fast,yet_to_run_slow,spec");
+
+	// A slow time today still beats a fast all-time best that has not been
+	// matched today - the first column is what the page is ranking.
+	rows = { MakeRow("pb_hero", 0, 100, false), MakeRow("showed_up", 99999, 0, false) };
+	jump::SortPlayerRows(rows);
+	CHECK_EQ(RowOrder(rows), "showed_up,pb_hero");
+
+	// Never finished the map at all sorts behind every all-time time, however slow.
+	rows = { MakeRow("unranked", 0, 0, false), MakeRow("slow", 0, 999999, false) };
+	jump::SortPlayerRows(rows);
+	CHECK_EQ(RowOrder(rows), "slow,unranked");
+
+	// A spectator stays last even holding the fastest time on the board.
+	rows = { MakeRow("watcher", 1, 1, true), MakeRow("player", 0, 0, false) };
+	jump::SortPlayerRows(rows);
+	CHECK_EQ(RowOrder(rows), "player,watcher");
+
+	// Ties keep collection order, so the board does not reshuffle every resend.
+	rows = { MakeRow("c", 5000, 0, false), MakeRow("a", 5000, 0, false), MakeRow("b", 5000, 0, false) };
+	jump::SortPlayerRows(rows);
+	CHECK_EQ(RowOrder(rows), "c,a,b");
+
+	// Degenerate inputs must not fall over.
+	rows.clear();
+	jump::SortPlayerRows(rows);
+	CHECK(rows.empty());
+}
+
 int main()
 {
 	TestFormatTime();
@@ -298,6 +363,7 @@ int main()
 	TestIsCheckpointBarrierTarget();
 	TestRecords();
 	TestJumpersPolicy();
+	TestSortPlayerRows();
 
 	printf("%d checks, %d failures\n", g_checks, g_failures);
 

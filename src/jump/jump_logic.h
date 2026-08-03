@@ -108,6 +108,34 @@ struct map_records_t
 };
 
 // ---------------------------------------------------------------------------
+// Active-players board
+// ---------------------------------------------------------------------------
+
+// One row of the players page of the scoreboard. Kept engine-free so the
+// ordering below is testable on the host; the caller fills it from edict state.
+struct player_row_t
+{
+	std::string name;
+	std::string chasing;		  // spectators only: who they are following
+	int64_t		session_ms = 0;	  // best ranked run since this map loaded; 0 = none
+	int64_t		pb_ms = 0;		  // all-time personal best on this map; 0 = none
+	bool		spectator = false;
+	bool		practice = false; // practice team rather than ranked
+};
+
+// Order the players page.
+//
+// This is not cosmetic: the layout budget only fits eight or so rows, so the
+// order decides who is worth the bytes. Anyone who has posted a time on this
+// map comes first, fastest first - that is the session leaderboard, and the
+// part nobody should lose to truncation. Everyone still to post one follows,
+// ordered by their all-time best so the fast players are visible before they
+// have done anything today. Spectators last. Stable within each group, so
+// equal rows keep the order they were collected in and the board does not
+// reshuffle itself between resends.
+void SortPlayerRows(std::vector<player_row_t> &rows);
+
+// ---------------------------------------------------------------------------
 // Filenames
 // ---------------------------------------------------------------------------
 

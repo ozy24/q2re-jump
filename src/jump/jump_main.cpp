@@ -102,6 +102,7 @@ void Jump_InitLevel(const char *entities)
 		jc.state = jump_run_state_t::idle;
 		jc.run_start_ms = 0;
 		jc.last_time_ms = 0;
+		jc.session_best_ms = 0;
 		jc.pb_time_ms = 0;
 		jc.checkpoints = 0;
 		jc.stores.Clear();

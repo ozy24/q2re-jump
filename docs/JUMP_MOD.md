@@ -78,10 +78,25 @@ interrupted mid-run by a popup is the last thing you want on a jump server.
 
 ### The scoreboard
 
-`Tab` shows who is connected, which team they are on, their best time on this
-map and their place — plus the top few map records underneath, so you can see
-what you are chasing even when the holder is offline. Your own row is
-highlighted. Use `maptimes` for the full records list.
+The scoreboard key (`F1` by default) cycles through two pages and then closes:
+
+1. **Players** — who is connected, with two times each: `session`, their best
+   run on this map since it loaded, and `pb`, their all-time best on it. Sorted
+   by the session column, so the page reads as tonight's leaderboard. The `pb`
+   column is what shows who is quick before they have posted anything today.
+   Spectators are listed separately, with who each of them is watching.
+2. **Records** — the top times on this map, so you can see what you are chasing
+   even when the holder is offline, with your own time and place underneath.
+
+Only ranked runs fill in the `session` column, the same rule the records table
+follows: practice runs can recall from a store, so they are not comparable.
+
+A third press closes the board. (`Tab` is the menu, not the scoreboard.)
+
+Two pages rather than one board because the engine caps a scoreboard message at
+1024 bytes, which is not enough for both tables at once — see
+[the byte budget](#scoreboard-byte-budget) below. Use `maptimes` for the full
+records list and `ranks` for everyone's points.
 
 ### Finishing
 
@@ -115,6 +130,34 @@ personal best after a finish, which is drawn client-side.
 **That client-side element is off by default**, so out of the box you see exactly what everyone
 else sees — which is the useful default when you are hosting. `jump_hud 1` opts in to the delta;
 `jump_hud 0` returns to the shared view. The setting is archived, so it persists.
+
+### Scoreboard byte budget
+
+Both scoreboard pages are `svc_layout` messages, and the engine's receive buffer
+for one is a fixed 1024 bytes that a mod cannot raise — the mod-side constants
+are only mirrors of it. Overrunning it does not truncate gracefully: the client
+parses whatever token stream it is handed, so a half-written token raises a
+**fatal client-side parser error**. That is why vanilla caps its own scoreboard
+at 16 players.
+
+So the players page is built to a budget rather than to a player count:
+
+- Rows are appended whole or not at all. The loop stops as soon as the next row
+  would not fit alongside a reserve for the trailing lines — it never truncates
+  mid-token.
+- Whatever did not fit is reported as a `+N more` line, so a short board is
+  visibly short rather than quietly wrong.
+- Ordering decides who earns the space: whoever has posted a time on this map
+  first, fastest first, then the rest by all-time best, then spectators. The
+  session leaderboard is the part you cannot afford to lose.
+- Names are cut to 14 characters and passed through the layout sanitiser, which
+  strips the quotes, backslashes and control bytes that would break the stream —
+  a player name is untrusted input.
+- A hard 12-row cap sits behind all of that as a backstop.
+
+Measured worst case — 32 connected players, 14-character names, four-digit run
+times — is **7 rows in 953 of 1023 bytes**. Typical names and times give 8–9
+rows. A full server is therefore a truncated board, never a crashed one.
 
 ## Map compatibility
 
