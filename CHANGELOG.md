@@ -9,6 +9,11 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+### Changed
+
+- Agent instructions moved from `CLAUDE.md` to `AGENTS.md`, which Cursor and Codex read
+  natively; `CLAUDE.md` is now a one-line import of it, so there is still one source.
+
 ### Fixed
 
 - Crash on startup (`SZ_GetSpace: overflow ... with a length of 1`) with `g_jump 1`: unused
