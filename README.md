@@ -20,7 +20,8 @@ is in [`docs/release-process.md`](docs/release-process.md).
 
 ## What playing it is actually like
 
-You spawn at the start of a map holding nothing but a blaster. The timer sits at
+You spawn at the start of a map empty-handed — jump maps are about movement, not
+shooting, and only maps that ask for a weapon hand one out. The timer sits at
 zero until you press a movement key, then it runs. You work your way along the
 course — jumps, teleporters, ledges, water, whatever the mapper built — and the
 run ends when you touch a weapon. Your time goes on the board.

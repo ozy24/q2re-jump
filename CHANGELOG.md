@@ -11,6 +11,10 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ### Changed
 
+- Players spawn empty-handed instead of holding a blaster, matching Q2JumpRefresh. The blaster
+  was fully functional here, which neither upstream mod allows — classic q2jump gates the bolt
+  behind an mset that defaults off. Weapons still come from the weapon msets and
+  `trigger_weapon`, and rocket jumping is unaffected.
 - Agent instructions moved from `CLAUDE.md` to `AGENTS.md`, which Cursor and Codex read
   natively; `CLAUDE.md` is now a one-line import of it, so there is still one source.
 

@@ -230,9 +230,15 @@ bool Jump_ItemTouch(edict_t *ent, edict_t *other)
 	if (ent->item->flags & IF_WEAPON)
 	{
 		// A map can mark specific weapons as usable (rocket jumping, etc.);
-		// those fall through and are picked up normally.
+		// those fall through and are picked up normally. Ask for the switch
+		// explicitly: G_CheckAutoSwitch's SMART policy only auto-switches in
+		// deathmatch when the blaster is out, and jump players hold nothing,
+		// so the pickup would otherwise leave them empty-handed.
 		if (Jump_IsUsableWeapon(ent->item->id))
+		{
+			other->client->newweapon = ent->item;
 			return false;
+		}
 
 		// Otherwise any weapon is the finish line. It is never handed out and
 		// never removed, so every player can finish on the same one.

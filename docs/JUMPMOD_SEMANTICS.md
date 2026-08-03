@@ -258,9 +258,10 @@ resets to ON.
    (`g_trigger.c:806-814`) clears the *rocket launcher slot only* and force-switches to the blaster;
    B (`jump.cpp:664-696`) clears all ten weapon slots and leaves `newweapon` null, so the player
    ends up holding nothing — and it leaks the BFG through, because `FindItem("BFG10K")` is not
-   followed by the matching inventory clear. → **B's intent, A's end state**: reset to the standard
-   jump loadout via `Jump_StripInventory`, so every tool weapon is gone and the player still holds
-   a blaster. Avoids B's weaponless state and B's BFG bug in one move.
+   followed by the matching inventory clear. → **B**: reset via `Jump_StripInventory`, so every
+   tool weapon is gone and the player ends up holding nothing, which is also the spawn loadout
+   (divergence 10). B's BFG leak does not survive the port, since the inventory is cleared
+   wholesale rather than slot by slot.
 9. **Finishing at a map exit** — **neither mod does this.** Both leave `use_target_changelevel`
    vanilla and abandon the in-progress run; A's `BeginIntermission` only flushes stat files and
    stops demo recording. → **new behaviour, not a port**: `Jump_LevelExit` records the run when a
@@ -269,3 +270,12 @@ resets to ON.
    finish line on the exit brush and are otherwise dead ends. Note that in jump mode the vanilla
    path never reached `BeginIntermission` anyway: `g_dm_allow_exit` defaults to `0`, so the exit
    damaged the firing trigger and returned.
+10. **Spawn loadout** — A gives a blaster (`jumpmod.c:7129-7134`) but gates the bolt behind the
+    `blaster` mset, default `0` (`p_weapon.c:960`), and has deleted the blaster's muzzleflash
+    block outright, so a spawned player cannot shoot and produces nothing visible. B gives no
+    weapon at all: `pers.weapon = nullptr` on every spawn path (`jump_spawn.cpp:139-144`,
+    `:418-431`, `:641-671`), which is why B has no `blaster` or `weapons` mset. → **B**: spawn
+    empty-handed. Reaching A's outcome would need the `blaster` and `weapons` msets plus a guard
+    in every fire path, for a gun that does nothing. Consequence: with no spawn weapon,
+    `G_CheckAutoSwitch`'s `SMART` policy (`g_items.cpp:572-579`) will not auto-switch in
+    deathmatch, so `Jump_ItemTouch` sets `newweapon` itself when an mset weapon is picked up.

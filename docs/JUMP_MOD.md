@@ -210,7 +210,7 @@ simply have no finish line.
 
 | Fix | Maps | |
 |---|---|---|
-| **`trigger_hurt` with `dmg 1`** | 24 | Used to **kill the player outright** — `MOD_TRIGGER_HURT` was listed among the fail conditions, so a zone the map meant as "drop your weapon here" ended the run. Now resets the loadout to the blaster and the run continues. |
+| **`trigger_hurt` with `dmg 1`** | 24 | Used to **kill the player outright** — `MOD_TRIGGER_HURT` was listed among the fail conditions, so a zone the map meant as "drop your weapon here" ended the run. Now resets to the empty spawn loadout and the run continues. |
 | **Finish at a map exit** | 5 | A `target_changelevel` reached by a player now records the run. The level deliberately does **not** change: a jump server picks its next map by vote or rotation. New behaviour — no upstream mod recorded a run on a level change. |
 | **`trigger_push` checkpoint barriers** | 2 | A push whose `target` starts with `checkpoint` passes you through at or above its `count`, and otherwise prints and lets the ordinary push shove you back. It gates, it does not block — that is the difference from `jump_cpwall`. |
 | **The `gravity` mset never applied** | all | Found while testing the above. `SP_worldspawn` sets `sv_gravity` from the map's own key and spawns *after* `Jump_InitLevel`, so the mset was overwritten a moment after being written. Now latched and applied on the next frame — a one-shot, so a map's own `target_gravity` still works. |

@@ -3,19 +3,23 @@
 #include "../g_local.h"
 #include "jump_local.h"
 
-// Jump players carry nothing but the blaster, which is harmless because
-// Jump_FilterDamage swallows all combat damage.
+// Jump players hold nothing at all, as in Refresh. Classic q2jump hands out a
+// blaster but gates the bolt behind an mset that defaults off, so in both mods
+// a spawned player cannot shoot; leaving a working blaster here would be
+// behaviour neither has. Weapons come only from the msets or trigger_weapon.
+//
+// ChangeWeapon and Think_Weapon both handle a null pers.weapon, so no upstream
+// hook is needed - ChangeWeapon is what zeroes ps.gunindex and hides the gun.
 void Jump_StripInventory(edict_t *ent)
 {
 	gclient_t *client = ent->client;
 
 	client->pers.inventory.fill(0);
-	client->pers.inventory[IT_WEAPON_BLASTER] = 1;
 
-	client->pers.weapon = GetItemByIndex(IT_WEAPON_BLASTER);
-	client->pers.lastweapon = client->pers.weapon;
-	client->newweapon = client->pers.weapon;
-	client->pers.selected_item = IT_WEAPON_BLASTER;
+	client->pers.weapon = nullptr;
+	client->pers.lastweapon = nullptr;
+	client->newweapon = nullptr;
+	client->pers.selected_item = IT_NULL;
 
 	client->quad_time = 0_ms;
 	client->invincible_time = 0_ms;
