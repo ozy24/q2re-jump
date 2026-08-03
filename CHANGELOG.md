@@ -9,6 +9,8 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-03
+
 ### Changed
 
 - Players spawn empty-handed instead of holding a blaster, matching Q2JumpRefresh. The blaster
