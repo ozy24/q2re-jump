@@ -5,7 +5,7 @@
 #pragma once
 
 #define JUMP_VERSION_MAJOR 0
-#define JUMP_VERSION_MINOR 2
+#define JUMP_VERSION_MINOR 3
 #define JUMP_VERSION_PATCH 0
 
 #define JUMP_VER_STR_HELPER(a, b, c) #a "." #b "." #c

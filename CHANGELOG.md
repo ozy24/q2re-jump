@@ -9,6 +9,8 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-03
+
 ### Added
 
 - A second scoreboard page listing the players on the server, with two times each: their best
@@ -20,9 +22,9 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
   Two pages rather than one wider board because a scoreboard message is capped at 1024 bytes
   by the engine, which is not enough for both tables at once; alternating gives each of them
   the whole buffer. The players page drops whole rows and reports a `+N more` line when a busy
-  server outgrows the budget, and sorts players mid-run to the top so a truncated board still
-  shows whoever is racing. Worst case measured at 7 rows in 953 bytes with 32 players
-  connected.
+  server outgrows the budget, and puts whoever has posted a time at the top so a truncated
+  board still shows the leaderboard. Worst case measured at 7 rows in 954 of 1024 bytes with
+  32 players connected.
 
 ## [0.2.0] - 2026-08-03
 
