@@ -120,10 +120,9 @@ Two things worth knowing before you go looking for maps:
   a tool instead: `sv jump_mset rocket 1`, then `sv jump_mset save` to remember
   it for that map. About 122 corpus maps want this.
 
-Twelve small test courses ship with the source (`maps/`), each aimed at one
-feature so a problem points at one thing rather than "something is broken".
-`jumptest9`–`jumptest12` need no jumping skill at all — flat floors, walk from
-one end to the other. See [`maps/TESTING.md`](maps/TESTING.md).
+Small test courses ship with the source (`maps/`), each aimed at one feature so a
+problem points at one thing rather than "something is broken": `jumptest1` for
+the basics, `jumptest_rocket` for maps that enable the rocket launcher.
 
 The audit tooling lives in [`tools/mapscan/`](tools/mapscan/README.md) if you
 want to check a map pack of your own; it reports a per-map verdict and the reason
@@ -226,10 +225,10 @@ Overridable by environment variable: `Q2J_BUILD_CONFIG`, `Q2J_SKIP_TESTS`,
 `Q2J_GAME_DIR`, `Q2J_EXE`, `Q2J_LAUNCH_ARGS`, `Q2J_DEPLOY_DIR`,
 `Q2J_SKIP_USERDATA`.
 
-Map sources are generated rather than hand-built — `maps\build_jumptest.bat`
-regenerates, compiles and installs the test courses, and needs
-[ericw-tools](https://github.com/ericwa/ericw-tools) plus a directory of Quake II
-`.wal` textures.
+The test courses in `maps/` are tracked as `.map` source and compiled by hand
+with [ericw-tools](https://github.com/ericwa/ericw-tools) (`qbsp -q2bsp`, `vis`,
+`light`), which needs a directory of Quake II `.wal` textures. `AGENTS.md` has
+the exact command line.
 
 ## Layout
 
@@ -240,7 +239,7 @@ regenerates, compiles and installs the test courses, and needs
 │  ├─ JUMP_MOD.md                 # the full user-facing reference
 │  ├─ JUMPMOD_SEMANTICS.md        # behaviour extracted from both upstream mods
 │  └─ THIN_VANILLA_PRINCIPLES.md  # how to extend without forking upstream
-├─ maps/                          # test course generator + TESTING.md
+├─ maps/                          # test course .map sources
 ├─ tests/                         # host-compiled unit tests (no engine needed)
 ├─ tools/mapscan/                 # map compatibility auditing
 └─ src/

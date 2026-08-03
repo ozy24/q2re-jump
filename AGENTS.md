@@ -36,12 +36,8 @@ dist\jump_tests_x64.exe
 There is no test filter — the binary runs every check and prints `N checks, M failures`. To run a
 subset, comment out calls in `main()` of `tests/jump_logic_test.cpp`.
 
-Test maps:
-
-```bat
-maps\build_jumptest.bat              :: generate, compile and install all eight
-maps\build_jumptest.bat jumptest4    :: just one
-```
+Test maps are hand-maintained `.map` sources under `maps/`; there is no build script. See the
+Maps section below for the compile line.
 
 `play.bat` also refreshes the DLL in the KEX **user-data** folder when one exists there. That
 folder shadows the install directory, so a stale copy silently means testing an older build.
@@ -144,9 +140,31 @@ only when the value actually changed.
 
 ## Maps
 
-`maps/make_jumptest.py` generates all eight test maps from a shared `MapBuilder`; one function per
-map, each targeting one feature so a failure identifies the code path. Compiled BSPs are
-build artifacts and are gitignored — the generator is the source of truth.
+`maps/` holds hand-maintained `.map` sources, one per feature under test, and each `.map` is the
+source of truth. Compiled BSPs and qbsp side outputs (`.bsp`, `.ent`, `.prt`, `.log`) are build
+artifacts and are gitignored.
+
+| Map | Covers |
+|---|---|
+| `jumptest1` | the basics — spawn, timer, a checkpoint, finish on a weapon |
+| `jumptest_rocket` | the `rocket` mset: launchers as pickups that must auto-equip, plus a railgun finish on a ledge only a rocket jump reaches |
+
+There is **no generator and no build script** — `make_jumptest.py`, `build_jumptest.bat` and
+`jumptest2`-`12` were retired in `dd6e2bf`. Neither the compiler nor the textures ship with this
+repo; both live in a sibling checkout. To compile and install one map:
+
+```bat
+set T=E:\code\projects\q2-relighter\tools\ericw-tools
+set G=E:\code\projects\q2-relighter\gamedata\baseq2
+%T%\qbsp.exe -q2bsp -path %G% jumptest_rocket.map jumptest_rocket.bsp
+%T%\vis.exe jumptest_rocket.bsp
+%T%\light.exe -path %G% -extra4 -bounce 8 jumptest_rocket.bsp
+copy jumptest_rocket.bsp "%USERPROFILE%\OneDrive\Saved Games\Nightdive Studios\Quake II\baseq2\maps"
+```
+
+Maps load from that user-data `maps` folder, not the Steam install. `bsputil --extract-entities`
+dumps a `.ent` next to the BSP, which is the quick way to confirm an `mset` key survived the
+compile.
 
 `tools/mapscan/` audits the real 4,252-map q2jump corpus against the entity contract — statically,
 and by loading every map headlessly in `q2reproded.exe` with this DLL (q2repro accepts game API
@@ -156,10 +174,19 @@ the measured numbers in `docs/JUMP_MOD.md`. The headline result: the corpus uses
 Refresh-era entities (`trigger_finish`, `cpbox_*`, `jumpbox_*`, lap counters — all zero maps),
 finishing on plain weapon pickups and key items instead.
 
-Read `maps/AI_MAP_AUTHORING.md` before touching the brush emitter. The essentials: brush winding
-is *derived* (qbsp takes the normal as `(p0-p1)×(p2-p1)`, and one reversed face compiles cleanly
-then leaks), and Quake II face lines carry three trailing `contents flags value` integers, which is
-the only way to declare lava, water or a ladder.
+Authoring rules, learned the hard way and no longer written down anywhere else
+(`AI_MAP_AUTHORING.md` went with the generator):
+
+- **Never hand-write brush planes.** Winding is *derived* — qbsp takes the normal as
+  `(p0-p1)×(p2-p1)` and expects it to point out of the brush. One reversed face compiles cleanly
+  and then leaks. Emit boxes from a throwaway script that asserts the winding per face; keep the
+  `.map` as the tracked artifact.
+- Quake II face lines carry three trailing `contents flags value` integers after the texture
+  axes. That is the only way to declare lava, water or a ladder.
+- Check every texture exists as a `.wal` under `$G/textures/` before using it. Guessing costs a
+  compile cycle — `e1u1/lava1` does not exist, `e1u1/brlava` does.
+- The player box is `(-16,-16,-24)` to `(16,16,32)`, so an entity origin must sit at least 24
+  above the floor. ~40 is safe and items drop to the floor themselves.
 
 ## Reference material
 
