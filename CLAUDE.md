@@ -133,6 +133,12 @@ only when the value actually changed.
   returning early kills rocket jumping.
 - **No engine file I/O.** `game_import_t` has none, so persistence uses `<filesystem>`/`<fstream>`
   plus jsoncpp directly, under a directory resolved from the DLL's own path.
+- **No asset indices in `Jump_Init()`.** `gi.soundindex` / `modelindex` / `imageindex` (and
+  `gi.configstring`) allocate a configstring, which the server broadcasts unless it is loading a
+  map. `Jump_Init` runs from `InitGame`, before a server exists, so the broadcast writes into an
+  unallocated sizebuf and the game dies at startup with `SZ_GetSpace: overflow without
+  allowoverflow set with a length of 1`. Precache from level-spawn code instead — see the
+  `gi.modelindex` calls in `jump_ents.cpp` and `jump_store.cpp`.
 
 ## Maps
 

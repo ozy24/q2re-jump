@@ -9,6 +9,11 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+### Fixed
+
+- Crash on startup (`SZ_GetSpace: overflow ... with a length of 1`) with `g_jump 1`: unused
+  footstep precaches were indexing sounds from `InitGame`, before the server exists.
+
 ### Added
 
 - `jumpers` toggles other players' models and body sounds for that viewer only
