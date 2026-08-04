@@ -66,9 +66,12 @@ $changelog = Get-Content -LiteralPath $changelogPath -Raw
 if ($changelog -notmatch '(?m)^## \[Unreleased\]\s*$') {
     Fail "CHANGELOG.md must contain a '## [Unreleased]' section."
 }
-if ($changelog -notmatch "(?m)^## \[$([regex]::Escape($version))\]\s+-\s+\d{4}-\d{2}-\d{2}\s*$") {
-    Fail "CHANGELOG.md must contain a dated '## [$version] - YYYY-MM-DD' section."
-}
+
+# The current VERSION deliberately does NOT need a dated section. Notes accumulate
+# under [Unreleased] across however many bumps happen during development, and only
+# a release stamps them under the version being released. Requiring the section here
+# would force every bump to consume the notes early, which is the opposite of an
+# ongoing changelog.
 
 Write-Host "[OK] Version check passed ($version)."
 exit 0

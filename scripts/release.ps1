@@ -1,10 +1,15 @@
-# Bump VERSION + jump_version.h and stamp CHANGELOG.md for a tagged release.
+# Cut a release: stamp CHANGELOG.md's [Unreleased] under a dated version heading.
 # Updates files only — does not commit, tag, or push.
-[CmdletBinding(DefaultParameterSetName = "Mode")]
+#
+# By default this releases whatever is already in VERSION, because the version is
+# bumped during development by scripts/bump-version.ps1 and the notes accumulate
+# under [Unreleased] until now. Pass -VersionMode or -Version to bump on the way out
+# instead.
+[CmdletBinding(DefaultParameterSetName = "Current")]
 param(
-    [Parameter(ParameterSetName = "Mode")]
+    [Parameter(ParameterSetName = "Mode", Mandatory = $true)]
     [ValidateSet("major", "minor", "patch")]
-    [string]$VersionMode = "patch",
+    [string]$VersionMode,
 
     [Parameter(ParameterSetName = "Exact", Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
@@ -181,24 +186,28 @@ function Stamp-Changelog([string]$Target, $Parsed) {
 }
 
 $current = Read-CurrentVersion
-if ($PSCmdlet.ParameterSetName -eq "Exact") {
-    $target = $Version
-    if ($target -eq $current.Text) {
-        Fail "Target version $target is already the current VERSION."
+switch ($PSCmdlet.ParameterSetName) {
+    "Exact" {
+        $target = $Version
+        if ($target -eq $current.Text) {
+            Fail "Target version $target is already the current VERSION. Omit -Version to release it."
+        }
     }
-}
-else {
-    $target = Get-NextVersion $current $VersionMode
+    "Mode" { $target = Get-NextVersion $current $VersionMode }
+    default { $target = $current.Text }
 }
 
 Write-Host "Current version : $($current.Text)"
-Write-Host "Target version  : $target"
+Write-Host "Releasing as    : $target"
 Write-Host ""
 
 # Validate changelog before touching VERSION / the header.
 $parsedChangelog = Get-UnreleasedBody
 
-Write-VersionFiles $target
+if ($target -ne $current.Text) {
+    Write-VersionFiles $target
+}
+
 Stamp-Changelog $target $parsedChangelog
 
 # Re-run the alignment check so a bad stamp fails immediately.

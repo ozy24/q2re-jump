@@ -1,7 +1,8 @@
 // [Jump] Single source of truth for the mod's version number.
 //
-// Keep MAJOR/MINOR/PATCH in sync with the root VERSION file.
-// Bump only when cutting a tagged release (see docs/release-process.md).
+// Keep MAJOR/MINOR/PATCH in sync with the root VERSION file - use
+// scripts/bump-version.ps1 rather than editing either by hand. Bumping is
+// independent of cutting a release (see docs/release-process.md).
 #pragma once
 
 #define JUMP_VERSION_MAJOR 0

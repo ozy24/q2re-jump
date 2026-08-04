@@ -15,12 +15,37 @@ The project is pre-1.0, so breaking changes are allowed on **minor** bumps.
 the mod version. The running server exposes the mod version as the read-only
 `jump_version` cvar.
 
+## The two operations
+
+Bumping the version and cutting a release are **separate**, and the changelog is what
+keeps them apart:
+
+- **Notes always land under `## [Unreleased]`** and stay there. They accumulate across
+  however many version bumps happen in between.
+- **Only a release stamps them**, moving the whole `[Unreleased]` section under a dated
+  `## [X.Y.Z]` heading. That way a release lists every change since the previous one,
+  no matter how many bumps it took.
+
+`check-version.ps1` therefore does **not** require a dated section for the current
+`VERSION` — it only checks that `VERSION` and `jump_version.h` agree and that an
+`[Unreleased]` section exists.
+
 ## Day-to-day
 
-1. Leave `VERSION` / `jump_version.h` alone between releases.
-2. When a change is player- or host-visible, add a bullet under
-   `## [Unreleased]` in `CHANGELOG.md` (Added / Changed / Fixed / Removed as
-   needed). Docs-only or agent-only work may skip a row.
+1. When a change is player- or host-visible, add a bullet under `## [Unreleased]` in
+   `CHANGELOG.md` (Added / Changed / Fixed / Removed as needed). Docs-only or
+   agent-only work may skip a row.
+2. Bump the version whenever you want a new build to identify itself — it is not tied
+   to releasing:
+
+   ```powershell
+   ./scripts/bump-version.ps1 -VersionMode patch   # or minor | major
+   ./scripts/bump-version.ps1 -Version 0.4.0       # or an exact version
+   ```
+
+   This touches `VERSION` and `jump_version.h` only, never `CHANGELOG.md`. Commit it
+   as `chore: bump version to X.Y.Z`. Do **not** tag.
+
 3. `build.bat` runs `scripts/check-version.ps1` before compiling. Skip with
    `Q2J_SKIP_VERSION_CHECK=1` if you must.
 
@@ -30,14 +55,15 @@ the mod version. The running server exposes the mod version as the read-only
 2. From the repo root:
 
    ```powershell
-   ./scripts/release.ps1 -VersionMode patch   # or minor | major
-   # or an exact version:
-   ./scripts/release.ps1 -Version 0.2.0
+   ./scripts/release.ps1                      # release whatever VERSION already says
+   ./scripts/release.ps1 -VersionMode minor   # or bump on the way out
+   ./scripts/release.ps1 -Version 0.4.0
    ```
 
-   The script updates `VERSION` and `jump_version.h`, stamps Unreleased into
-   `## [X.Y.Z] - YYYY-MM-DD`, leaves a fresh empty Unreleased section, and
-   re-runs the alignment check. It does **not** commit, tag, or push.
+   With no arguments it releases the version already in `VERSION`, which is the normal
+   case since bumps happen during development. It stamps Unreleased into
+   `## [X.Y.Z] - YYYY-MM-DD`, leaves a fresh empty Unreleased section, and re-runs the
+   alignment check. It does **not** commit, tag, or push.
 
 3. Finish with git:
 

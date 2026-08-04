@@ -44,13 +44,21 @@ folder shadows the install directory, so a stale copy silently means testing an 
 
 ## Versioning
 
-SemVer lives in root `VERSION` and `src/jump/jump_version.h` (must match). Bump **only when
-cutting a tagged release**, not on every commit. Day-to-day notes go under `## [Unreleased]`
-in `CHANGELOG.md` when the change is player- or host-visible.
+SemVer lives in root `VERSION` and `src/jump/jump_version.h` (must match). Player- or
+host-visible notes go under `## [Unreleased]` in `CHANGELOG.md`.
 
-- `scripts/check-version.ps1` — alignment gate (also run by `build.bat`)
-- `scripts/release.ps1 -VersionMode patch` — bumps files and stamps the changelog; does not
-  commit or tag
+Bumping and releasing are **separate**. Notes stay under `[Unreleased]` across as many bumps
+as it takes; only a release stamps them under a dated version heading, so a release lists
+every change since the last one. Never tag or cut a release unless asked — that is done in
+GitHub, on request.
+
+- `scripts/check-version.ps1` — alignment gate (also run by `build.bat`). Requires an
+  `[Unreleased]` section; deliberately does **not** require a dated section for the current
+  `VERSION`
+- `scripts/bump-version.ps1 -VersionMode patch` — version files only, never the changelog.
+  Commit as `chore: bump version to X.Y.Z`
+- `scripts/release.ps1` — stamps `[Unreleased]` under the version already in `VERSION`; does
+  not commit or tag
 - Full steps: `docs/release-process.md`
 - Leave `GAMEVERSION` (`baseq2`) alone — that is not the mod version
 
