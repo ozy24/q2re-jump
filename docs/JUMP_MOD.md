@@ -49,8 +49,8 @@ lobby, so everything below is a console command.
 ### Joining
 
 Connecting puts you in the map as a spectator with the menu already open. Pick
-Practice, Ranked or Spectator; nothing spawns until you do. Every map change
-asks again, so the team you play a map on is always one you chose for that map.
+Practice or Ranked; nothing spawns until you do. Every map change asks again,
+so the team you play a map on is always one you chose for that map.
 
 Move the cursor with the inventory keys (the usual `invnext` / `invprev`
 binds) or just forward/back, and select with `invuse`, attack or jump. Dismiss
@@ -58,6 +58,21 @@ the menu with the same key that opens it — `inven`, conventionally TAB — and
 the first time you do, the game tells you which key that is on your own setup.
 Dismissing without choosing leaves you spectating; `team practice` and
 `team ranked` work from the console at any time.
+
+The menu comes in two forms, because half of it only means something on one
+side of the line. It swaps as soon as you change team, even if it is open:
+
+| Spectating | In the game |
+|---|---|
+| Join Practice | Restart run |
+| Join Ranked | Join Practice / Ranked (whichever you are not on) |
+| Follow player / Stop following | Spectate |
+| Follow view: first- / third-person | |
+| Vote map, Extend time, Close | Vote map, Extend time, Close |
+
+The cursor opens on the row you are most likely to want — a join row either
+way, which also keeps it clear of **Restart run**, since a reflexive attack
+press there would throw away a run in progress.
 
 ### Teams
 

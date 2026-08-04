@@ -113,6 +113,12 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	// the player at the map spawn point.
 	if (team == jump_team_t::practice && !jc->stores.Empty())
 		Jump_CmdRecall(ent, 1);
+
+	// The menu rows close the menu before calling in here, so this is for the
+	// routes that do not: `team` typed at the console, and the inactivity sweep
+	// moving someone who walked away with the menu still up. Their team just
+	// changed, so the other main menu is now the right one.
+	Jump_RefreshMainMenu(ent);
 }
 
 void Jump_CmdTeam(edict_t *ent)

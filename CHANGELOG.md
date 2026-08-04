@@ -22,6 +22,14 @@ released — see [docs/release-process.md](docs/release-process.md).
   Re-asking on every map change is a deliberate divergence: MuffMode and Q2JumpRefresh both
   ask once per connection and keep your team across levels.
 
+- The menu is now two menus, one for spectators and one for players in the game, because
+  half of it only meant something on one side of that line. Spectators no longer see
+  `Restart run`, which did nothing for them; players in the game no longer see the follow
+  controls. It swaps as soon as you change team, even while it is open.
+
+  The cursor also opens on a join row rather than on `Close`, which keeps it away from
+  `Restart run` — a reflexive attack press there would have thrown away a run.
+
 - The default team constant is now Spectator rather than Ranked. It is no longer a gameplay
   default — just where you wait until the menu is answered.
 

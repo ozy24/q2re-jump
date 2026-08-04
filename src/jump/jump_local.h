@@ -227,6 +227,9 @@ void Jump_RefreshPlayerInstancing();
 
 // jump_menu.cpp
 void Jump_OpenMainMenu(edict_t *ent);
+// Rebuilds an open main menu after a team change, which swaps which of the two
+// (in-game / spectator) applies. No-op if no menu, or if it is a submenu.
+void Jump_RefreshMainMenu(edict_t *ent);
 void Jump_OpenVoteMenu(edict_t *ent);
 void Jump_CmdMenu(edict_t *ent);
 

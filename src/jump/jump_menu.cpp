@@ -44,7 +44,8 @@ static void Jump_MenuVoteYes(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuVoteNo(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateVote(edict_t *ent);
 
-static void Jump_MenuUpdateMain(edict_t *ent);
+static void Jump_MenuUpdateInGame(edict_t *ent);
+static void Jump_MenuUpdateSpectator(edict_t *ent);
 static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinPractice(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinRanked(edict_t *ent, pmenuhnd_t *hnd);
@@ -57,25 +58,74 @@ static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_OpenCastMenu(edict_t *ent);
 static void Jump_OpenMapMenu(edict_t *ent);
 
-static const pmenu_t jump_main_menu[JUMP_MENU_ENTRIES] = {
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 0  title
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 1  current team
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 2  blank
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 3  restart
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 4  blank
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 5  practice
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 6  ranked
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 7  spectator
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 8  blank
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 9  follow player
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 10 follow view
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 11 blank
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 12 vote map
-	{ "", PMENU_ALIGN_LEFT, nullptr },	 // 13 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 14
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 15
-	{ "", PMENU_ALIGN_CENTER, nullptr }, // 16 blank
-	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose }, // 17
+// Two main menus, because half the rows only mean something on one side of the
+// line: a spectator has no run to restart, and a player in the map has nothing
+// to follow. Both are still JUMP_MENU_ENTRIES long, so a handle opened for one
+// can never be indexed past its end by the other's update function.
+//
+// The SelectFuncs below matter even though every row is rewritten on the first
+// refresh: PMenu_Open validates the requested starting cursor against the
+// static template, not against what the update function will write. A template
+// of empty rows would drop the cursor onto the only selectable entry there is -
+// Close - which is a poor place to land when the menu opened itself to ask
+// which team you want.
+
+// In-game rows.
+constexpr int JUMP_GAME_RESTART = 3;
+constexpr int JUMP_GAME_PRACTICE = 5;
+constexpr int JUMP_GAME_RANKED = 6;
+constexpr int JUMP_GAME_SPECTATE = 7;
+constexpr int JUMP_GAME_VOTE = 9;
+constexpr int JUMP_GAME_EXTEND = 10;
+
+// Spectator rows.
+constexpr int JUMP_SPEC_PRACTICE = 3;
+constexpr int JUMP_SPEC_RANKED = 4;
+constexpr int JUMP_SPEC_FOLLOW = 6;
+constexpr int JUMP_SPEC_FOLLOW_VIEW = 7;
+constexpr int JUMP_SPEC_VOTE = 9;
+constexpr int JUMP_SPEC_EXTEND = 10;
+
+static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 0  title
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 1  current team
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 2  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuRestart },			  // 3  restart run
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 4  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinPractice },	  // 5  practice
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinRanked },		  // 6  ranked
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinSpectator },	  // 7  spectate
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 8  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 9  vote map
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
+	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 17
+};
+
+static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 0  title
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 1  "Spectator"
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 2  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinPractice },	  // 3  join practice
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinRanked },		  // 4  join ranked
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 5  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer },	  // 6  follow player
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuFollowView },		  // 7  follow view
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 8  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 9  vote map
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
+	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 17
 };
 
 static const pmenu_t jump_map_menu[JUMP_MENU_ENTRIES] = {
@@ -152,7 +202,17 @@ static void Jump_MenuTeamRow(pmenu_t &entry, jump_team_t team, jump_team_t curre
 // Main options menu
 // ---------------------------------------------------------------------------
 
-static void Jump_MenuUpdateMain(edict_t *ent)
+// Blanks everything from `first` up to the Close row, so each update function
+// only has to write the rows it actually uses.
+static void Jump_MenuClearTail(pmenuhnd_t *hnd, int first)
+{
+	for (int i = first; i < JUMP_MENU_CLOSE; i++)
+		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+}
+
+static void Jump_MenuUpdateInGame(edict_t *ent)
 {
 	pmenuhnd_t *hnd = ent->client->menu;
 
@@ -160,41 +220,54 @@ static void Jump_MenuUpdateMain(edict_t *ent)
 		return;
 
 	jump_client_t *jc = Jump_ClientData(ent);
-	const jump_team_t team = jc ? jc->team : jump_team_t::spectator;
+	const jump_team_t team = jc ? jc->team : jump_team_t::ranked;
 
 	Jump_MenuSetRow(hnd->entries[0], "Jump", PMENU_ALIGN_CENTER, nullptr);
-	Jump_MenuSetRow(hnd->entries[1], G_Fmt("{}", Jump_TeamName(team)).data(), PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[1], Jump_TeamName(team), PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[2], "", PMENU_ALIGN_CENTER, nullptr);
 
-	Jump_MenuSetRow(hnd->entries[3], "Restart run", PMENU_ALIGN_LEFT, Jump_MenuRestart);
+	Jump_MenuSetRow(hnd->entries[JUMP_GAME_RESTART], "Restart run", PMENU_ALIGN_LEFT, Jump_MenuRestart);
 	Jump_MenuSetRow(hnd->entries[4], "", PMENU_ALIGN_CENTER, nullptr);
 
-	Jump_MenuTeamRow(hnd->entries[5], jump_team_t::practice, team, Jump_MenuJoinPractice);
-	Jump_MenuTeamRow(hnd->entries[6], jump_team_t::ranked, team, Jump_MenuJoinRanked);
-	Jump_MenuTeamRow(hnd->entries[7], jump_team_t::spectator, team, Jump_MenuJoinSpectator);
+	Jump_MenuTeamRow(hnd->entries[JUMP_GAME_PRACTICE], jump_team_t::practice, team, Jump_MenuJoinPractice);
+	Jump_MenuTeamRow(hnd->entries[JUMP_GAME_RANKED], jump_team_t::ranked, team, Jump_MenuJoinRanked);
+	Jump_MenuSetRow(hnd->entries[JUMP_GAME_SPECTATE], "Spectate", PMENU_ALIGN_LEFT, Jump_MenuJoinSpectator);
 
 	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
-	if (team == jump_team_t::spectator)
-	{
-		Jump_MenuSetRow(hnd->entries[9], ent->client->chase_target ? "Stop following" : "Follow player",
-						PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer);
-		Jump_MenuSetRow(hnd->entries[10],
-						G_Fmt("Follow view: {}", jc && jc->eyecam ? "first-person" : "third-person").data(),
-						PMENU_ALIGN_LEFT, Jump_MenuFollowView);
-	}
-	else
-	{
-		Jump_MenuSetRow(hnd->entries[9], "Follow player", PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer);
-		Jump_MenuSetRow(hnd->entries[10], "", PMENU_ALIGN_LEFT, nullptr);
-	}
-	Jump_MenuSetRow(hnd->entries[11], "", PMENU_ALIGN_CENTER, nullptr);
-	Jump_MenuSetRow(hnd->entries[12], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
-	Jump_MenuSetRow(hnd->entries[13], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+	Jump_MenuSetRow(hnd->entries[JUMP_GAME_VOTE], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
+	Jump_MenuSetRow(hnd->entries[JUMP_GAME_EXTEND], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
-	for (int i = 14; i < JUMP_MENU_CLOSE; i++)
-		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuClearTail(hnd, JUMP_GAME_EXTEND + 1);
+}
 
-	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+static void Jump_MenuUpdateSpectator(edict_t *ent)
+{
+	pmenuhnd_t *hnd = ent->client->menu;
+
+	if (!hnd)
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	Jump_MenuSetRow(hnd->entries[0], "Jump", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[1], Jump_TeamName(jump_team_t::spectator), PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[2], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_PRACTICE], "Join Practice", PMENU_ALIGN_LEFT, Jump_MenuJoinPractice);
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_RANKED], "Join Ranked", PMENU_ALIGN_LEFT, Jump_MenuJoinRanked);
+	Jump_MenuSetRow(hnd->entries[5], "", PMENU_ALIGN_CENTER, nullptr);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_FOLLOW], ent->client->chase_target ? "Stop following" : "Follow player",
+					PMENU_ALIGN_LEFT, Jump_MenuFollowPlayer);
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_FOLLOW_VIEW],
+					G_Fmt("Follow view: {}", jc && jc->eyecam ? "first-person" : "third-person").data(),
+					PMENU_ALIGN_LEFT, Jump_MenuFollowView);
+
+	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_VOTE], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_EXTEND], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+
+	Jump_MenuClearTail(hnd, JUMP_SPEC_EXTEND + 1);
 }
 
 static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd)
@@ -263,7 +336,40 @@ static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd)
 
 void Jump_OpenMainMenu(edict_t *ent)
 {
-	PMenu_Open(ent, jump_main_menu, -1, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateMain);
+	jump_client_t	 *jc = Jump_ClientData(ent);
+	const jump_team_t team = jc ? jc->team : jump_team_t::spectator;
+
+	if (team == jump_team_t::spectator)
+	{
+		PMenu_Open(ent, jump_spectator_menu, JUMP_SPEC_PRACTICE, JUMP_MENU_ENTRIES, nullptr,
+				   Jump_MenuUpdateSpectator);
+		return;
+	}
+
+	// Start on the team they are not on: it is the one row here they might
+	// have opened the menu to press, and it keeps the cursor off Restart run,
+	// which would otherwise throw away a run to a reflexive attack press.
+	const int cur = (team == jump_team_t::practice) ? JUMP_GAME_RANKED : JUMP_GAME_PRACTICE;
+
+	PMenu_Open(ent, jump_ingame_menu, cur, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateInGame);
+}
+
+// A team change swaps which of the two menus applies, so one left open has to
+// be rebuilt rather than carry on running the wrong update function against a
+// handle built from the other template. Submenus are left alone - the map list
+// and the vote UI do not vary by team.
+void Jump_RefreshMainMenu(edict_t *ent)
+{
+	const pmenuhnd_t *hnd = ent->client->menu;
+
+	if (!hnd)
+		return;
+
+	if (hnd->UpdateFunc != Jump_MenuUpdateInGame && hnd->UpdateFunc != Jump_MenuUpdateSpectator)
+		return;
+
+	PMenu_Close(ent);
+	Jump_OpenMainMenu(ent);
 }
 
 static void Jump_MenuReturnToMain(edict_t *ent, pmenuhnd_t *hnd)
