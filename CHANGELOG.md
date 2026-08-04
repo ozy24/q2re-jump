@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-04
+
 ### Added
 
 - **A sound and a HUD banner when someone sets a personal best or a map record.** Both go to
@@ -21,15 +23,6 @@ released — see [docs/release-process.md](docs/release-process.md).
   The banner is part of the status bar rather than an ordinary print because a print lands in
   the notify area, where the next line of chat scrolls it away. A record is always a personal
   best too, so the two never fire together — the record wins.
-
-### Fixed
-
-- **Being the first person to finish a map now counts as taking the record.** It previously
-  announced nothing at all: the test asked for a *previous* record to beat, so setting the
-  first time on a map was silently treated as an ordinary finish. Holding 1st place is the
-  whole test now, which is safe because a time that does not improve on your own entry is
-  never given a rank at all. This also restores the `has set a 1st place!` line in the same
-  case.
 
 - A **How to Play** page on both menus, a blank line under Extend Time. One panel covering what you
   are racing, what Practice and Ranked each mean, how a map ends, and the store/recall binds
@@ -59,6 +52,11 @@ released — see [docs/release-process.md](docs/release-process.md).
 - Menu wording is consistent Title Case throughout — `Restart Run`, `Vote Map`, `Extend Time`,
   `Follow Player` — instead of the mix of styles it had grown.
 
+- `team` with no argument now says that the old q2jump names still work — `team easy` for
+  Practice and `team hard` for Ranked — and the unknown-team error lists them too. The
+  aliases have always been accepted; nothing on screen said so, so anyone arriving with the
+  muscle memory had no way to find out other than trying it.
+
 - The in-game menu no longer lists the team you are already on with a `(current)` marker, and
   Load Position no longer says `(none saved)`. The title block already names your team, and
   picking Load Position with nothing stored tells you so. That leaves one join row, for the
@@ -72,12 +70,6 @@ released — see [docs/release-process.md](docs/release-process.md).
   `Restart Run` is the first row of the in-game menu and the one the cursor opens on, since
   it is what you reach for most. Spectators open on a join row. Note the trade: opening the
   menu mid-run now puts a run-ending action under a reflexive attack press.
-
-### Fixed
-
-- The `store` and `recall` refusal messages called the ranked team "Hard" and pointed at
-  `team easy`, which are the upstream q2jump names. They now say Ranked and `team practice`,
-  matching the rest of the mod.
 
 - The default team constant is now Spectator rather than Ranked. It is no longer a gameplay
   default — just where you wait until the menu is answered.
@@ -100,6 +92,17 @@ released — see [docs/release-process.md](docs/release-process.md).
   be told apart from a deep recall. A plain `recall` stays quiet: it is key-bound and constant.
 
 ### Fixed
+
+- **Being the first person to finish a map now counts as taking the record.** It previously
+  announced nothing at all: the test asked for a *previous* record to beat, so setting the
+  first time on a map was silently treated as an ordinary finish. Holding 1st place is the
+  whole test now, which is safe because a time that does not improve on your own entry is
+  never given a rank at all. This also restores the `has set a 1st place!` line in the same
+  case.
+
+- The `store` and `recall` refusal messages called the ranked team "Hard" and pointed at
+  `team easy`, which are the upstream q2jump names. They now say Ranked and `team practice`,
+  matching the rest of the mod.
 
 - Crash after a map change if a menu was open when it happened — most easily hit by leaving
   the map vote menu up while the vote you just cast passes. The menu's allocations are freed
