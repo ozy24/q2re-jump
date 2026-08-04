@@ -9,6 +9,8 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-04
+
 ### Changed
 
 - Stores now survive a team switch for as long as the map is running, and joining Practice
