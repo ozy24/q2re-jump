@@ -59,7 +59,11 @@ times are saved.
 Upstream q2jump calls these Easy and Hard; those names still work as command
 aliases, but they read as map difficulty rather than what they actually are.
 
-Switching teams abandons the run in progress and clears your stores.
+Switching teams abandons the run in progress, but your stores are kept for as
+long as the map is running — so you can duck into Ranked and come back to
+Practice without losing them. Joining Practice puts you straight back on your
+most recent store. Stores are cleared by `reset`, by a map change, and when you
+disconnect.
 
 ### Voting (TAB)
 

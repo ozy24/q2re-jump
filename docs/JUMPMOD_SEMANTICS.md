@@ -21,13 +21,21 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
 
 - Skins: Easy `female/ctf_r`, Hard `female/ctf_b`, Spectator `female/invis` (B `jump_spawn.cpp:299-322`).
 - Default on join: **Spectator**, join menu opened (B `jump_spawn.cpp:358-378`).
-- Team switch mid-run resets the run in both mods. Joining Easy in B restores the most recent
-  store if one exists.
+- Team switch mid-run resets the run in both mods, but neither clears the stores: in A they live
+  in `client_respawn_t` and the reset call in `CTFJoinTeam` is commented out as a deliberate bug
+  fix (`g_ctf.c:3672`, and again for observer at `g_ctf.c:4041`). Joining Easy restores the most
+  recent store if one exists — A recalls outright (`g_ctf.c:3678`), as does B.
 - There is no separate "time invalidation" flag — Hard simply cannot recall, and Easy times are
   never saved. A's `item_timer_allow` is dead code (only ever set true).
 
 **Port decision:** Easy/Hard/Spectator as above. Phase 1 treats everyone as Easy (no teams yet);
 Phase 2 introduces the split. Default team on join = Easy until the join menu exists.
+
+**Port decision (stores across a team switch):** match both upstreams — the ring survives the
+switch for the current map, and joining Practice recalls store 1. The port originally wiped it to
+stop a ranked run inheriting practice shortcuts, but that is already impossible: Ranked refuses
+`store` and turns `recall` into a restart. The marker entity is still freed on the way out and
+re-placed by the recall, since it is visible to everyone.
 
 ---
 

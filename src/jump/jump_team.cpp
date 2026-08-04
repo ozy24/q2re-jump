@@ -69,12 +69,18 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 
 	jc->team = team;
 
-	// Switching teams always abandons the run in progress, and the stores go
-	// with it: a ranked run must not inherit shortcuts stored in practice.
+	// Switching teams abandons the run in progress, but the stores survive it for
+	// the current map - upstream q2jump keeps them too, and dumping a player back
+	// at the spawn just because they looked at Ranked for a moment is what the
+	// wipe felt like in practice. Nothing can leak into a ranked time: Ranked
+	// refuses `store` outright and turns `recall` into a restart.
+	//
+	// The marker entity does go, though. It is a plain visible model, so leaving
+	// it up would park a translucent commander head in the map behind a ranked
+	// runner; the recall below puts it back on the way in.
 	Jump_FreeFollower(ent);
 	Jump_FreeClientFollowers(ent);
 	Jump_ResetRun(*jc);
-	jc->stores.Clear();
 	Jump_FreeStoreMarker(*jc);
 
 	const bool spectator = (team == jump_team_t::spectator);
@@ -91,6 +97,12 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 
 	gi.Broadcast_Print(PRINT_HIGH,
 					   G_Fmt("{} joined {}\n", Jump_DisplayName(ent), Jump_TeamName(team)).data());
+
+	// Land back on the most recent store rather than the map spawn, the way
+	// joining Easy does upstream. Must run after PutClientInServer, which spawns
+	// the player at the map spawn point.
+	if (team == jump_team_t::practice && !jc->stores.Empty())
+		Jump_CmdRecall(ent, 1);
 }
 
 void Jump_CmdTeam(edict_t *ent)

@@ -9,6 +9,22 @@ cutting a tagged release — see [docs/release-process.md](docs/release-process.
 
 ## [Unreleased]
 
+### Changed
+
+- Stores now survive a team switch for as long as the map is running, and joining Practice
+  recalls your most recent store instead of dropping you at the map spawn. Previously a trip
+  to Ranked and back meant re-running the map from the beginning to place them again.
+
+  Both upstream mods behave this way — q2jump keeps the ring in `client_respawn_t` and has the
+  reset call in `CTFJoinTeam` commented out as a deliberate bug fix. The wipe existed to stop a
+  ranked run inheriting practice shortcuts, which the Ranked guards already prevent: `store` is
+  refused there and `recall` restarts the run. Stores are still cleared by `reset`, by a map
+  change, and on disconnect.
+
+- `recall N` now confirms which slot it used — `Recalled store 2 of 3.` A request past the
+  stack depth still clamps to the oldest store, but that is no longer silent, so a clamp can
+  be told apart from a deep recall. A plain `recall` stays quiet: it is key-bound and constant.
+
 ## [0.3.0] - 2026-08-03
 
 ### Added

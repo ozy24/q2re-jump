@@ -47,7 +47,11 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_TIME_THOU] = (int16_t) (thousandths % 10);
 
 	ent->client->ps.stats[JUMP_STAT_RUN_STATE] = (int16_t) jc->state;
-	ent->client->ps.stats[JUMP_STAT_STORES] = (int16_t) jc->stores.count;
+	// Stores survive a switch to Ranked but cannot be used there, so the counter
+	// is reported only on Practice - otherwise the HUD advertises recalls that
+	// Jump_CmdRecall will refuse.
+	ent->client->ps.stats[JUMP_STAT_STORES] =
+		(jc->team == jump_team_t::practice) ? (int16_t) jc->stores.count : 0;
 	ent->client->ps.stats[JUMP_STAT_TEAM_PRACTICE] = jc->team == jump_team_t::practice;
 	ent->client->ps.stats[JUMP_STAT_TEAM_RANKED] = jc->team == jump_team_t::ranked;
 

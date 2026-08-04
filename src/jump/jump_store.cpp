@@ -107,7 +107,12 @@ void Jump_CmdRecall(edict_t *ent, int which)
 		return;
 	}
 
-	const jump::store_slot_t *slot = jc->stores.Get(which);
+	// Get() clamps a request past the stack depth to the oldest slot. Mirror the
+	// clamp here so the confirmation below names the slot actually used rather
+	// than the one asked for.
+	const int effective = (which > jc->stores.count) ? jc->stores.count : which;
+
+	const jump::store_slot_t *slot = jc->stores.Get(effective);
 
 	if (!slot)
 		return;
@@ -116,6 +121,12 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	const vec3_t angles = { slot->angles[0], slot->angles[1], slot->angles[2] };
 
 	Jump_MovePlayer(ent, origin, angles);
+
+	// A team switch frees the marker but keeps the ring, so the recall that
+	// brings you back to Practice has to put the marker back. A normal recall
+	// already has one and leaves it alone.
+	if (!jc->store_marker)
+		Jump_PlaceStoreMarker(ent, *jc, origin);
 
 	// The elapsed time travels with the store, so recalling costs you only the
 	// time you spent past that point.
@@ -132,7 +143,15 @@ void Jump_CmdRecall(edict_t *ent, int which)
 		jc->checkpoints = slot->checkpoints;
 	}
 
-	Jump_Log("%s recalled store %d", Jump_DisplayName(ent), which);
+	// A plain `recall` is bound to a key and used constantly, so it stays silent.
+	// An explicit number is rare and worth confirming - without it there is no
+	// way to tell a deep recall from one clamped to the oldest slot.
+	if (which > 1)
+		gi.Client_Print(ent, PRINT_HIGH,
+						G_Fmt("Recalled store {} of {}.\n", effective, jc->stores.count).data());
+
+	Jump_Log("%s recalled store %d of %d (asked %d)", Jump_DisplayName(ent), effective,
+			 jc->stores.count, which);
 }
 
 // Upstream's Cmd_Kill_f refuses to run for the first five seconds after a
