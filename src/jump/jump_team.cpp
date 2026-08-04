@@ -130,9 +130,11 @@ void Jump_CmdTeam(edict_t *ent)
 
 	if (gi.argc() < 2)
 	{
-		gi.Client_Print(
-			ent, PRINT_HIGH,
-			G_Fmt("You are on {}. Use: team practice | ranked | spectator\n", Jump_TeamName(jc->team)).data());
+		gi.Client_Print(ent, PRINT_HIGH,
+						G_Fmt("You are on {}. Use: team practice | ranked | spectator\n"
+							  "The old q2jump names still work: team easy = practice, team hard = ranked.\n",
+							  Jump_TeamName(jc->team))
+							.data());
 		return;
 	}
 
@@ -152,5 +154,6 @@ void Jump_CmdTeam(edict_t *ent)
 	else
 		gi.Client_Print(
 			ent, PRINT_HIGH,
-			G_Fmt("Team '{}' does not exist. Valid teams: practice, ranked, spectator\n", name).data());
+			G_Fmt("Team '{}' does not exist. Valid teams: practice (easy), ranked (hard), spectator\n", name)
+				.data());
 }

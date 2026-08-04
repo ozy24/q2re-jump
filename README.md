@@ -78,7 +78,7 @@ lobby, so the usual "say a command in chat" habit does not work here.
 | `store` / `recall [1-5]` | Save a position / go back to one (practice only) |
 | `reset` | Discard your saved positions |
 | `kill` | Go again — recalls on practice, restarts on ranked |
-| `team practice`&#124;`ranked`&#124;`spectator` | Switch team |
+| `team practice`&#124;`ranked`&#124;`spectator` | Switch team (`easy`/`hard` still work, as on old q2jump servers) |
 | `maptimes` / `playertimes` / `ranks` | Records for this map / for you / for everyone |
 | `votemap <map>` | Call a map vote — or use the menu (**TAB**, if that is your `inven` bind) |
 | `jumpers` | Hide/show other players' models and body sounds |
