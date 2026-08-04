@@ -36,6 +36,9 @@ other players, so nobody can interfere with your run; lava, slime, crushers and
 hurt zones still kill you, because falling in is the whole point of a jump map.
 Players do not collide, so a busy server never blocks a run.
 
+When you connect you arrive as a spectator with the menu already open, and pick
+how you want to play; nothing spawns until you do. Every map change asks again.
+
 Two ways to play any map:
 
 - **Practice** — learn the route. `store` drops a marker anywhere, `recall`
@@ -45,8 +48,8 @@ Two ways to play any map:
   spawn, so a recorded time is always one clean run.
 
 Best times are kept per map, per player, forever, with points for placing in the
-top fifteen. `Tab` shows who is connected and what they have done on this map,
-plus the records you are chasing.
+top fifteen. The scoreboard key (`F1`) shows who is connected and what they have
+done on this map, then the records you are chasing.
 
 ## Getting started
 
@@ -77,7 +80,7 @@ lobby, so the usual "say a command in chat" habit does not work here.
 | `kill` | Go again — recalls on practice, restarts on ranked |
 | `team practice`&#124;`ranked`&#124;`spectator` | Switch team |
 | `maptimes` / `playertimes` / `ranks` | Records for this map / for you / for everyone |
-| `votemap <map>` | Call a map vote — or just press **TAB** for a menu |
+| `votemap <map>` | Call a map vote — or use the menu (**TAB**, if that is your `inven` bind) |
 | `jumpers` | Hide/show other players' models and body sounds |
 | `jumphelp` | The full list, in game |
 
@@ -153,7 +156,8 @@ comparison; this is the summary.
   live with `sv jump_mset`
 - Per-map records with the standard 15-place points table, `maptimes` /
   `playertimes` / `ranks`
-- Map vote (`votemap`, `nominate`, TAB menu) and timelimit extension
+- Join menu on connect and on every map change
+- Map vote (`votemap`, `nominate`, menu) and timelimit extension
   (`timeextend`/`votetime`)
 - Idle-to-spectator, map rotation and vote pool (`g_map_list`/`g_map_pool`)
 - Scoreboard and full HUD over the stock protocol — no client mod required

@@ -54,10 +54,20 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
+	// --- per map: the join gate ---
+	// Nobody enters the map until they have answered the join menu, and every
+	// level re-asks, so all three reset in Jump_InitLevel.
+	bool	team_chosen = false;	   // answered the join menu on this level
+	bool	menu_prompted = false;	   // the auto-open already fired this level
+	gtime_t menu_prompt_time = 0_ms;   // when to auto-open; 0 = not armed
+
 	// --- session: survives map changes, re-keyed on connect ---
-	jump_team_t team         = jump_team_t::ranked;
+	// team is not session state: the gate re-runs every level, so spectator is
+	// the pre-choice holding state rather than a default anyone plays on.
+	jump_team_t team         = jump_team_t::spectator;
 	bool        eyecam       = true; // MuffMode default: first-person spectator follow
 	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
+	bool        menu_hint_shown = false; // %bind:inven% hint printed once
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 
 	// Which scoreboard page the next send should build. Only meaningful while

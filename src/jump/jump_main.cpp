@@ -96,7 +96,8 @@ void Jump_InitLevel(const char *entities)
 
 	Jump_InvalidateCheckpointTotal();
 
-	// Per-map client state. Session fields (team) deliberately survive.
+	// Per-map client state. Session preferences (eyecam, jumpers, the menu
+	// hint) survive; team does not, because the join gate re-runs every level.
 	for (auto &jc : jump_clients)
 	{
 		jc.state = jump_run_state_t::idle;
@@ -107,6 +108,31 @@ void Jump_InitLevel(const char *entities)
 		jc.checkpoints = 0;
 		jc.stores.Clear();
 		jc.store_marker = nullptr; // freed with TAG_LEVEL
+
+		jc.team = jump_team_t::spectator;
+		jc.team_chosen = false;
+		jc.menu_prompted = false;
+		jc.menu_prompt_time = 0_ms;
+	}
+
+	// PMenu_Open allocates the handle and its entries with TAG_LEVEL, which
+	// SpawnEntities has just freed a few lines above this hook - but nothing
+	// upstream nulls client->menu, so a player who was in a menu when the map
+	// changed is left pointing at freed memory, and the next PMenu_Close frees
+	// it a second time. That is not hypothetical here: the map vote menu is
+	// exactly what is open when a vote passes and changes the map.
+	//
+	// showscores is only cleared for clients that were actually in a menu -
+	// it is the shared open/closed flag for the layout slot, so blanking it
+	// wholesale would also close anyone's scoreboard.
+	for (uint32_t i = 0; i < game.maxclients; i++)
+	{
+		if (!game.clients[i].menu)
+			continue;
+
+		game.clients[i].menu = nullptr;
+		game.clients[i].showscores = false;
+		game.clients[i].menudirty = false;
 	}
 
 	Jump_LoadMsets(entities);

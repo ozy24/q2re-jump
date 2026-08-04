@@ -29,6 +29,10 @@ void Jump_Shutdown();	// ShutdownGame: flush anything pending
 // Client hooks
 // ---------------------------------------------------------------------------
 
+// PutClientInServer, above the spectator branch: pins a client who has not yet
+// answered the join menu to spectator, and arms the prompt.
+void Jump_PreSpawn(edict_t *ent);
+
 void Jump_ClientSpawn(edict_t *ent);				  // PutClientInServer
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd); // ClientThink, before pmove
 void Jump_ClientDisconnect(edict_t *ent);			  // ClientDisconnect

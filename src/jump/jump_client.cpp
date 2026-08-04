@@ -28,6 +28,33 @@ void Jump_StripInventory(edict_t *ent)
 	client->silencer_shots = 0;
 }
 
+// Runs at the top of PutClientInServer, above the spectator branch - which is
+// the only place it can run, because that branch returns before the
+// Jump_ClientSpawn hook further down, so a spectator never reaches it.
+//
+// Nobody enters the map without answering the join menu first, so an unchosen
+// client is pinned to spectator here and the prompt is armed. The open itself
+// happens from ClientThink rather than now: the client is not sending usercmds
+// yet, so an svc_layout written here has nowhere useful to land.
+void Jump_PreSpawn(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || jc->team_chosen)
+		return;
+
+	jc->team = jump_team_t::spectator;
+
+	// Both flags, not just pers: ClientEndServerFrame calls spectator_respawn
+	// whenever the two disagree for five seconds, which would quietly undo the
+	// gate and drop them into the map.
+	ent->client->pers.spectator = true;
+	ent->client->resp.spectator = true;
+
+	if (!jc->menu_prompted)
+		jc->menu_prompt_time = level.time + 100_ms;
+}
+
 void Jump_ClientSpawn(edict_t *ent)
 {
 	if (!Jump_Active())
@@ -71,7 +98,22 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 
 	jump_client_t *jc = Jump_ClientData(ent);
 
-	if (!jc || jc->state != jump_run_state_t::idle)
+	if (!jc)
+		return;
+
+	// The join menu, armed by Jump_PreSpawn. Opening from here rather than the
+	// spawn path is MuffMode's trick: ClientThink only runs once the client is
+	// really in the world and talking to us, so the short delay is enough and
+	// the layout cannot be sent too early to be drawn.
+	if (!jc->menu_prompted && jc->menu_prompt_time && level.time > jc->menu_prompt_time &&
+		!jc->team_chosen && !ent->client->menu && !level.intermissiontime)
+	{
+		Jump_OpenMainMenu(ent);
+		jc->menu_prompt_time = 0_ms;
+		jc->menu_prompted = true;
+	}
+
+	if (jc->state != jump_run_state_t::idle)
 		return;
 
 	if (ent->client->resp.spectator || ent->client->chase_target)

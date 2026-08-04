@@ -12,6 +12,22 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Changed
 
+- Joining the server now opens the menu instead of dropping you straight into the map. You
+  arrive as a spectator and pick Practice, Ranked or Spectator from the menu; nothing spawns
+  until you choose. The same prompt runs again on every map change. Both upstream mods do
+  this on connect (Q2JumpRefresh: default team spectator, join menu opened), and it is the
+  only thing that makes the menu discoverable — previously you had to already know that the
+  inventory key opened it.
+
+  Re-asking on every map change is a deliberate divergence: MuffMode and Q2JumpRefresh both
+  ask once per connection and keep your team across levels.
+
+- The default team constant is now Spectator rather than Ranked. It is no longer a gameplay
+  default — just where you wait until the menu is answered.
+
+- Dismissing the menu prints the key that reopens it, once per session. The key comes from
+  your own `inven` binding rather than being assumed to be TAB.
+
 - Stores now survive a team switch for as long as the map is running, and joining Practice
   recalls your most recent store instead of dropping you at the map spawn. Previously a trip
   to Ranked and back meant re-running the map from the beginning to place them again.
@@ -25,6 +41,13 @@ released — see [docs/release-process.md](docs/release-process.md).
 - `recall N` now confirms which slot it used — `Recalled store 2 of 3.` A request past the
   stack depth still clamps to the oldest store, but that is no longer silent, so a clamp can
   be told apart from a deep recall. A plain `recall` stays quiet: it is key-bound and constant.
+
+### Fixed
+
+- Crash after a map change if a menu was open when it happened — most easily hit by leaving
+  the map vote menu up while the vote you just cast passes. The menu's allocations are freed
+  with the level, but the pointer to them was not cleared, so the next press of the menu key
+  freed them a second time.
 
 ## [0.3.0] - 2026-08-03
 

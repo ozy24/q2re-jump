@@ -1,5 +1,6 @@
-// [Jump] TAB opens the main options menu (restart, teams, extend, vote map).
-// Map voting lives in a submenu; an active vote opens the yes/no cast UI.
+// [Jump] The main options menu (restart, teams, extend, vote map), opened by
+// the `inven` command and unprompted on join. Map voting lives in a submenu;
+// an active vote opens the yes/no cast UI.
 //
 // Built on the stock PMenu system (ctf/p_ctf_menu.h), which the engine already
 // drives for us: invnext/invprev move the cursor, invuse selects, and inven
@@ -479,14 +480,27 @@ void Jump_OpenVoteMenu(edict_t *ent)
 	Jump_OpenMapMenu(ent);
 }
 
-// TAB is bound to `inven`, so this is what the key actually reaches. Toggling
-// is expected: press once to open, again to dismiss.
+// The menu hangs off the `inven` command, conventionally bound to TAB, so this
+// is what the key actually reaches. Toggling is expected: press once to open,
+// again to dismiss.
 void Jump_CmdMenu(edict_t *ent)
 {
 	if (ent->client->menu)
 	{
 		PMenu_Close(ent);
 		ent->client->update_chase = true;
+
+		// First dismissal, so say how to get it back. %bind:...% is resolved by
+		// the client against its own binding - which is the point, since the
+		// player may not have `inven` on TAB at all.
+		jump_client_t *jc = Jump_ClientData(ent);
+
+		if (jc && !jc->menu_hint_shown)
+		{
+			gi.LocClient_Print(ent, PRINT_CENTER, "%bind:inven:Open menu%{}", " ");
+			jc->menu_hint_shown = true;
+		}
+
 		return;
 	}
 

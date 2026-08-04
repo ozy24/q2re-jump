@@ -28,8 +28,17 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
 - There is no separate "time invalidation" flag — Hard simply cannot recall, and Easy times are
   never saved. A's `item_timer_allow` is dead code (only ever set true).
 
-**Port decision:** Easy/Hard/Spectator as above. Phase 1 treats everyone as Easy (no teams yet);
-Phase 2 introduces the split. Default team on join = Easy until the join menu exists.
+**Port decision (join):** Easy/Hard/Spectator as above, renamed Practice/Ranked/Spectator.
+Matching B, a connecting player arrives as a Spectator and the menu opens unprompted; nothing
+spawns until they pick. **Divergence:** this port re-asks on every map change, where B and
+MuffMode both ask once per connection and carry the team across levels. Map changes on a jump
+server are frequent and voted for, so the map you land on is often not the one you chose a team
+for; re-asking also means an idle server does not accumulate players parked in Ranked.
+
+The prompt is armed in `Jump_PreSpawn` (top of `PutClientInServer`, above the spectator branch
+that would otherwise return before any jump hook runs) and fires from `Jump_ClientThink` ~100 ms
+later — the same shape as MuffMode's `initial_menu_delay` / `initial_menu_shown`, and for the
+same reason: `ClientThink` is the first point at which the client is really in the world.
 
 **Port decision (stores across a team switch):** match both upstreams — the ring survives the
 switch for the current map, and joining Practice recalls store 1. The port originally wiped it to

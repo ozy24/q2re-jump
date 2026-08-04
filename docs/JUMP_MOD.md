@@ -38,13 +38,26 @@ lobby, so everything below is a console command.
 | `playertimes` | Your completions and points |
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
-| `votemap <map>` | Call a vote to change map (**TAB** opens a menu instead) |
+| `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
 | `idle` | Move yourself to spectator |
 | `eyecam` | Toggle first-person follow while spectating |
 | `jumpers` | Hide/show other players' models and body sounds |
 | `jumphelp` | Command list in game |
+
+### Joining
+
+Connecting puts you in the map as a spectator with the menu already open. Pick
+Practice, Ranked or Spectator; nothing spawns until you do. Every map change
+asks again, so the team you play a map on is always one you chose for that map.
+
+Move the cursor with the inventory keys (the usual `invnext` / `invprev`
+binds) or just forward/back, and select with `invuse`, attack or jump. Dismiss
+the menu with the same key that opens it — `inven`, conventionally TAB — and
+the first time you do, the game tells you which key that is on your own setup.
+Dismissing without choosing leaves you spectating; `team practice` and
+`team ranked` work from the console at any time.
 
 ### Teams
 
@@ -65,20 +78,19 @@ Practice without losing them. Joining Practice puts you straight back on your
 most recent store. Stores are cleared by `reset`, by a map change, and when you
 disconnect.
 
-### Voting (TAB)
+### Voting
 
-**TAB** opens the vote menu. With no vote running it lists every configured
-map, paged, with the current map greyed out; pick one and it calls a vote.
-While a vote is running it shows what was called, who called it, the tally and
-the countdown, with Yes and No rows.
-
-Move with the inventory keys (the usual `invnext` / `invprev` binds), select
-with `invuse`, and TAB again to dismiss. `votemap <map>`, `yes` and `no` still
-work from the console.
+**Vote map** in the menu lists every configured map, paged, with the current
+map greyed out; pick one and it calls a vote. While a vote is running the menu
+key goes straight to the cast screen instead, showing what was called, who
+called it, the tally and the countdown, with Yes and No rows. `votemap <map>`,
+`yes` and `no` still work from the console.
 
 A vote passes at 75% of connected players and runs for 30 seconds, resolving
-early once it cannot pass. The menu is never forced open on anyone — being
-interrupted mid-run by a popup is the last thing you want on a jump server.
+early once it cannot pass. A vote never forces the menu open on anyone — being
+interrupted mid-run by a popup is the last thing you want on a jump server. The
+join menu is the one exception, and only at the moment you arrive on a map,
+before a run can be underway.
 
 ### The scoreboard
 

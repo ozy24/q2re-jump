@@ -61,9 +61,19 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	if (!jc)
 		return;
 
+	// Every route into a team lands here - the three menu rows, the `team`
+	// command, `idle`, the inactivity sweep - so this is the one place the join
+	// gate needs latching.
+	const bool answering_prompt = !jc->team_chosen;
+
+	jc->team_chosen = true;
+
 	if (jc->team == team)
 	{
-		gi.Client_Print(ent, PRINT_HIGH, G_Fmt("You are already on {}.\n", Jump_TeamName(team)).data());
+		// Answering the prompt with Spectator is a real choice, not a mistake,
+		// so it should not be told it is already there.
+		if (!answering_prompt)
+			gi.Client_Print(ent, PRINT_HIGH, G_Fmt("You are already on {}.\n", Jump_TeamName(team)).data());
 		return;
 	}
 

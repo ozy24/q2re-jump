@@ -67,7 +67,7 @@ GitHub, on request.
 ### Thin vanilla
 
 All mod logic lives in `src/jump/`. Upstream files carry only small hooks tagged `// [Jump]` —
-currently ~110 lines across 16 files. Read `docs/THIN_VANILLA_PRINCIPLES.md` before adding one.
+currently ~120 lines across 17 files. Read `docs/THIN_VANILLA_PRINCIPLES.md` before adding one.
 `grep -rn '\[Jump\]' src --include=*.cpp | grep -v /jump/` lists every upstream touch point.
 
 Everything is gated on the latched `g_jump` cvar; every public `Jump_*` entry point early-returns

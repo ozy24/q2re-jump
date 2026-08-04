@@ -43,7 +43,7 @@ bool Jump_ClientCommand(edict_t *ent)
 
 	const char *cmd = gi.argv(0);
 
-	// TAB is bound to inven; opens the main options menu (or cast UI).
+	// `inven` (conventionally TAB) opens the main options menu, or the cast UI.
 	if (!Q_strcasecmp(cmd, "inven"))
 	{
 		Jump_CmdMenu(ent);

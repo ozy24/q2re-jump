@@ -2004,9 +2004,13 @@ void PutClientInServer(edict_t *ent)
 	bool valid_spawn = false;
 	bool force_spawn = client->awaiting_respawn && level.time > client->respawn_timeout;
 	// [Jump] Players don't collide and telefrags are disabled, so an occupied
-	// pad must not put us in the stock 3-second spawn limbo.
+	// pad must not put us in the stock 3-second spawn limbo. Jump_PreSpawn has
+	// to run here too, above the spectator branch it may need to take.
 	if (Jump_Active())
+	{
 		force_spawn = true;
+		Jump_PreSpawn(ent);
+	}
 	bool is_landmark = false;
 
 	if (use_squad_respawn)
@@ -2592,8 +2596,13 @@ void ClientUserinfoChanged(edict_t *ent, const char *userinfo)
 	char val[MAX_INFO_VALUE] = { 0 };
 	gi.Info_ValueForKey(userinfo, "spectator", val, sizeof(val));
 
+	// [Jump] spectator is a team here, not a userinfo key, so an existing jump
+	// spectator keeps the flag: otherwise any userinfo change (a name change is
+	// enough) clears it and spectator_respawn drops the player into the map.
+	const bool jump_spectating = Jump_Active() && ent->client->pers.spectator;
+
 	// spectators are only supported in deathmatch
-	if (deathmatch->integer && !G_TeamplayEnabled() && *val && strcmp(val, "0"))
+	if (jump_spectating || (deathmatch->integer && !G_TeamplayEnabled() && *val && strcmp(val, "0")))
 		ent->client->pers.spectator = true;
 	else
 		ent->client->pers.spectator = false;
