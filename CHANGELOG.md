@@ -10,6 +10,14 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- A **How to Play** page on both menus, a blank line under Extend Time. One panel covering what you
+  are racing, what Practice and Ranked each mean, how a map ends, and the store/recall binds
+  worth setting — so someone who joins with no idea what a jump server is has an answer in
+  the game rather than in a README. It fills the panel exactly: 18 rows is the whole menu,
+  and a left-aligned row holds about 26 characters before it draws out past the backdrop.
+
 ### Changed
 
 - Joining the server now opens the menu instead of dropping you straight into the map. You

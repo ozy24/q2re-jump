@@ -71,10 +71,18 @@ side of the line. It swaps as soon as you change team, even if it is open:
 | | Load Position |
 | Follow Player / Stop Following | Join Practice / Ranked (whichever you are not on) |
 | Follow View: First- / Third-Person | Spectate |
-| Vote Map, Extend Time, Close | Vote Map, Extend Time, Close |
+| Vote Map, Extend Time | Vote Map, Extend Time |
+| How to Play | How to Play |
+| Close | Close |
 
 The team you are already on has no row of its own — the title block above the
 menu names it, so the join row is always the team you are not on.
+
+**How to Play** follows the gameplay rows on both menus, a blank line below
+them, and is a one-page summary — what you are racing, what separates the two
+teams, how a map ends, and the two binds worth setting. It is the answer to a
+player joining with no idea what a jump server is, without them having to read
+this document.
 
 **Save Position** and **Load Position** are the `store` and `recall` commands.
 On Ranked they stay listed but read `(Locked)` and cannot be picked — Ranked

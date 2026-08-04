@@ -56,9 +56,11 @@ static void Jump_MenuFollowPlayer(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuFollowView(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd);
 
 static void Jump_OpenCastMenu(edict_t *ent);
 static void Jump_OpenMapMenu(edict_t *ent);
+static void Jump_OpenHelpMenu(edict_t *ent);
 
 // Two main menus, because half the rows only mean something on one side of the
 // line: a spectator has no run to restart, and a player in the map has nothing
@@ -84,6 +86,7 @@ constexpr int JUMP_GAME_JOIN = 7;
 constexpr int JUMP_GAME_SPECTATE = 8;
 constexpr int JUMP_GAME_VOTE = 10;
 constexpr int JUMP_GAME_EXTEND = 11;
+constexpr int JUMP_GAME_HELP = 13;
 
 // Spectator rows.
 constexpr int JUMP_SPEC_PRACTICE = 3;
@@ -92,6 +95,7 @@ constexpr int JUMP_SPEC_FOLLOW = 6;
 constexpr int JUMP_SPEC_FOLLOW_VIEW = 7;
 constexpr int JUMP_SPEC_VOTE = 9;
 constexpr int JUMP_SPEC_EXTEND = 10;
+constexpr int JUMP_SPEC_HELP = 12;
 
 static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 0  title
@@ -106,8 +110,8 @@ static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 9  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 10 vote map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 11 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 13 how to play
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
@@ -126,8 +130,8 @@ static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 8  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 9  vote map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 12 how to play
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
@@ -177,6 +181,36 @@ static const pmenu_t jump_vote_menu[JUMP_MENU_ENTRIES] = {
 	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },
 };
 
+// The one-pager. Static text, so it needs no UpdateFunc - PMenu_Open copies the
+// entries into the handle and the periodic re-send just redraws them.
+//
+// It fills the panel exactly: 18 rows is all there is, and left-aligned rows
+// draw from x=64 against a backdrop that ends at x=288, which is about 26
+// characters of the proportional client font. Every line below is kept to 24
+// so the mixed-width glyphs have somewhere to go; over-long text is not
+// clipped, it just draws out over the map. Return is the only pickable row, so
+// the cursor lands there whichever way it is opened.
+static const pmenu_t jump_help_menu[JUMP_MENU_ENTRIES] = {
+	{ "How to Play", PMENU_ALIGN_CENTER, nullptr },			   // 0
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 1
+	{ "Get to the finish fast.", PMENU_ALIGN_LEFT, nullptr },  // 2
+	{ "The HUD shows your time.", PMENU_ALIGN_LEFT, nullptr }, // 3
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 4
+	{ "Practice: save and load", PMENU_ALIGN_LEFT, nullptr },  // 5
+	{ "freely. Never recorded.", PMENU_ALIGN_LEFT, nullptr },  // 6
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 7
+	{ "Ranked: one clean run.", PMENU_ALIGN_LEFT, nullptr },   // 8
+	{ "No loading. Times saved.", PMENU_ALIGN_LEFT, nullptr }, // 9
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 10
+	{ "Finish on the weapon or", PMENU_ALIGN_LEFT, nullptr },  // 11
+	{ "key at the end of a map.", PMENU_ALIGN_LEFT, nullptr }, // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 13
+	{ "Handy binds:", PMENU_ALIGN_LEFT, nullptr },			   // 14
+	{ "bind mouse4 store", PMENU_ALIGN_LEFT, nullptr },		   // 15
+	{ "bind mouse5 recall", PMENU_ALIGN_LEFT, nullptr },	   // 16
+	{ "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain },	   // 17
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -204,13 +238,17 @@ static void Jump_MenuJoinRow(pmenu_t &entry, jump_team_t team, SelectFunc_t sele
 // Main options menu
 // ---------------------------------------------------------------------------
 
-// Blanks everything from `first` up to the Close row, so each update function
-// only has to write the rows it actually uses.
-static void Jump_MenuClearTail(pmenuhnd_t *hnd, int first)
+// Blanks everything from `first` up to the foot of the menu, then writes the
+// two rows both main menus end with: How to Play, which trails the gameplay
+// rows a blank line below them, and Close pinned to the last row. `help` is a
+// parameter rather than a shared constant because the two menus have different
+// numbers of gameplay rows above it.
+static void Jump_MenuClearTail(pmenuhnd_t *hnd, int first, int help)
 {
 	for (int i = first; i < JUMP_MENU_CLOSE; i++)
 		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
 
+	Jump_MenuSetRow(hnd->entries[help], "How to Play", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp);
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
 }
 
@@ -268,7 +306,7 @@ static void Jump_MenuUpdateInGame(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_VOTE], "Vote Map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_EXTEND], "Extend Time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
-	Jump_MenuClearTail(hnd, JUMP_GAME_EXTEND + 1);
+	Jump_MenuClearTail(hnd, JUMP_GAME_EXTEND + 1, JUMP_GAME_HELP);
 }
 
 static void Jump_MenuUpdateSpectator(edict_t *ent)
@@ -298,7 +336,7 @@ static void Jump_MenuUpdateSpectator(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_VOTE], "Vote Map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
 	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_EXTEND], "Extend Time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
-	Jump_MenuClearTail(hnd, JUMP_SPEC_EXTEND + 1);
+	Jump_MenuClearTail(hnd, JUMP_SPEC_EXTEND + 1, JUMP_SPEC_HELP);
 }
 
 // Both close first: you want to be looking at the map, not the menu, the
@@ -381,6 +419,17 @@ static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd)
 	PMenu_Close(ent);
 	ent->client->update_chase = true;
 	Jump_CmdTimeExtend(ent);
+}
+
+static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	Jump_OpenHelpMenu(ent);
+}
+
+static void Jump_OpenHelpMenu(edict_t *ent)
+{
+	PMenu_Open(ent, jump_help_menu, -1, JUMP_MENU_ENTRIES, nullptr, nullptr);
 }
 
 void Jump_OpenMainMenu(edict_t *ent)
