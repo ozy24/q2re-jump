@@ -12,6 +12,13 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Fixed
 
+- **Players were invisible to each other.** Joining Practice or Ranked left `SVF_NOCLIENT` set
+  from the spectator state everyone is pinned to before they answer the join menu, so nobody's
+  model was sent to anyone else. The `jumpers` toggle could not help — that is a separate gate.
+  Models reappeared only after a death-and-respawn, which is the one route that clears the flag.
+  The respawn teleport effect on joining a team was being swallowed by the same flag and now
+  plays.
+
 - **Following someone no longer ends the moment they change team.** Switching between Practice
   and Ranked left every spectator watching that player dumped back into free-fly, even though
   the player was still perfectly followable. Followers now stay attached through the switch;

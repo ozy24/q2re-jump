@@ -60,6 +60,21 @@ void Jump_ClientSpawn(edict_t *ent)
 	if (!Jump_Active())
 		return;
 
+	// Every jump client is pinned to spectator by Jump_PreSpawn until they answer
+	// the join menu, and that branch of PutClientInServer sets SVF_NOCLIENT. The
+	// vanilla ways back into the map clear it on the way past - respawn() does it
+	// before PutClientInServer, spectator_respawn() after - but jump calls
+	// PutClientInServer directly from Jump_JoinTeam, and its non-spectator path
+	// only clears the flag when it is unwinding the awaiting_respawn limbo, which
+	// force_spawn means we never enter. So the flag survived the join and every
+	// player was invisible to everyone else.
+	//
+	// This hook is the right place for it: it runs at the end of the non-spectator
+	// path only, so reaching it means this client is entering the map for real.
+	// It also has to happen before the G_PostRespawn calls that follow, which
+	// early-return on SVF_NOCLIENT and would otherwise eat the teleport effect.
+	ent->svflags &= ~SVF_NOCLIENT;
+
 	jump_client_t *jc = Jump_ClientData(ent);
 
 	if (!jc)
