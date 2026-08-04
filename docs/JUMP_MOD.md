@@ -66,24 +66,30 @@ side of the line. It swaps as soon as you change team, even if it is open:
 
 | Spectating | In the game |
 |---|---|
-| Join Practice | Save Position |
-| Join Ranked | Load Position |
-| | Restart run |
-| Follow player / Stop following | Join Practice / Ranked (whichever you are not on) |
-| Follow view: first- / third-person | Spectate |
-| Vote map, Extend time, Close | Vote map, Extend time, Close |
+| Join Practice | Restart Run |
+| Join Ranked | Save Position |
+| | Load Position |
+| Follow Player / Stop Following | Join Practice / Ranked (whichever you are not on) |
+| Follow View: First- / Third-Person | Spectate |
+| Vote Map, Extend Time, Close | Vote Map, Extend Time, Close |
+
+The team you are already on has no row of its own — the title block above the
+menu names it, so the join row is always the team you are not on.
 
 **Save Position** and **Load Position** are the `store` and `recall` commands.
-On Ranked they read `(practice only)` and cannot be picked — Ranked refuses
-`store` and turns `recall` into a restart, which is what keeps its times
-comparable. On Practice, Load Position shows how many positions you are
-holding, or `(none saved)` before you have placed one. They are there to be
-found; for actually running a map, bind the commands:
+On Ranked they stay listed but read `(Locked)` and cannot be picked — Ranked
+refuses `store` and turns `recall` into a restart, which is what keeps its
+times comparable. Rows that cannot be picked are not dimmed, because the layout
+language the menu is drawn in has only two colours (normal and the cursor's
+green); the cursor skips straight past them and the row says why.
+
+The rows are there to be found; for actually running a map, bind the commands:
 `bind mouse4 store; bind mouse5 recall`.
 
-The cursor opens on the row you are most likely to want — a join row either
-way, which also keeps it clear of **Restart run**, since a reflexive attack
-press there would throw away a run in progress.
+The cursor opens on **Restart Run** in the game and on a join row while
+spectating — in both cases the row you are most likely to have opened the menu
+for. Be aware that this puts a run-ending action under a reflexive attack press
+if you open the menu mid-run.
 
 ### Teams
 
@@ -106,8 +112,8 @@ disconnect.
 
 ### Voting
 
-**Vote map** in the menu lists every configured map, paged, with the current
-map greyed out; pick one and it calls a vote. While a vote is running the menu
+**Vote Map** in the menu lists every configured map, paged, with the current
+map marked `(Playing)` and unpickable; pick another and it calls a vote. While a vote is running the menu
 key goes straight to the cast screen instead, showing what was called, who
 called it, the tally and the countdown, with Yes and No rows. `votemap <map>`,
 `yes` and `no` still work from the console.

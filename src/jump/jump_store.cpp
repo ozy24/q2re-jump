@@ -55,7 +55,7 @@ void Jump_CmdStore(edict_t *ent)
 
 	if (jc->team == jump_team_t::ranked)
 	{
-		gi.Client_Print(ent, PRINT_HIGH, "Stores are disabled on Hard. Use \"team easy\" to practice.\n");
+		gi.Client_Print(ent, PRINT_HIGH, "Stores are disabled on Ranked. Use \"team practice\" to practice.\n");
 		return;
 	}
 
@@ -90,7 +90,7 @@ void Jump_CmdRecall(edict_t *ent, int which)
 	// what keeps ranked times comparable.
 	if (jc->team == jump_team_t::ranked)
 	{
-		gi.Client_Print(ent, PRINT_HIGH, "No recall on Hard - restarting your run.\n");
+		gi.Client_Print(ent, PRINT_HIGH, "No recall on Ranked - restarting your run.\n");
 		Jump_RestartRun(ent);
 		return;
 	}

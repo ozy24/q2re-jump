@@ -23,17 +23,31 @@ released — see [docs/release-process.md](docs/release-process.md).
   ask once per connection and keep your team across levels.
 
 - The in-game menu has **Save Position** and **Load Position** rows, so store and recall are
-  findable without already knowing the commands. On Ranked they read `(practice only)` and
-  cannot be picked; on Practice, Load Position shows how many positions you are holding, or
-  `(none saved)` before you have placed one.
+  findable without already knowing the commands. On Ranked they stay listed but read
+  `(Locked)` and cannot be picked, so the feature is discoverable from either team.
+
+- Menu wording is consistent Title Case throughout — `Restart Run`, `Vote Map`, `Extend Time`,
+  `Follow Player` — instead of the mix of styles it had grown.
+
+- The in-game menu no longer lists the team you are already on with a `(current)` marker, and
+  Load Position no longer says `(none saved)`. The title block already names your team, and
+  picking Load Position with nothing stored tells you so. That leaves one join row, for the
+  team you are not on.
 
 - The menu is now two menus, one for spectators and one for players in the game, because
   half of it only meant something on one side of that line. Spectators no longer see
-  `Restart run`, which did nothing for them; players in the game no longer see the follow
+  `Restart Run`, which did nothing for them; players in the game no longer see the follow
   controls. It swaps as soon as you change team, even while it is open.
 
-  The cursor also opens on a join row rather than on `Close`, which keeps it away from
-  `Restart run` — a reflexive attack press there would have thrown away a run.
+  `Restart Run` is the first row of the in-game menu and the one the cursor opens on, since
+  it is what you reach for most. Spectators open on a join row. Note the trade: opening the
+  menu mid-run now puts a run-ending action under a reflexive attack press.
+
+### Fixed
+
+- The `store` and `recall` refusal messages called the ranked team "Hard" and pointed at
+  `team easy`, which are the upstream q2jump names. They now say Ranked and `team practice`,
+  matching the rest of the mod.
 
 - The default team constant is now Spectator rather than Ranked. It is no longer a gameplay
   default — just where you wait until the menu is answered.
