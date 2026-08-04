@@ -46,6 +46,8 @@ static void Jump_MenuUpdateVote(edict_t *ent);
 
 static void Jump_MenuUpdateInGame(edict_t *ent);
 static void Jump_MenuUpdateSpectator(edict_t *ent);
+static void Jump_MenuStore(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuRecall(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinPractice(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuJoinRanked(edict_t *ent, pmenuhnd_t *hnd);
@@ -71,12 +73,14 @@ static void Jump_OpenMapMenu(edict_t *ent);
 // which team you want.
 
 // In-game rows.
-constexpr int JUMP_GAME_RESTART = 3;
-constexpr int JUMP_GAME_PRACTICE = 5;
-constexpr int JUMP_GAME_RANKED = 6;
-constexpr int JUMP_GAME_SPECTATE = 7;
-constexpr int JUMP_GAME_VOTE = 9;
-constexpr int JUMP_GAME_EXTEND = 10;
+constexpr int JUMP_GAME_STORE = 3;
+constexpr int JUMP_GAME_RECALL = 4;
+constexpr int JUMP_GAME_RESTART = 5;
+constexpr int JUMP_GAME_PRACTICE = 7;
+constexpr int JUMP_GAME_RANKED = 8;
+constexpr int JUMP_GAME_SPECTATE = 9;
+constexpr int JUMP_GAME_VOTE = 11;
+constexpr int JUMP_GAME_EXTEND = 12;
 
 // Spectator rows.
 constexpr int JUMP_SPEC_PRACTICE = 3;
@@ -90,16 +94,16 @@ static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 0  title
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 1  current team
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 2  blank
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuRestart },			  // 3  restart run
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 4  blank
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinPractice },	  // 5  practice
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinRanked },		  // 6  ranked
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinSpectator },	  // 7  spectate
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 8  blank
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 9  vote map
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuStore },			  // 3  save position
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuRecall },			  // 4  load position
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuRestart },			  // 5  restart run
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 6  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinPractice },	  // 7  practice
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinRanked },		  // 8  ranked
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuJoinSpectator },	  // 9  spectate
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 10 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 11 vote map
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 12 extend
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
@@ -226,14 +230,42 @@ static void Jump_MenuUpdateInGame(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[1], Jump_TeamName(team), PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[2], "", PMENU_ALIGN_CENTER, nullptr);
 
+	// Store and recall are a Practice facility: Ranked refuses `store` outright
+	// and turns `recall` into a restart, which is what keeps its times
+	// comparable. There is no dim variant in the layout font - a row is either
+	// normal or the bright alt colour the cursor uses - so unavailable rows are
+	// marked by dropping their SelectFunc, which makes PMenu_Next skip straight
+	// past them, and by saying in the row itself why they cannot be picked.
+	if (team == jump_team_t::ranked)
+	{
+		Jump_MenuSetRow(hnd->entries[JUMP_GAME_STORE], "Save Position  (practice only)", PMENU_ALIGN_LEFT,
+						nullptr);
+		Jump_MenuSetRow(hnd->entries[JUMP_GAME_RECALL], "Load Position  (practice only)", PMENU_ALIGN_LEFT,
+						nullptr);
+	}
+	else
+	{
+		Jump_MenuSetRow(hnd->entries[JUMP_GAME_STORE], "Save Position", PMENU_ALIGN_LEFT, Jump_MenuStore);
+
+		const bool has_store = jc && !jc->stores.Empty();
+
+		if (has_store)
+			Jump_MenuSetRow(hnd->entries[JUMP_GAME_RECALL],
+							G_Fmt("Load Position  ({} saved)", jc->stores.count).data(), PMENU_ALIGN_LEFT,
+							Jump_MenuRecall);
+		else
+			Jump_MenuSetRow(hnd->entries[JUMP_GAME_RECALL], "Load Position  (none saved)", PMENU_ALIGN_LEFT,
+							nullptr);
+	}
+
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_RESTART], "Restart run", PMENU_ALIGN_LEFT, Jump_MenuRestart);
-	Jump_MenuSetRow(hnd->entries[4], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[6], "", PMENU_ALIGN_CENTER, nullptr);
 
 	Jump_MenuTeamRow(hnd->entries[JUMP_GAME_PRACTICE], jump_team_t::practice, team, Jump_MenuJoinPractice);
 	Jump_MenuTeamRow(hnd->entries[JUMP_GAME_RANKED], jump_team_t::ranked, team, Jump_MenuJoinRanked);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_SPECTATE], "Spectate", PMENU_ALIGN_LEFT, Jump_MenuJoinSpectator);
 
-	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
+	Jump_MenuSetRow(hnd->entries[10], "", PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_VOTE], "Vote map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_EXTEND], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
@@ -268,6 +300,24 @@ static void Jump_MenuUpdateSpectator(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_EXTEND], "Extend time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
 
 	Jump_MenuClearTail(hnd, JUMP_SPEC_EXTEND + 1);
+}
+
+// Both close first: you want to be looking at the map, not the menu, the
+// moment a position is saved or recalled. The rows are only offered when the
+// action can succeed, but the commands keep their own guards regardless - a
+// team change between the refresh and the keypress would otherwise slip past.
+static void Jump_MenuStore(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_CmdStore(ent);
+}
+
+static void Jump_MenuRecall(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_CmdRecall(ent, 1);
 }
 
 static void Jump_MenuRestart(edict_t *ent, pmenuhnd_t *hnd)

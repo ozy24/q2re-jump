@@ -52,8 +52,10 @@ Connecting puts you in the map as a spectator with the menu already open. Pick
 Practice or Ranked; nothing spawns until you do. Every map change asks again,
 so the team you play a map on is always one you chose for that map.
 
-Move the cursor with the inventory keys (the usual `invnext` / `invprev`
-binds) or just forward/back, and select with `invuse`, attack or jump. Dismiss
+Move the cursor with the inventory keys (`invnext` / `invprev`) and select with
+`invuse`. While you are spectating, forward/back also move the cursor and
+attack or jump selects; once you are in the map they do not, because those
+inputs are driving your player. Dismiss
 the menu with the same key that opens it — `inven`, conventionally TAB — and
 the first time you do, the game tells you which key that is on your own setup.
 Dismissing without choosing leaves you spectating; `team practice` and
@@ -64,11 +66,20 @@ side of the line. It swaps as soon as you change team, even if it is open:
 
 | Spectating | In the game |
 |---|---|
-| Join Practice | Restart run |
-| Join Ranked | Join Practice / Ranked (whichever you are not on) |
-| Follow player / Stop following | Spectate |
-| Follow view: first- / third-person | |
+| Join Practice | Save Position |
+| Join Ranked | Load Position |
+| | Restart run |
+| Follow player / Stop following | Join Practice / Ranked (whichever you are not on) |
+| Follow view: first- / third-person | Spectate |
 | Vote map, Extend time, Close | Vote map, Extend time, Close |
+
+**Save Position** and **Load Position** are the `store` and `recall` commands.
+On Ranked they read `(practice only)` and cannot be picked — Ranked refuses
+`store` and turns `recall` into a restart, which is what keeps its times
+comparable. On Practice, Load Position shows how many positions you are
+holding, or `(none saved)` before you have placed one. They are there to be
+found; for actually running a map, bind the commands:
+`bind mouse4 store; bind mouse5 recall`.
 
 The cursor opens on the row you are most likely to want — a join row either
 way, which also keeps it clear of **Restart run**, since a reflexive attack
