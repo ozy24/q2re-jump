@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-05
+
 ### Fixed
 
 - **Players were invisible to each other.** Joining Practice or Ranked left `SVF_NOCLIENT` set
