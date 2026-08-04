@@ -94,6 +94,16 @@ void Jump_InitLevel(const char *entities)
 	jump_level.active = g_jump && g_jump->integer && deathmatch->integer;
 	Q_strlcpy(jump_level.mapname, level.mapname, sizeof(jump_level.mapname));
 
+	// Safe here and only here: this hook runs from SpawnEntities, so a map is
+	// loading and the configstring each soundindex allocates is part of the
+	// load rather than a mid-game broadcast. The same calls in Jump_Init would
+	// kill the server at startup - see the note in AGENTS.md.
+	if (jump_level.active)
+	{
+		jump_level.sound_pb = gi.soundindex("misc/secret.wav");
+		jump_level.sound_record = gi.soundindex("ctf/flagcap.wav");
+	}
+
 	Jump_InvalidateCheckpointTotal();
 
 	// Per-map client state. Session preferences (eyecam, jumpers, the menu
@@ -154,6 +164,7 @@ void Jump_RunFrame()
 	Jump_VoteFrame();
 	Jump_IdleFrame();
 	Jump_MsetFrame();
+	Jump_AnnounceFrame();
 }
 
 void Jump_Shutdown()

@@ -39,16 +39,25 @@ constexpr player_stat_t JUMP_STAT_CHECKPOINT_TOTAL = STAT_CTF_TEAM2_HEADER;	 // 
 constexpr player_stat_t JUMP_STAT_PB_STRING = STAT_CTF_ID_VIEW; // 28: stat_string -> CONFIG_JUMP_PB_STRING + client#
 
 // The two slots that freed up: one becomes the run timer's third decimal
-// digit (matching PB's millisecond precision), one stays spare.
+// digit (matching PB's millisecond precision), one carries the announcement
+// banner.
 constexpr player_stat_t JUMP_STAT_TIME_THOU = STAT_CTF_MATCH; // 29: run time, third decimal digit
-// 30 (STAT_CTF_ID_VIEW_COLOR) is spare.
+
+// The banner across the top of the HUD for a new PB or a new map record. Same
+// reasoning as the PB string - rare event, arbitrary text - but the text is
+// global rather than per-client, so it points at a single configstring. 0
+// means "nothing showing", which is what the ifstat gate in the statusbar
+// tests: stat_string indexes a configstring BY VALUE, so an ungated 0 would
+// draw configstring 0.
+constexpr player_stat_t JUMP_STAT_ANNOUNCE = STAT_CTF_ID_VIEW_COLOR; // 30: stat_string -> CONFIG_JUMP_ANNOUNCE
+
 constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO; // 31: 1 while jump mode owns the level
 
 // Sizing for CONFIG_JUMP_PB_STRING's per-client block in bg_local.h - keep
 // the two in sync. Clients past this index just don't get a PB display.
 constexpr int JUMP_MAX_PB_STRING_CLIENTS = 64;
 
-// 12 of the 13 usable slots (18-31 less 27) are taken; 30 is free.
+// All 13 usable slots (18-31 less 27) are now taken.
 
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;

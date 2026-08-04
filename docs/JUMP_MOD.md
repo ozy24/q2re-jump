@@ -167,6 +167,22 @@ armour, health, powerups — is inert.
 Combat damage does nothing. World hazards (lava, slime, hurt triggers, crushers)
 still kill, so maps keep their fail conditions.
 
+Two ranked results are announced to the whole server, with a sound and a banner
+across the top of the HUD:
+
+| Result | Sound | Banner |
+|---|---|---|
+| Personal best | `misc/secret.wav` | 4 seconds |
+| Map record (1st place) | `ctf/flagcap.wav` | 6 seconds, plus a centre print |
+
+A record is a personal best as well, so only the record announcement fires. The
+centre print skips the player who set it — they are already reading their own
+"Finished in…" message, and a client only has one centre print at a time.
+
+The banner is drawn as part of the status bar rather than as a chat print
+because a print goes to the notify area, where the next line of chat scrolls it
+away. Practice runs announce nothing; they are never recorded.
+
 ## Stock clients
 
 **A player running unmodified Quake II Remastered can join and play normally.** Nothing

@@ -105,8 +105,9 @@ records merge/rank/points, and the two safety functions below.
 The stat table is full, so jump reuses the CTF block (18–31), aliased in `jump_stats.h`. Safe only
 because `Jump_Init()` forces `ctf`/`teamplay` off and `Jump_SetStats()` runs *after* `SetCTFStats()`
 in `G_SetStats`. **Slot 27 (`STAT_CTF_TECH`) must stay unused** — the stock statusbar draws a pic
-from it in every deathmatch game, so a value there renders as an arbitrary image. 12 of the 13
-usable slots are taken; slot 30 is spare.
+from it in every deathmatch game, so a value there renders as an arbitrary image. All 13 usable
+slots (18–31 less 27) are now taken. Indices 54–63 are genuinely free (`STAT_LAST` is 54) if a new
+one is ever needed — the CTF block is a convention here, not the only room left.
 
 Personal best is the one exception to "one stat per digit": it changes only on a new PB, not every
 frame, so it is a `stat_string` (`JUMP_STAT_PB_STRING`) pointing at a per-client configstring
@@ -116,6 +117,13 @@ string. That is what freed the slot for the run timer's third decimal digit
 broadcasts to every connected client, not just the owner, so it is only a win for rare updates.
 `Jump_UpdatePbString()` (`jump_hud.cpp`) is the only thing that should write that configstring, and
 only when the value actually changed.
+
+The PB/record banner (`JUMP_STAT_ANNOUNCE` → `CONFIG_JUMP_ANNOUNCE`) is the same trade, one slot
+rather than 64 because the text is global. Note the gate: `stat_string` indexes a configstring *by
+the stat's value*, so an announcement row must sit inside `ifstat`/`endif` — an ungated 0 draws
+configstring 0. `Jump_Announce()` is the only writer, and only the centred `loc_stat_*` tokens can
+centre text, so the client runs the banner through `Localize` — never let a player name lead the
+string, or one starting with `$` is read as a localization key.
 
 ## Traps that have already caused bugs
 

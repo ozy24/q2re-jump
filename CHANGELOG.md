@@ -12,6 +12,25 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **A sound and a HUD banner when someone sets a personal best or a map record.** Both go to
+  everyone on the server: `misc/secret.wav` and a 4-second banner for a PB,
+  `ctf/flagcap.wav` and a 6-second banner for a record. A record also centre-prints to
+  everyone except the finisher, who already has their own "Finished in…" message and only has
+  one centre-print slot to lose.
+
+  The banner is part of the status bar rather than an ordinary print because a print lands in
+  the notify area, where the next line of chat scrolls it away. A record is always a personal
+  best too, so the two never fire together — the record wins.
+
+### Fixed
+
+- **Being the first person to finish a map now counts as taking the record.** It previously
+  announced nothing at all: the test asked for a *previous* record to beat, so setting the
+  first time on a map was silently treated as an ordinary finish. Holding 1st place is the
+  whole test now, which is safe because a time that does not improve on your own entry is
+  never given a rank at all. This also restores the `has set a 1st place!` line in the same
+  case.
+
 - A **How to Play** page on both menus, a blank line under Extend Time. One panel covering what you
   are racing, what Practice and Ranked each mean, how a map ends, and the store/recall binds
   worth setting — so someone who joins with no idea what a jump server is has an answer in

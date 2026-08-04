@@ -101,6 +101,16 @@ struct jump_level_t
 	bool	active = false;			 // jump owns this level
 	int32_t checkpoint_total = 0;	 // checkpoints required to finish
 	char	mapname[64] = { 0 };
+
+	// Precached in Jump_InitLevel. gi.soundindex allocates a configstring and
+	// the server broadcasts it, so it can only be called while a map is
+	// loading - never from Jump_Init, which runs before a server exists.
+	int32_t sound_pb = 0;
+	int32_t sound_record = 0;
+
+	// When the HUD banner clears. 0 means nothing is showing, which is also
+	// what gates JUMP_STAT_ANNOUNCE off.
+	gtime_t announce_expire = 0_ms;
 };
 
 // ---------------------------------------------------------------------------
@@ -182,6 +192,16 @@ int64_t					   Jump_PersonalBest(edict_t *ent);
 int64_t					   Jump_MapRecord();
 int						   Jump_SubmitTime(edict_t *ent, int64_t time_ms);
 void					   Jump_PlayerTotals(const std::string &id, int &points, int &completions, int &firsts);
+
+// jump_hud.cpp
+//
+// Jump_Announce puts `text` on the HUD banner for `duration` and is the way to
+// say something everyone should see: an ordinary print lands in the notify
+// area, where the next line of chat scrolls it away. Rare events only - the
+// text lives in a configstring, and writing one broadcasts to every connected
+// client.
+void Jump_Announce(const char *text, gtime_t duration);
+void Jump_AnnounceFrame();
 
 // jump_mset.cpp
 void Jump_LoadMsets(const char *entities);

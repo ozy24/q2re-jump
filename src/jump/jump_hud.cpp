@@ -67,6 +67,54 @@ void Jump_SetStats(edict_t *ent)
 
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
+
+	// The banner is the same for everyone, which is what makes setting it here
+	// enough. G_CheckChaseStats bulk-copies the stats array from the player
+	// being chased, so a viewer-specific value would be clobbered - this one
+	// survives the copy because it is identical either side of it. A free
+	// spectator gets it because G_SetSpectatorStats falls through to G_SetStats
+	// when there is no chase target.
+	ent->client->ps.stats[JUMP_STAT_ANNOUNCE] =
+		jump_level.announce_expire ? (int16_t) CONFIG_JUMP_ANNOUNCE : 0;
+}
+
+// ---------------------------------------------------------------------------
+// The announcement banner
+// ---------------------------------------------------------------------------
+//
+// A line across the top of the HUD for the two events everyone should see: a
+// new personal best and a new map record. It is a statusbar element rather
+// than a print because the statusbar is redrawn every frame and cannot scroll
+// away, whereas PRINT_HIGH lands in the notify area and the next line of chat
+// takes it with it.
+//
+// The cost is one configstring write per announcement, which the server
+// broadcasts to every connected client. That is affordable only because these
+// events are rare - the same trade as CONFIG_JUMP_PB_STRING, and the same
+// reason neither may be used for anything that changes per frame.
+
+void Jump_Announce(const char *text, gtime_t duration)
+{
+	if (!Jump_Active() || !text || !*text)
+		return;
+
+	// A configstring is CS_MAX_STRING_LENGTH bytes; the callers build from a
+	// name they do not control, so clamp rather than trust the format.
+	char buf[CS_MAX_STRING_LENGTH];
+	Q_strlcpy(buf, text, sizeof(buf));
+
+	gi.configstring(CONFIG_JUMP_ANNOUNCE, buf);
+	jump_level.announce_expire = level.time + duration;
+}
+
+// Clearing only zeroes the deadline: the stat gate is what hides the row, so
+// there is no need to write the configstring again and re-broadcast it.
+void Jump_AnnounceFrame()
+{
+	if (!jump_level.announce_expire || level.time < jump_level.announce_expire)
+		return;
+
+	jump_level.announce_expire = 0_ms;
 }
 
 void Jump_UpdatePbString(edict_t *ent)
@@ -183,6 +231,20 @@ bool Jump_InitStatusbar()
 		.xr(pb_right)
 		.loc_stat_rstring(JUMP_STAT_PB_STRING)
 		.endifstat();
+
+	// The announcement banner, centred across the top. Nothing else is drawn
+	// there - the run column is anchored to the right edge - and it is well
+	// clear of the centre of the screen, so a centerprint underneath it still
+	// reads.
+	//
+	// loc_stat_cstring2 is the only centred stat_string variant statusbar_t
+	// offers; the 2 is the bright alt colour, which suits a banner. Note the
+	// loc_ prefix means the client runs the text through Localize, so callers
+	// must not start the string with a player name - a name beginning with '$'
+	// would be taken for a localization key.
+	constexpr int announce_y = 24;
+
+	sb.ifstat(JUMP_STAT_ANNOUNCE).yt(announce_y).xv(0).loc_stat_cstring2(JUMP_STAT_ANNOUNCE).endifstat();
 
 	// Team mode lives in the bottom-right corner, away from the run column.
 	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(-16).xr(-76).string2("PRACTICE").endifstat();

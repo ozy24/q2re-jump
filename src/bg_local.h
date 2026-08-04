@@ -78,6 +78,11 @@ enum
 	CONFIG_JUMP_PB_STRING,
 	CONFIG_JUMP_PB_STRING_END = CONFIG_JUMP_PB_STRING + 64 - 1,
 
+	// [Jump] The HUD banner for a new personal best or a new map record. One
+	// slot, not one per client like the PB string above: the text is the same
+	// for everyone who sees it.
+	CONFIG_JUMP_ANNOUNCE,
+
 	CONFIG_LAST
 };
 
