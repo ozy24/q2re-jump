@@ -41,6 +41,9 @@ void Jump_ClientDisconnect(edict_t *ent);			  // ClientDisconnect
 // the eyecam hook replaces the stock orbit camera when first-person is on.
 bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd);
 bool Jump_UpdateEyecam(edict_t *ent);
+// UpdateChaseCam, on the branch that gives up and nulls chase_target: clears the
+// follow presentation the viewer inherited from the target.
+void Jump_ChaseTargetLost(edict_t *ent);
 void Jump_SyncFollowPresentation(edict_t *ent);
 bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible);
 

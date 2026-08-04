@@ -137,6 +137,53 @@ void Jump_FreeClientFollowers(edict_t *target)
 	}
 }
 
+// A team change is not a reason to stop watching someone. Only a target that has
+// become unfollowable costs the viewer their follow, and even then they cycle
+// onward rather than being dumped into free-fly - the same outcome as pressing
+// jump. Must be called *after* the resp.spectator flip, so Jump_IsFollowable and
+// ChaseNext both see the new state.
+//
+// Note this is not interchangeable with Jump_FreeClientFollowers: a disconnect
+// has to hard-clear, because the target stops running ClientThink and nothing
+// would ever notice it went away.
+void Jump_RetargetClientFollowers(edict_t *target)
+{
+	if (!target)
+		return;
+
+	const bool still_followable = Jump_IsFollowable(target);
+
+	for (uint32_t i = 1; i <= game.maxclients; i++)
+	{
+		edict_t *viewer = g_edicts + i;
+		if (!viewer->inuse || !viewer->client || viewer->client->chase_target != target)
+			continue;
+
+		if (still_followable)
+			continue;
+
+		// ChaseNext lands back on the original target when nobody else is
+		// playable, which is the signal to give up.
+		ChaseNext(viewer);
+		if (!Jump_IsFollowable(viewer->client->chase_target))
+			Jump_FreeFollower(viewer);
+	}
+
+	Jump_RefreshPlayerInstancing();
+}
+
+// Called from the stock UpdateChaseCam when it gives up on a target and nulls
+// chase_target itself. Without this the viewer keeps the followed player's gun
+// model and blends, and the target keeps a stale SVF_INSTANCED.
+void Jump_ChaseTargetLost(edict_t *ent)
+{
+	if (!Jump_Active() || !ent || !ent->client)
+		return;
+
+	Jump_ClearFollowPresentation(ent);
+	Jump_RefreshPlayerInstancing();
+}
+
 void Jump_EyecamOn(edict_t *ent)
 {
 	if (!ent || !ent->client)

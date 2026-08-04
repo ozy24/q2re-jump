@@ -88,8 +88,12 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	// The marker entity does go, though. It is a plain visible model, so leaving
 	// it up would park a translucent commander head in the map behind a ranked
 	// runner; the recall below puts it back on the way in.
+	//
+	// Only this player's own follow is dropped here. Anyone watching *them* is
+	// dealt with after the flip, below - switching Practice to Ranked leaves you
+	// a perfectly good thing to watch, and kicking spectators out for it was a
+	// reported bug.
 	Jump_FreeFollower(ent);
-	Jump_FreeClientFollowers(ent);
 	Jump_ResetRun(*jc);
 	Jump_FreeStoreMarker(*jc);
 
@@ -102,6 +106,10 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 
 	if (!spectator)
 		G_PostRespawn(ent);
+
+	// After the respawn, so the followable test and ChaseNext both see the team
+	// this player just landed on rather than the one they left.
+	Jump_RetargetClientFollowers(ent);
 
 	Jump_AssignSkin(ent, nullptr);
 

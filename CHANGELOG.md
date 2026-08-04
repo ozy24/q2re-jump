@@ -10,6 +10,14 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Following someone no longer ends the moment they change team.** Switching between Practice
+  and Ranked left every spectator watching that player dumped back into free-fly, even though
+  the player was still perfectly followable. Followers now stay attached through the switch;
+  if the player goes to Spectator, followers advance to the next player instead, and only fall
+  back to free-fly when nobody else is playing.
+
 ## [0.4.6] - 2026-08-04
 
 ### Added

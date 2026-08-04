@@ -20,6 +20,7 @@ void UpdateChaseCam(edict_t *ent)
 		{
 			ent->client->chase_target = nullptr;
 			ent->client->ps.pmove.pm_flags &= ~(PMF_NO_POSITIONAL_PREDICTION | PMF_NO_ANGULAR_PREDICTION);
+			Jump_ChaseTargetLost(ent); // [Jump] drop the inherited gun model and instancing
 			return;
 		}
 	}

@@ -239,7 +239,10 @@ void Jump_EyecamOff(edict_t *ent);
 void Jump_CmdEyecam(edict_t *ent);
 void Jump_CmdJumpers(edict_t *ent);
 void Jump_FreeFollower(edict_t *ent);
+// Hard-clears every viewer following `target`. For disconnects only - a team
+// change wants Jump_RetargetClientFollowers, which keeps the follow alive.
 void Jump_FreeClientFollowers(edict_t *target);
+void Jump_RetargetClientFollowers(edict_t *target);
 void Jump_RecountHideJumpers();
 bool Jump_AnyHideJumpers();
 void Jump_RefreshPlayerInstancing();
