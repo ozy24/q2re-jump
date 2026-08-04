@@ -18,6 +18,9 @@ released — see [docs/release-process.md](docs/release-process.md).
   the game rather than in a README. It fills the panel exactly: 18 rows is the whole menu,
   and a left-aligned row holds about 26 characters before it draws out past the backdrop.
 
+- The mod version is printed along the bottom of both main menus, under Close, so a player
+  can tell a host what they are running without going to the console.
+
 ### Changed
 
 - Joining the server now opens the menu instead of dropping you straight into the map. You

@@ -13,6 +13,7 @@
 
 #include "../g_local.h"
 #include "jump_local.h"
+#include "jump_version.h"
 
 #include <string>
 #include <vector>
@@ -23,6 +24,13 @@ constexpr int JUMP_MENU_ENTRIES = 18;
 // above that are the pager. Everything between is maps.
 constexpr int JUMP_MENU_FIRST_MAP = 2;
 constexpr int JUMP_MENU_CLOSE = JUMP_MENU_ENTRIES - 1;
+
+// The two main menus give the last row to the mod version and sit Close a blank
+// line above it. The submenus have no version line and keep Return/Close on
+// JUMP_MENU_CLOSE, so this is deliberately a separate pair of constants rather
+// than a shift applied to that one.
+constexpr int JUMP_MAIN_VERSION = JUMP_MENU_ENTRIES - 1;
+constexpr int JUMP_MAIN_CLOSE = JUMP_MENU_ENTRIES - 3;
 constexpr int JUMP_MENU_NEXT = JUMP_MENU_CLOSE - 2;
 constexpr int JUMP_MENU_PREV = JUMP_MENU_NEXT - 1;
 constexpr int JUMP_MENU_MAPS_PER_PAGE = JUMP_MENU_PREV - JUMP_MENU_FIRST_MAP;
@@ -112,10 +120,10 @@ static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 11 extend
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12 blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 13 how to play
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14 blank
+	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
-	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 17
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 17 version
 };
 
 static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
@@ -133,10 +141,10 @@ static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11 blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 12 how to play
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14 blank
+	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
-	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 17
+	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 17 version
 };
 
 static const pmenu_t jump_map_menu[JUMP_MENU_ENTRIES] = {
@@ -194,7 +202,7 @@ static const pmenu_t jump_help_menu[JUMP_MENU_ENTRIES] = {
 	{ "How to Play", PMENU_ALIGN_CENTER, nullptr },			   // 0
 	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 1
 	{ "Get to the finish fast.", PMENU_ALIGN_LEFT, nullptr },  // 2
-	{ "The HUD shows your time.", PMENU_ALIGN_LEFT, nullptr }, // 3
+	{ "Touch all checkpoints.", PMENU_ALIGN_LEFT, nullptr },   // 3
 	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 4
 	{ "Practice: save and load", PMENU_ALIGN_LEFT, nullptr },  // 5
 	{ "freely. Never recorded.", PMENU_ALIGN_LEFT, nullptr },  // 6
@@ -202,13 +210,13 @@ static const pmenu_t jump_help_menu[JUMP_MENU_ENTRIES] = {
 	{ "Ranked: one clean run.", PMENU_ALIGN_LEFT, nullptr },   // 8
 	{ "No loading. Times saved.", PMENU_ALIGN_LEFT, nullptr }, // 9
 	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 10
-	{ "Finish on the weapon or", PMENU_ALIGN_LEFT, nullptr },  // 11
-	{ "key at the end of a map.", PMENU_ALIGN_LEFT, nullptr }, // 12
-	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 13
-	{ "Handy binds:", PMENU_ALIGN_LEFT, nullptr },			   // 14
-	{ "bind mouse4 store", PMENU_ALIGN_LEFT, nullptr },		   // 15
-	{ "bind mouse5 recall", PMENU_ALIGN_LEFT, nullptr },	   // 16
-	{ "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain },	   // 17
+	{ "Finish on a weapon/key.", PMENU_ALIGN_LEFT, nullptr },  // 11
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 12
+	{ "Handy binds:", PMENU_ALIGN_LEFT, nullptr },			   // 13
+	{ "bind mouse4 store", PMENU_ALIGN_LEFT, nullptr },		   // 14
+	{ "bind mouse5 recall", PMENU_ALIGN_LEFT, nullptr },	   // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },					   // 16
+	{ "Return", PMENU_ALIGN_CENTER, Jump_MenuReturnToMain },   // 17
 };
 
 // ---------------------------------------------------------------------------
@@ -239,17 +247,25 @@ static void Jump_MenuJoinRow(pmenu_t &entry, jump_team_t team, SelectFunc_t sele
 // ---------------------------------------------------------------------------
 
 // Blanks everything from `first` up to the foot of the menu, then writes the
-// two rows both main menus end with: How to Play, which trails the gameplay
-// rows a blank line below them, and Close pinned to the last row. `help` is a
-// parameter rather than a shared constant because the two menus have different
-// numbers of gameplay rows above it.
+// three rows both main menus end with: How to Play, which trails the gameplay
+// rows a blank line below them, then Close, then the mod version along the
+// bottom. `help` is a parameter rather than a shared constant because the two
+// menus have different numbers of gameplay rows above it; the other two are
+// pinned to the foot of the panel and are the same either way.
+//
+// The version is a compile-time literal, so it costs nothing to rewrite here
+// on every refresh and there is no second place to keep it in sync.
 static void Jump_MenuClearTail(pmenuhnd_t *hnd, int first, int help)
 {
-	for (int i = first; i < JUMP_MENU_CLOSE; i++)
+	// Up to but not including the version row, so the gap between Close and it
+	// comes out of the blanking rather than needing a row written by hand.
+	for (int i = first; i < JUMP_MAIN_VERSION; i++)
 		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
 
 	Jump_MenuSetRow(hnd->entries[help], "How to Play", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp);
-	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+	Jump_MenuSetRow(hnd->entries[JUMP_MAIN_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
+	Jump_MenuSetRow(hnd->entries[JUMP_MAIN_VERSION], "Q2RE-Jump v" JUMP_VERSION_STRING, PMENU_ALIGN_CENTER,
+					nullptr);
 }
 
 static void Jump_MenuUpdateInGame(edict_t *ent)

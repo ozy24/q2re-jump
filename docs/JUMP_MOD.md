@@ -75,6 +75,9 @@ side of the line. It swaps as soon as you change team, even if it is open:
 | How to Play | How to Play |
 | Close | Close |
 
+The mod version sits along the bottom of both, under Close — the same string
+the `version` command prints.
+
 The team you are already on has no row of its own — the title block above the
 menu names it, so the join row is always the team you are not on.
 
