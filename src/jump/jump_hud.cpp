@@ -272,30 +272,37 @@ static void Jump_EmitStatusbar()
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
 
-	// Speedometer, bottom centre-right, at the anchors both upstream mods use
-	// (q2jump g_ctf.c, Q2JumpRefresh jump_hud.cpp) so a player arriving from
-	// either server finds it where their eyes already go. The spot is empty
-	// here: the run column, PB, time remaining and the team label are all
-	// anchored to an edge, and the stores counter is at the far left.
+	// Speedometer: centred, one block up from the bottom edge, where a
+	// first-person player is already looking. Both upstream mods put it at
+	// xv 200 / yb -32, hard against the bottom right - but that is a corner you
+	// have to look away from the map to read, and speed is the one number you
+	// want while you are mid-jump rather than after it. q2re-map-trainer draws
+	// its speedometer centred at 80 above the bottom for that reason; these are
+	// its anchors.
 	//
-	// The label is right-aligned to the digit box's right edge - that is where
-	// upstream's magic 226 comes from, the box spanning xv 200 to
-	// 200 + Jump_NumWidth(4) less five 8px characters of "Speed". Exact under
-	// the conchar font and approximate under scr_usekfont's proportional one,
-	// the same caveat as the "time" and "Checkpoint" labels above.
+	// The column is empty here. Our own bottom-edge elements are all pinned
+	// left or right (stores xl 8, team xr, PB and time remaining xr), and the
+	// pickup / FOLLOWING / SPECTATOR lines are at xv 0-26, well left of centre.
+	//
+	// `num` right-aligns inside a fixed box and never pads, so a centred BOX
+	// does not give a centred NUMBER. speed_digits_x centres the three-digit
+	// case instead, which is what a run actually reads; a four-digit boost
+	// grows one cell leftwards from there, which is what right-alignment does
+	// anyway. The label sits directly under the digits, as it did before.
 	//
 	// Gated on the value, so 0 hides the whole element while you are standing
 	// still. That gate is also the only way this could ever be varied per
 	// player: a CS_STATUSBAR write broadcasts to everyone, so the layout itself
 	// is the same for all of them.
-	constexpr int speed_digits_x = 200;
-	constexpr int speed_label_x = speed_digits_x + Jump_NumWidth(4) - 5 * 8;
+	constexpr int speed_digits_yb = -80;
+	constexpr int speed_digits_x = 160 - (Jump_NumWidth(4) - 3 * 16) - (3 * 16) / 2; // centres 3 digits
+	constexpr int speed_label_x = 160 - (5 * 8) / 2;								 // "Speed", 5 chars
 
 	sb.ifstat(JUMP_STAT_SPEED)
-		.yb(-32)
+		.yb(speed_digits_yb)
 		.xv(speed_digits_x)
 		.num(4, JUMP_STAT_SPEED)
-		.yb(-8)
+		.yb(speed_digits_yb + 24)
 		.xv(speed_label_x)
 		.string2("Speed")
 		.endifstat();

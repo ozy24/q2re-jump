@@ -279,7 +279,11 @@ and cast the length to an int.
   `jump_hud.cpp:478-546`. Live players and chase viewers get the raw XY speed; free spectators get
   0; replay viewers get speed derived from a 10-frame position delta with a ±10 ups hysteresis.
 
-**Port decision:** match both — XY only, truncated to an int, same anchors, 0 hides. Chasing shows
+**Port decision:** match both on the *value* — XY only, truncated to an int, 0 hides — but **not on
+the position**. Both mods sit at `xv 200 / yb -32`, hard against the bottom right; this port centres
+it at `yb -80`, following `q2re-map-trainer`, because speed is read mid-jump and a corner costs a
+glance away from the map. Note `num` right-aligns in a fixed box and never pads, so the box is
+offset to centre the three-digit case rather than the box itself. Chasing shows
 the followed player's speed, which comes free from `G_CheckChaseStats`' bulk stats copy; free
 spectators get 0. B's ±10 hysteresis is **not** ported: it exists only on its replay path, where
 speed is inferred from positions, and this port has no replay system. Two things are new rather

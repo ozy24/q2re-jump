@@ -12,7 +12,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
-- **A speedometer on the HUD**, bottom centre-right, in units per second. Everyone gets it,
+- **A speedometer on the HUD**, centred just above the bottom of the screen, in units per
+  second — where you can read it mid-jump without looking away from the map. Everyone gets it,
   including players on a stock unmodified client, because the server draws it as part of the
   status bar. It measures horizontal speed only — the way both upstream jump mods measure it,
   and the way maps' own speed gates measure it — so it tracks the strafing that actually earns

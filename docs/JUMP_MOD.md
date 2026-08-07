@@ -160,9 +160,14 @@ records list and `ranks` for everyone's points.
 
 ### The speedometer
 
-A four-digit readout sits at the bottom of the screen, centre-right, showing how
-fast you are moving in units per second. It hides itself when you are standing
-still.
+A four-digit readout sits centred, one block above the bottom of the screen,
+showing how fast you are moving in units per second. It hides itself when you
+are standing still.
+
+Both upstream mods put it in the bottom-right corner. This port follows
+`q2re-map-trainer` instead and centres it, because speed is the one number you
+want *during* a jump rather than after it, and a corner is somewhere you have to
+look away from the map to read.
 
 It measures **horizontal speed only** — vertical movement is excluded. That is
 how both upstream jump mods measure it, and it is the number that matters:

@@ -127,24 +127,30 @@ static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 	if (speed.peak < 1.f)
 		return;
 
-	// One row above the digits, which occupy yb -32 to -8 at xv 200.
-	const int32_t y = ctx.BottomY(-44);
-	const int32_t x = ctx.VirtX(200.f);
+	// One row above the digits, which occupy yb -80 to -56 (jump_hud.cpp).
+	const int32_t y = ctx.BottomY(-92);
 
 	const std::string peak = "peak " + jump::FormatSpeed(speed.peak);
+	const std::string delta = speed.trend ? jump::FormatSpeedDelta(speed.delta) : std::string();
 
-	cgi.SCR_DrawFontString(peak.c_str(), x, y, ctx.scale, jump_dim, true, text_align_t::LEFT);
+	// Two colours means two draws, so the line has to be centred by hand:
+	// measure both parts, then lay them out from the left of the pair. Measured
+	// rather than counted because the kfont is proportional and scr_usekfont is
+	// a private static of cg_screen.cpp - a character-width estimate would
+	// drift under one font or the other.
+	const float peak_width = cgi.SCR_MeasureFontString(peak.c_str(), ctx.scale).x;
+	const float gap = delta.empty() ? 0.f : 6.f * ctx.scale;
+	const float delta_width = delta.empty() ? 0.f : cgi.SCR_MeasureFontString(delta.c_str(), ctx.scale).x;
 
-	if (!speed.trend)
+	const int32_t left = ctx.VirtX(160.f) - (int32_t) ((peak_width + gap + delta_width) / 2.f);
+
+	cgi.SCR_DrawFontString(peak.c_str(), left, y, ctx.scale, jump_dim, true, text_align_t::LEFT);
+
+	if (delta.empty())
 		return;
 
-	// Measured, not counted: the kfont is proportional and scr_usekfont is a
-	// private static of cg_screen.cpp, so a character-width estimate would
-	// drift under one font or the other.
-	const vec2_t size = cgi.SCR_MeasureFontString(peak.c_str(), ctx.scale);
-
-	cgi.SCR_DrawFontString(jump::FormatSpeedDelta(speed.delta).c_str(), x + (int32_t) size.x + 6 * ctx.scale, y,
-						   ctx.scale, speed.trend > 0 ? rgba_green : rgba_red, true, text_align_t::LEFT);
+	cgi.SCR_DrawFontString(delta.c_str(), left + (int32_t) (peak_width + gap), y, ctx.scale,
+						   speed.trend > 0 ? rgba_green : rgba_red, true, text_align_t::LEFT);
 }
 
 void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)
