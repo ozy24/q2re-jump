@@ -173,6 +173,15 @@ first; `health`, `falldamage`, `weapons`, `timelimit` follow if a test map needs
 format (`jump/mset/<map>.json`) since jsoncpp is already linked, with the `.cfg` key/value form
 accepted as a fallback for imported maps.
 
+**Port decision (fasttele granularity):** the velocity clear and the freeze are one decision,
+following B. A gates them separately — `spawnflags & 1` on the teleporter suppresses the velocity
+clear, `spawnflags & 3` suppresses the view-angle snap, and only the freeze answers to the mset
+(`g_misc.c:1985-2006`). The per-teleporter flags are **not** ported: a scan of all 4241 parseable
+maps in the corpus found zero `misc_teleporter` setting either bit (the only values present are
+`0` and one stray `256`), and in KEX those bits already mean `NO_SOUND` and `NO_TELEPORT_EFFECT`.
+Angles are always snapped, matching B. `fasttele` covers `misc_teleporter` and `trigger_teleport`
+(39 corpus maps, 405 entities); `trigger_ctf_teleport` is left alone as CTF is forced off.
+
 ---
 
 ## 5. Points and rankings

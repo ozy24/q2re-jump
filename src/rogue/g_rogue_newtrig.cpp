@@ -61,12 +61,19 @@ TOUCH(trigger_teleport_touch) (edict_t *self, edict_t *other, const trace_t &tr,
 	other->s.origin[2] += 10;
 
 	// clear the velocity and hold them in place briefly
-	other->velocity = {};
+	// [Jump] the fasttele mset skips the freeze, as it does in teleporter_touch
+	const bool jump_fasttele = Jump_FastTeleport();
+
+	if (!jump_fasttele)
+		other->velocity = {};
 
 	if (other->client)
 	{
-		other->client->ps.pmove.pm_time = 160; // hold time
-		other->client->ps.pmove.pm_flags |= PMF_TIME_TELEPORT;
+		if (!jump_fasttele)
+		{
+			other->client->ps.pmove.pm_time = 160; // hold time
+			other->client->ps.pmove.pm_flags |= PMF_TIME_TELEPORT;
+		}
 
 		// draw the teleport splash at source and on the player
 		other->s.event = EV_PLAYER_TELEPORT;

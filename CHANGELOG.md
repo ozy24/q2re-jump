@@ -10,6 +10,13 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`fasttele` did nothing on maps built with `trigger_teleport`.** Only `misc_teleporter`
+  honoured the mset, so on the 39 corpus maps that use the trigger form — `ataraxia`, `mako2-4`,
+  the `acejumps` and `stonerjumps` sets among them — you were still frozen for 160 ms on every
+  teleport with `fasttele 1` set.
+
 ## [0.4.7] - 2026-08-05
 
 ### Fixed
