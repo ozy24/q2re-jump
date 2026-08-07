@@ -104,6 +104,55 @@ void Jump_ClientSpawn(edict_t *ent)
 	Jump_RefreshPlayerInstancing();
 }
 
+// The strafe meter, fed one usercmd at a time.
+//
+// This runs BEFORE Pmove (p_client.cpp), which is what makes it exact rather
+// than an estimate: ent->velocity is still the velocity the acceleration will
+// see, and every flag below describes the state the movement branch is about to
+// be chosen from. The client half has to work harder for the same numbers - it
+// only gets one sample per rendered frame, and has to reconstruct the pre-move
+// state from a wrapper around Pmove.
+//
+// Air only, for the reason in jump_logic.h: on the ground friction has already
+// run by the time acceleration happens, and SURF_SLICK is not visible from
+// here, so a ground reading would be quietly wrong on ice.
+static void Jump_TrackStrafe(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
+{
+	const int64_t now = Jump_NowMs();
+	const int64_t dt_ms = jc.strafe_last_ms ? now - jc.strafe_last_ms : 0;
+
+	jc.strafe_last_ms = now;
+
+	const pmove_state_t &pm = ent->client->ps.pmove;
+
+	const bool playable = !ent->client->resp.spectator && !ent->client->chase_target &&
+						  jc.team != jump_team_t::spectator;
+
+	// Every exclusion is a case where the reconstruction would not be exact.
+	// The jump frame needs no test of its own: you are on the ground when you
+	// press it, so the ground check below already covers it.
+	const bool usable = playable && ucmd->msec > 0 && pm.pm_type == PM_NORMAL && !ent->groundentity &&
+						!ent->waterlevel && !(pm.pm_flags & PMF_ON_LADDER) && pm.pm_time == 0;
+
+	jump::strafe_frame_t frame;
+
+	if (usable)
+	{
+		const float vel[2] = { ent->velocity[0], ent->velocity[1] };
+
+		// The view angles pmove is about to build its move axes from -
+		// PM_ClampAngles adds the delta angles to the command's, and MoveAxes
+		// applies the pitch/3 rule from there.
+		const vec3_t angles = ucmd->angles + pm.delta_angles;
+
+		frame = jump::StrafeFrame(vel, angles[PITCH], angles[YAW], angles[ROLL], ucmd->forwardmove,
+								  ucmd->sidemove, ucmd->msec / 1000.f,
+								  (pm.pm_flags & PMF_DUCKED) != 0, pm_config.airaccel);
+	}
+
+	jc.strafe_readout = jc.strafe.Add(frame, usable, (uint64_t) (dt_ms > 0 ? dt_ms : 0));
+}
+
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 {
 	if (!Jump_Active())
@@ -115,6 +164,8 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 
 	if (!jc)
 		return;
+
+	Jump_TrackStrafe(ent, ucmd, *jc);
 
 	// The join menu, armed by Jump_PreSpawn. Opening from here rather than the
 	// spawn path is MuffMode's trick: ClientThink only runs once the client is

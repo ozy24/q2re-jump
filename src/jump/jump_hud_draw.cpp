@@ -64,6 +64,12 @@ static cvar_t *jump_hud_speed_hz;
 static cvar_t *jump_hud_strafe;
 static cvar_t *jump_hud_strafe_tau;
 
+// The last jump_hud_strafe state we told the server about. Reset on every map
+// change and reconnect (Jump_InitClientCvars), because the server's own flag is
+// per-connection - if this survived and that did not, the player would silently
+// get both bars.
+static int32_t jump_strafe_told = -1;
+
 void Jump_InitClientCvars()
 {
 	// On by default. Installing this DLL is itself the opt-in: the server's
@@ -101,7 +107,10 @@ void Jump_InitClientCvars()
 	jump_hud_strafe_tau = cgi.cvar("jump_hud_strafe_tau", "300", CVAR_ARCHIVE);
 
 	// CG_InitScreen runs between levels and on reconnect - the same place the
-	// vanilla HUD clears its notify state - so this is where stale samples go.
+	// vanilla HUD clears its notify state - so this is where stale samples go,
+	// and where we forget having told the server about the bar, since its flag
+	// does not survive a reconnect either.
+	jump_strafe_told = -1;
 	Jump_CG_ResetSamples();
 }
 
@@ -303,6 +312,20 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	const bool enabled = jump_hud && jump_hud->integer;
 	const bool want_speed = enabled && jump_hud_speed && jump_hud_speed->integer;
 	const bool want_strafe = enabled && jump_hud_strafe && jump_hud_strafe->integer;
+
+	// The server draws its own strafe bar for everyone, including stock clients
+	// - it is the whole reason a new player has anything to learn from. When
+	// this overlay takes over, tell the server to stop drawing its version, or
+	// the same reading appears twice in two different shapes.
+	//
+	// Tracked by modified_count rather than by value, so it fires the first time
+	// the overlay runs as well as on every change. The command is idempotent, so
+	// a redundant send costs nothing.
+	if (jump_hud_strafe && jump_hud_strafe->modified_count != jump_strafe_told)
+	{
+		jump_strafe_told = jump_hud_strafe->modified_count;
+		cgi.AddCommandString(want_strafe ? "cmd strafebar 0\n" : "cmd strafebar 1\n");
+	}
 
 	// Clamped rather than trusted: a typo here would otherwise either freeze
 	// the reading or blank it.

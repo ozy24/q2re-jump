@@ -54,6 +54,13 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
+	// The strafe meter, accumulated per usercmd. The server sees every command
+	// rather than one per rendered frame, so this is a finer sample than the
+	// client half can take - it just has a coarser way of drawing the result.
+	jump::strafe_state_t   strafe;
+	jump::strafe_readout_t strafe_readout;
+	int64_t				   strafe_last_ms = 0;
+
 
 	// --- per map: the join gate ---
 	// Nobody enters the map until they have answered the join menu, and every
@@ -69,6 +76,10 @@ struct jump_client_t
 	bool        eyecam       = true; // MuffMode default: first-person spectator follow
 	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
 	bool        menu_hint_shown = false; // %bind:inven% hint printed once
+	// Whether the SERVER draws the strafe bar for this player. Players running
+	// the mod's own client turn it off and use the finer overlay instead; the
+	// client sends the command itself when its cvar changes.
+	bool        server_strafebar = true;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 
 	// Which scoreboard page the next send should build. Only meaningful while

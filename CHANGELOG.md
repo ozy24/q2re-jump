@@ -10,6 +10,21 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **The strafe meter is now drawn by the server, so every player gets one** — including anyone on
+  a stock, unmodified client, which is the whole point: it is the readout that teaches a new
+  player what strafe jumping actually is, and hiding it behind a download served nobody.
+
+  Read it backwards from what you might expect. The bar shows what you are **wasting**, so an
+  empty bar is a perfect strafe and the job is to burn the red down. That is forced rather than
+  chosen: the one token in the HUD language that can draw a variable-length bar only draws red,
+  and a full red bar had to mean something was wrong. `strafebar` turns it off.
+
+  Players running the mod's own DLL still get the finer client-side version by setting
+  `jump_hud_strafe` — their client tells the server to stop drawing its own, so nobody ends up
+  with two.
+
 ## [0.5.0] - 2026-08-07
 
 ### Added

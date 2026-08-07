@@ -94,24 +94,26 @@ prints.
 - The **server statusbar carries everything needed to _play_** — timer, checkpoints, stores, team,
   PB, time remaining. A stock client can be shown that and nothing else, and nobody should need a
   download to race.
-- The **client overlay carries everything about playing _better_** — speedometer and strafe meter
-  today; key display and per-jump readouts next.
+- The **client overlay carries what the bar cannot draw well enough** — the speedometer today, and
+  a finer version of the strafe meter for players who install the DLL.
 
-Draw the line there rather than at "can a layout express it?", and be accurate about why, because
-the tempting reason is wrong. The server has the **data** for all of it: `Jump_ClientThink` is
-handed the `usercmd_t`, so button state, movement axes and the pre-move velocity are all available,
-and the server sees every command rather than one per rendered frame. What it lacks is a way to
-**draw** it. A layout script can show a live value only as the HUD's 16×24 number pics or as a pic
-selected by stat — and the key icons that second option needs are art that does not ship with
-Quake II. The single exception is the `health_bars` token (`g_statusbar.h`), which does draw a
-variable-length bar from a stat, but fixed red-on-grey, half the screen wide, in pairs, with a
-name string above it.
+Be accurate about why, because the tempting reason is wrong and cost this mod three round trips.
+The server is not short of **data**: `Jump_ClientThink` is handed the `usercmd_t` before pmove
+runs, so button state, movement axes and the pre-move velocity are all there — and it sees *every*
+command rather than one per rendered frame, which makes it a **better** sampler than the client
+half, not a worse one. The strafe meter's maths is exact on the server for precisely that reason.
 
-So the real constraint is the drawing vocabulary, not the data — and it still lands in the same
-place, because performance readouts want small text, arbitrary colour and frame-rate resolution.
-The speedometer was built server-side first and then moved: splitting one readout away from the
-rest leaves the tooling half in one place and half in the other, and a HUD assembled from two
-philosophies reads like an accident.
+What the server lacks is a way to **draw**. The layout language shows a live value in only three
+shapes: the HUD's 16×24 number pics (`num`), a pic chosen by stat (`pic` — needs art that does not
+ship with Quake II), and a variable-length bar via the `health_bars` token. That last one is the
+one to remember, because it is easy to miss and it is what makes a server-side strafe bar possible
+at all. Its terms are not negotiable: red fill on grey, roughly half the screen wide, horizontally
+centred, drawn one text line below a caption it takes from `CONFIG_HEALTH_BAR_NAME`, with only the
+cursor's y under your control.
+
+So the rule is: **if the bar can draw it at all, it goes on the bar**, because that reaches every
+player. The overlay is for what the bar genuinely cannot render well — a speed number in small
+text, or a finer strafe reading for players who chose to install the file.
 
 The consequence to accept, not fix: a stock client has no speedometer. That is the price of the
 line being clean, and the answer is that the DLL is a download away.
@@ -120,13 +122,12 @@ The overlay defaults **on** (`jump_hud 1`) — installing the file *is* the opt-
 already sends everything a run needs. `jump_hud 0` gives the exact stock-client view, which is
 worth keeping for checking what players actually see.
 
-The test for putting something here rather than on the status bar is **how often it changes**, not
-whether a layout could express it. The finish delta lived here for a while as "the one thing no
-layout token can subtract" — but it describes a single moment, so it ended up in the "Finished in…"
-centerprint, where it costs nothing, reaches everyone, and disappears with the message it belongs
-to. Ask what an element is *about* before asking how to draw it: something about one moment is a
-message, something about your state is a bar element, and only something that changes faster than a
-player can read belongs in the overlay.
+Two questions decide where a new element goes, in this order. **What is it about?** Something about
+a single moment is a message — the finish delta lived in the overlay for a while as "the one thing
+no layout token can subtract", then on the bar, before landing in the "Finished in…" centerprint
+where it costs nothing and leaves with the message it belongs to. Something about your ongoing state
+is a bar element. **Then: can the bar draw it?** If yes it goes there, because every player sees it,
+and the reason for the mod existing is not served by hiding the teaching tools behind a download.
 
 The strafe meter is the element that *passed* the test the next two failed. It answers a question
 the number cannot — *was that the best angle available?* — rather than restating one it already

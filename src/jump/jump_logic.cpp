@@ -738,32 +738,13 @@ void strafe_state_t::Reset()
 	have_last = false;
 }
 
-strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms)
+strafe_readout_t strafe_state_t::Add(const strafe_frame_t &frame, bool usable, uint64_t dt_ms,
+									 uint64_t tau_ms)
 {
 	strafe_readout_t out;
 
-	const move_sample_t *now = ring.Get(1);
-
-	if (!now)
-	{
-		Reset();
-		return out;
-	}
-
-	// A teleport or a recall must not be averaged across.
-	if (now->discontinuity)
-		Reset();
-
-	uint64_t dt_ms = 0;
-
-	if (have_last && now->time_ms > last_time_ms)
-		dt_ms = now->time_ms - last_time_ms;
-
 	if (dt_ms > 2000)
 		dt_ms = 2000;
-
-	last_time_ms = now->time_ms;
-	have_last = true;
 
 	if (tau_ms == 0)
 		tau_ms = 1;
@@ -774,30 +755,19 @@ strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms
 	taken = (float) (taken * decay);
 	signed_loss = (float) (signed_loss * decay);
 
-	const strafe_frame_kind_t kind = ClassifyStrafeFrame(*now);
-
-	if (kind == strafe_frame_kind_t::usable)
+	if (usable && frame.opportunity)
 	{
-		const float vel[2] = { now->vel_before[0], now->vel_before[1] };
+		// Clamped at zero rather than allowed negative, so one frame of
+		// accelerating backwards reads as a zero rather than cancelling out
+		// a good frame either side of it.
+		const float got = frame.gain > 0.f ? frame.gain : 0.f;
 
-		const strafe_frame_t frame =
-			StrafeFrame(vel, now->view_pitch, now->view_yaw, now->view_roll, now->forwardmove,
-						now->sidemove, now->msec / 1000.f, now->ducked, now->air_accel);
+		weight += frame.gain_max;
+		taken += got;
+		signed_loss += (frame.over_turning ? 1.f : -1.f) * (frame.gain_max - got);
 
-		if (frame.opportunity)
-		{
-			// Clamped at zero rather than allowed negative, so one frame of
-			// accelerating backwards reads as a zero rather than cancelling out
-			// a good frame either side of it.
-			const float got = frame.gain > 0.f ? frame.gain : 0.f;
-
-			weight += frame.gain_max;
-			taken += got;
-			signed_loss += (frame.over_turning ? 1.f : -1.f) * (frame.gain_max - got);
-
-			out.frame = got / frame.gain_max;
-			out.opportunity = true;
-		}
+		out.frame = got / frame.gain_max;
+		out.opportunity = true;
 	}
 
 	if (weight > STRAFE_MIN_WEIGHT)
@@ -817,6 +787,68 @@ strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms
 	}
 
 	return out;
+}
+
+strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms)
+{
+	const move_sample_t *now = ring.Get(1);
+
+	if (!now)
+	{
+		Reset();
+		return {};
+	}
+
+	// A teleport or a recall must not be averaged across.
+	if (now->discontinuity)
+		Reset();
+
+	uint64_t dt_ms = 0;
+
+	if (have_last && now->time_ms > last_time_ms)
+		dt_ms = now->time_ms - last_time_ms;
+
+	last_time_ms = now->time_ms;
+	have_last = true;
+
+	const bool usable = ClassifyStrafeFrame(*now) == strafe_frame_kind_t::usable;
+
+	strafe_frame_t frame;
+
+	if (usable)
+	{
+		const float vel[2] = { now->vel_before[0], now->vel_before[1] };
+
+		frame = StrafeFrame(vel, now->view_pitch, now->view_yaw, now->view_roll, now->forwardmove,
+							now->sidemove, now->msec / 1000.f, now->ducked, now->air_accel);
+	}
+
+	return Add(frame, usable, dt_ms, tau_ms);
+}
+
+uint8_t StrafeHealthBarByte(const strafe_readout_t &readout)
+{
+	if (!readout.valid)
+		return 0; // bit 7 clear: the token draws nothing at all
+
+	float loss = 1.f - readout.efficiency;
+
+	if (loss < 0.f)
+		loss = 0.f;
+	if (loss > 1.f)
+		loss = 1.f;
+
+	// 1 rather than 0 for a perfect strafe, so the element stays on screen at
+	// its lowest reading instead of vanishing - a bar that disappears when you
+	// get it right teaches the wrong lesson.
+	int fill = (int) (loss * 127.f + 0.5f);
+
+	if (fill < 1)
+		fill = 1;
+	if (fill > 127)
+		fill = 127;
+
+	return (uint8_t) (0x80 | fill);
 }
 
 bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)

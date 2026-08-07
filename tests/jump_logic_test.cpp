@@ -966,6 +966,36 @@ static void TestStrafeState()
 	CHECK(Near(slow_out.efficiency, fast_out.efficiency, 0.02f));
 }
 
+static void TestStrafeHealthBarByte()
+{
+	jump::strafe_readout_t out;
+
+	// Nothing measured: bit 7 clear, so the token draws nothing at all.
+	CHECK(jump::StrafeHealthBarByte(out) == 0);
+
+	out.valid = true;
+
+	// The fill is WASTE, not efficiency - the token only draws red, and a full
+	// red bar has to mean something is wrong.
+	out.efficiency = 0.f;
+	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 127));
+
+	out.efficiency = 0.5f;
+	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 64));
+
+	// A perfect strafe still shows one pixel rather than vanishing: an element
+	// that disappears when you get it right teaches the wrong lesson.
+	out.efficiency = 1.f;
+	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 1));
+
+	// Out-of-range input cannot escape the 7 bits or clear the visible flag.
+	out.efficiency = 2.f;
+	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 1));
+
+	out.efficiency = -1.f;
+	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 127));
+}
+
 int main()
 {
 	TestFormatTime();
@@ -987,6 +1017,7 @@ int main()
 	TestStrafeFrame();
 	TestClassifyStrafeFrame();
 	TestStrafeState();
+	TestStrafeHealthBarByte();
 	TestRecords();
 	TestJumpersPolicy();
 	TestSortPlayerRows();

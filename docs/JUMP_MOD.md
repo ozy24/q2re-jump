@@ -39,6 +39,7 @@ lobby, so everything below is a console command.
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
 | `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
+| `strafebar` | Show/hide the strafe meter |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -192,19 +193,26 @@ instantaneous speed, only sampled less often.
 
 ### The strafe meter
 
-A small bar under the speedometer showing **how much of the acceleration that
-was available to you, you actually took**. This is the one thing the speed
-number cannot tell you: it says where you ended up, not whether the input that
-got you there was any good. At 400 ups the difference between a 43° strafe and a
-45° one is the difference between capturing everything on offer and capturing
-none of it, and nothing else on screen shows that.
+A bar showing **how much of the acceleration that was available to you, you are
+wasting**. This is the one thing the speed number cannot tell you: it says where
+you ended up, not whether the input that got you there was any good. At 400 ups
+the difference between a 43° strafe and a 45° one is the difference between
+capturing everything on offer and capturing none of it, and nothing else on
+screen shows that.
 
-It comes in two forms. The default, `jump_hud_strafe 1`, is a plain 0-100% bar
-filling from the left with a mark at 90% to aim for — one thing moving, always
-the same way. `jump_hud_strafe 2` is **centre-anchored** instead: the bar fills
-outward from the middle, so the side tells you which way to correct as well as
-how much you are losing. That is more information, at the cost of a bar that
-changes direction. Both read the same number.
+**Everyone gets it, including players on a stock client** — it is drawn by the
+server. Read it backwards from what you might expect: the bar shows what you are
+**losing**, so an empty bar is a perfect strafe and the instruction is to burn
+the red down. That is not a stylistic choice; the only bar the layout language
+can draw is red, and a full red bar had to mean something was wrong.
+
+`strafebar` turns it off if you would rather not see it.
+
+If you are running the mod's own DLL you can have a finer version instead:
+`jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or
+`jump_hud_strafe 2` for a centre-anchored one where the side you are on tells
+you which way to correct. Either replaces the server's bar automatically — your
+client tells the server to stop drawing it, so you never get both.
 
 Four things worth knowing:
 
@@ -532,7 +540,7 @@ any change to the entity contract.
 | `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view |
 | `jump_hud_speed` | `0` | **Client-side.** The speedometer |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
-| `jump_hud_strafe` | `0` | **Client-side.** Strafe meter: `1` a plain 0-100% bar, `2` centre-anchored |
+| `jump_hud_strafe` | `0` | **Client-side.** Replaces the server's strafe bar with a finer one: `1` a plain 0-100% bar, `2` centre-anchored |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
 
 ### Map rotation and the vote pool

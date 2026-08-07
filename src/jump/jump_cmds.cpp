@@ -22,6 +22,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  ranks          points for everyone connected\n"
 					"  maplist        maps in the rotation\n"
 					"  msets          settings in force on this map\n"
+					"  strafebar      show/hide the strafe meter\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -179,6 +180,22 @@ bool Jump_ClientCommand(edict_t *ent)
 	// keeps setting on `sv jump_mset` (console/rcon), so answer the question the
 	// player was actually asking rather than letting it fall through to the
 	// engine's "invalid game command".
+	// Sent automatically by the mod's own client when its overlay cvar changes,
+	// so a player running the DLL never gets both bars at once. Typeable too,
+	// which is the fallback if that ever fails to arrive.
+	if (!Q_strcasecmp(cmd, "strafebar"))
+	{
+		jump_client_t *jc = Jump_ClientData(ent);
+
+		if (!jc)
+			return true;
+
+		jc->server_strafebar = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_strafebar;
+
+		gi.Client_Print(ent, PRINT_HIGH, jc->server_strafebar ? "Strafe bar on.\n" : "Strafe bar off.\n");
+		return true;
+	}
+
 	if (!Q_strcasecmp(cmd, "msets") || !Q_strcasecmp(cmd, "mset"))
 	{
 		Jump_CmdMsets(ent, !Q_strcasecmp(cmd, "mset"));

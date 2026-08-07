@@ -502,8 +502,25 @@ struct strafe_state_t
 
 	void Reset();
 
+	// Fold one command's accounting in. `dt_ms` is the time since the last one,
+	// which sets how much the running totals decay - so a gap in sampling fades
+	// the reading rather than freezing it.
+	//
+	// Both halves of the mod come through here: the client builds a frame from
+	// its per-rendered-frame samples, the server from each usercmd it is handed.
+	// That is why it takes a frame rather than a ring.
+	strafe_readout_t Add(const strafe_frame_t &frame, bool usable, uint64_t dt_ms,
+						 uint64_t tau_ms = STRAFE_TAU_MS);
+
+	// The client path: build the frame from the newest sample in the ring.
 	strafe_readout_t Update(const move_ring_t &ring, uint64_t tau_ms = STRAFE_TAU_MS);
 };
+
+// The efficiency as the statusbar's health-bar byte: bit 7 marks it visible,
+// bits 0-6 are a 0-127 fill. Inverted deliberately - the fill shows what you
+// are WASTING, because that token only ever draws red, and a full red bar has
+// to mean something is wrong. Empty is a perfect strafe.
+uint8_t StrafeHealthBarByte(const strafe_readout_t &readout);
 
 // ---------------------------------------------------------------------------
 // jumpers visibility / audio policy (engine-free)

@@ -102,6 +102,12 @@ void Jump_InitLevel(const char *entities)
 	{
 		jump_level.sound_pb = gi.soundindex("misc/secret.wav");
 		jump_level.sound_record = gi.soundindex("ctf/flagcap.wav");
+
+		// The strafe bar's caption, which the health_bars token draws from this
+		// configstring and nowhere else. Set once per level rather than per
+		// frame - and it needs saying, because a bar that grows as you get
+		// worse is not what anyone assumes on first sight.
+		gi.configstring(CONFIG_HEALTH_BAR_NAME, "strafe waste");
 	}
 
 	Jump_InvalidateCheckpointTotal();
