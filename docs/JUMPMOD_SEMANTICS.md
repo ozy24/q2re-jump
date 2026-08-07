@@ -268,6 +268,32 @@ resets to ON.
 
 **Race** — replays a stored run as a "spark" ghost with a configurable 0–10 s head start.
 
+**Speedometer** — a four-digit `num` with a "Speed" label, bottom centre-right, gated on the stat
+so 0 hides it. Both mods compute it every server frame from `(vx, vy, 0)` — vertical excluded —
+and cast the length to an int.
+- A: `STAT_JUMP_SPEED_MAX` (`g_ctf.h:38`, slot 7) — **the name is vestigial**. `g_ctf.c:1226`
+  publishes `resp.cur_speed`; the real `resp.max_speed` tracking in `p_view.c:1089-1099` is never
+  networked, and `changelog.txt:319` records the switch from top speed to current. Players on a
+  team only; spectators get 0. No toggle beyond the blanket `cleanhud`.
+- B: `STAT_JUMP_SPEED` (`jump_hud.h:31`, slot 19), layout at `jump_hud.cpp:173-181`, value at
+  `jump_hud.cpp:478-546`. Live players and chase viewers get the raw XY speed; free spectators get
+  0; replay viewers get speed derived from a 10-frame position delta with a ±10 ups hysteresis.
+
+**Port decision:** match both — XY only, truncated to an int, same anchors, 0 hides. Chasing shows
+the followed player's speed, which comes free from `G_CheckChaseStats`' bulk stats copy; free
+spectators get 0. B's ±10 hysteresis is **not** ported: it exists only on its replay path, where
+speed is inferred from positions, and this port has no replay system. Two things are new rather
+than ported. The value is clamped to 9999, because KEX's `num` token truncates an over-wide value
+to its *leading* digits and an unclamped 12345 would draw a believable 1234. And the stat lives at
+index 54 rather than in the CTF block, which is full.
+
+**Movement overlay** — **new, not a port.** Neither mod shows peak speed or a gain/loss figure;
+A's `showjumps` (`p_client.c:2308-2331`) prints a per-jump distance and its delta as chat text, and
+both mods' real technique feedback is the key-state HUD plus watching replays. This port draws
+peak-of-jump and a signed trend client-side (`jump_cg_move.cpp`, `jump_hud_draw.cpp`), sampled from
+the client's own prediction rather than sent by the server, so it costs no stat and no bandwidth —
+and, unlike upstream's, it is opt-in and invisible to everyone else.
+
 **Health/ammo** — B forces 1000 health and 1000 ammo everywhere. A uses msets `health` (400) and
 `regen` (100).
 

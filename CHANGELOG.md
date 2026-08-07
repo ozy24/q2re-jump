@@ -12,6 +12,21 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **A speedometer on the HUD**, bottom centre-right, in units per second. Everyone gets it,
+  including players on a stock unmodified client, because the server draws it as part of the
+  status bar. It measures horizontal speed only — the way both upstream jump mods measure it,
+  and the way maps' own speed gates measure it — so it tracks the strafing that actually earns
+  distance instead of spiking every time you jump or fall. Following another player shows their
+  speed; free-flying spectators see nothing. It hides itself when you are standing still.
+
+- **A movement overlay for anyone running the mod's own client**, off by default and enabled
+  with `jump_hud 1`. It adds the best speed of your current jump above the speedometer and a
+  signed figure showing whether you are gaining or losing it — the two things a status bar
+  cannot draw. Both are sampled from the client's own prediction every rendered frame, so they
+  are finer-grained than anything the server could send, and cost no network traffic at all. A
+  bunny-hop chain keeps its peak across hops; standing still, teleports and recalls clear it.
+  `jump_hud_speed 0` trims it back to the shared view without turning the whole overlay off.
+
 - **The map's time remaining is now on the HUD**, at the foot of the right-hand column above
   your PB, instead of only on the scoreboard. It updates itself on the client, so it costs
   nothing per frame, and it re-syncs immediately when a `timeextend` vote passes or the

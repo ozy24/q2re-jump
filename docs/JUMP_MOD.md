@@ -158,6 +158,27 @@ Two pages rather than one board because the engine caps a scoreboard message at
 [the byte budget](#scoreboard-byte-budget) below. Use `maptimes` for the full
 records list and `ranks` for everyone's points.
 
+### The speedometer
+
+A four-digit readout sits at the bottom of the screen, centre-right, showing how
+fast you are moving in units per second. It hides itself when you are standing
+still.
+
+It measures **horizontal speed only** — vertical movement is excluded. That is
+how both upstream jump mods measure it, and it is the number that matters:
+strafe jumping is horizontal acceleration, a reading that included the vertical
+component would spike on every jump and every fall, and the speed gates some
+maps put on a teleporter or a push compare against the horizontal figure too. A
+HUD that disagreed with the gate would be worse than no HUD.
+
+Everyone sees it, including players on a stock client, because the server draws
+it as part of the status bar. Following another player shows *their* speed;
+free-flying spectators see nothing, since a camera's speed is not a jump.
+
+If you are running this DLL yourself, `jump_hud 1` adds the best speed of your
+current jump above the number, with a signed figure showing whether you are
+gaining or losing it — see [the client-side overlay](#the-client-side-overlay).
+
 ### Finishing
 
 Touching any weapon finishes the run, as does a `trigger_finish` or
@@ -199,13 +220,28 @@ Movement matters just as much. Prediction runs through `Pmove` in the client, an
 no pmove changes at all, so a stock client predicts identically to the server. That is the real
 payoff of building on rerelease physics rather than emulating the old engine.
 
-So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best — plus every
-message and the times board. The single thing they miss is the coloured delta against their
-personal best after a finish, which is drawn client-side.
+So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, speed — plus
+every message and the times board. What they miss is the client-side overlay described below.
 
-**That client-side element is off by default**, so out of the box you see exactly what everyone
-else sees — which is the useful default when you are hosting. `jump_hud 1` opts in to the delta;
-`jump_hud 0` returns to the shared view. The setting is archived, so it persists.
+### The client-side overlay
+
+Two things a layout script cannot express are drawn by the client instead: the coloured delta
+against your personal best after a finish, and — sitting on top of the speedometer, never instead
+of it — the best speed of the current jump with a signed gain/loss figure beside it.
+
+Both come from movement the client samples every rendered frame, out of its own prediction, so they
+are smoother and finer-grained than anything the server could send at the tick rate. Nothing is
+sent over the network for them.
+
+**The overlay is off by default**, so out of the box you see exactly what everyone else sees —
+which is the useful default when you are hosting.
+
+| Cvar | Default | Effect |
+|---|---|---|
+| `jump_hud` | `0` | Master switch for the client overlay |
+| `jump_hud_speed` | `1` | Peak speed and the gain/loss figure (needs `jump_hud 1`) |
+
+Both are archived, so they persist. With `jump_hud 0` nothing is sampled at all.
 
 ### Scoreboard byte budget
 

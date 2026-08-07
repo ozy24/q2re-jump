@@ -81,18 +81,28 @@ savegame reflection tables in `g_save.cpp`. Keep it that way.
 
 ### One DLL, two halves — and why the client half is tiny
 
-The DLL exports both the game (`GetGameAPI`) and the cgame (`GetCGameAPI`). **`jump_hud_draw.cpp`
-is the only client-side file**, hooked with two lines in `cg_screen.cpp`.
+The DLL exports both the game (`GetGameAPI`) and the cgame (`GetCGameAPI`). The client half is
+**`jump_hud_draw.cpp`** (the overlay) and **`jump_cg_move.cpp`** (movement sampling), hooked with
+two lines in `cg_screen.cpp` and two in `cg_main.cpp`.
 
 This matters: a player on **stock, unmodified Q2RE can join and play**. Everything the mod sends is
 stock protocol — the `CS_STATUSBAR` layout script, `svc_layout`, `CS_PLAYERSKINS`, and ordinary
 prints. So the server-authored statusbar must carry the whole HUD (timer, checkpoints, stores,
-team, PB); the cgame overlay adds only what a layout script cannot express, and defaults **off**
-(`jump_hud 0`) so the host sees what everyone else sees.
+team, PB, speed); the cgame overlay adds only what a layout script cannot express, and defaults
+**off** (`jump_hud 0`) so the host sees what everyone else sees.
 
 **Never add pmove changes.** `p_move.cpp` and `bg_local.h` are untouched by design, which is what
 keeps a stock client's prediction identical to the server. Classic 125fps feel is explicitly out
 of scope.
+
+`jump_cg_move.cpp` wraps the cgame's `Pmove` export so the overlay can see the predicted velocity
+and the raw `usercmd_t` — the server snapshot has neither at frame rate. That wrapper is
+**observation only**: it must always call `Pmove` with an untouched `pmove_t`, or a stock client's
+prediction and the host's diverge and the paragraph above stops being true. The server does not go
+through it at all — `p_client.cpp` calls `Pmove` directly. Note also that prediction *replays*
+every unacknowledged command each client frame, so the wrapper only overwrites a scratch struct and
+the ring is appended once per rendered frame; anything that counts or accumulates inside the
+wrapper will count the same movement several times.
 
 ### Engine-free logic layer
 
@@ -106,8 +116,12 @@ The stat table is full, so jump reuses the CTF block (18–31), aliased in `jump
 because `Jump_Init()` forces `ctf`/`teamplay` off and `Jump_SetStats()` runs *after* `SetCTFStats()`
 in `G_SetStats`. **Slot 27 (`STAT_CTF_TECH`) must stay unused** — the stock statusbar draws a pic
 from it in every deathmatch game, so a value there renders as an arbitrary image. All 13 usable
-slots (18–31 less 27) are now taken. Indices 54–63 are genuinely free (`STAT_LAST` is 54) if a new
-one is ever needed — the CTF block is a convention here, not the only room left.
+slots (18–31 less 27) are taken, so **the CTF block is closed** — new stats go in 54–63, which are
+genuinely free (`STAT_LAST` is 54, `MAX_STATS` is 64). `JUMP_STAT_SPEED` took 54; 55–63 remain.
+That range is **ten slots, not eleven**: `bg_local.h`'s own `static_assert(STAT_LAST <= MAX_STATS +
+1)` is off by one and would wave through index 64, one past the end of the array. It is also safer
+ground than the CTF block — nothing reads 54–63, whereas 27's problem is precisely that the stock
+statusbar reads it.
 
 Personal best is the one exception to "one stat per digit": it changes only on a new PB, not every
 frame, so it is a `stat_string` (`JUMP_STAT_PB_STRING`) pointing at a per-client configstring
