@@ -97,11 +97,19 @@ prints.
 - The **client overlay carries everything about playing _better_** — speedometer and strafe meter
   today; key display and per-jump readouts next.
 
-Draw the line there rather than at "can a layout express it?", because most performance tooling
-genuinely cannot go server-side: a strafe meter needs the `usercmd_t`, a key display needs button
-state, a per-jump readout needs the ground edge at frame resolution. Only the speedometer could
-have gone either way — it is one live integer, which is exactly what a `num` token draws. It was
-built server-side first and then moved, because splitting one performance readout away from the
+Draw the line there rather than at "can a layout express it?", and be accurate about why, because
+the tempting reason is wrong. The server has the **data** for all of it: `Jump_ClientThink` is
+handed the `usercmd_t`, so button state, movement axes and the pre-move velocity are all available,
+and the server sees every command rather than one per rendered frame. What it lacks is a way to
+**draw** it. A layout script can show a live value only as the HUD's 16×24 number pics or as a pic
+selected by stat — and the key icons that second option needs are art that does not ship with
+Quake II. The single exception is the `health_bars` token (`g_statusbar.h`), which does draw a
+variable-length bar from a stat, but fixed red-on-grey, half the screen wide, in pairs, with a
+name string above it.
+
+So the real constraint is the drawing vocabulary, not the data — and it still lands in the same
+place, because performance readouts want small text, arbitrary colour and frame-rate resolution.
+The speedometer was built server-side first and then moved: splitting one readout away from the
 rest leaves the tooling half in one place and half in the other, and a HUD assembled from two
 philosophies reads like an accident.
 

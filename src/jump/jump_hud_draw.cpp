@@ -6,12 +6,21 @@
 // (Jump_InitStatusbar) carries everything needed to PLAY - timer, checkpoints,
 // stores, team, personal best, time remaining - because a stock client can be
 // shown that and nothing else, and nobody should need a download to race. This
-// file carries everything about playing BETTER, and it lives here because most
-// of it could not live anywhere else: a strafe meter needs the usercmd, a key
-// display needs button state, a per-jump readout needs the ground edge at frame
-// resolution. None of that reaches a layout script. The speedometer alone could
-// have gone server-side, but splitting one performance readout away from the
-// rest would leave the HUD half in one place and half in the other.
+// file carries everything about playing BETTER.
+//
+// Be precise about why, because the obvious reason is wrong: the server has the
+// DATA for all of it. Jump_ClientThink is handed the usercmd, so button state,
+// movement axes and the pre-move velocity are all right there, and the server
+// sees every command rather than one per rendered frame. What the server lacks
+// is a way to DRAW it. A layout script can put a live value on screen only as
+// the HUD's chunky number pics, or as a pic chosen by stat - and the key icons
+// that would need are art nobody ships. The one exception is the `health_bars`
+// token, which does draw a variable-length bar from a stat, but only red on
+// grey at half the screen width with a name string above it.
+//
+// So the split is a drawing-vocabulary limit dressed up as an architectural
+// one, and it holds anyway: performance readouts want small text, arbitrary
+// colour and frame-rate resolution, and that is this side of the line.
 //
 // So: a stock client gets a complete, playable HUD. Downloading this DLL is
 // what adds the tooling, and the tooling is all here.
@@ -58,7 +67,10 @@ void Jump_InitClientCvars()
 	// stock-client view, which is worth having for checking what players see.
 	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
 
-	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
+	// Both readouts default OFF. Installing the DLL opts you into the overlay
+	// existing; it does not decide that you want a speedometer and a strafe bar
+	// on screen. Turn on what you actually want to look at.
+	jump_hud_speed = cgi.cvar("jump_hud_speed", "0", CVAR_ARCHIVE);
 
 	// How often the speed reading is replaced, in Hz. 40 is the rerelease's
 	// server frame rate. Both upstream mods ran on a 10 Hz server and so
@@ -68,12 +80,15 @@ void Jump_InitClientCvars()
 	// exact instantaneous speed, only sampled less often.
 	jump_hud_speed_hz = cgi.cvar("jump_hud_speed_hz", "40", CVAR_ARCHIVE);
 
-	// The strafe meter: 0 off, 1 a plain 0-100% bar, 2 centre-anchored. 2 is
-	// the default because a bar that only shows magnitude tells you that you
-	// are losing speed but not which way to correct, and the penalty is
-	// lopsided - a shallow strafe still captures most of what is available
-	// while a fractionally steep one captures none of it.
-	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "2", CVAR_ARCHIVE);
+	// The strafe meter: 0 off, 1 a plain 0-100% bar, 2 centre-anchored.
+	//
+	// 1 is the calmer of the two - one thing moving, always in the same
+	// direction, next to a number you are already reading. 2 adds which WAY you
+	// are wrong, which is genuinely more information: the penalty is lopsided,
+	// since a shallow strafe still captures most of what was available while a
+	// fractionally steep one captures none of it. It also swaps sides, and a bar
+	// that changes direction is a second thing to track.
+	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "0", CVAR_ARCHIVE);
 
 	// How long the reading remembers, in ms. Roughly one airtime. The raw
 	// per-frame value is unreadable; this is what makes it a meter rather than

@@ -199,11 +199,12 @@ got you there was any good. At 400 ups the difference between a 43° strafe and 
 45° one is the difference between capturing everything on offer and capturing
 none of it, and nothing else on screen shows that.
 
-It comes in two forms — `jump_hud_strafe 2` (the default) is **centre-anchored**:
-the bar fills outward from the middle, so the side tells you which way to
-correct and the distance tells you how much you are losing. `jump_hud_strafe 1`
-is a plain 0-100% bar filling from the left with a mark at 90%, if you find the
-signed version busy. Both read the same number.
+It comes in two forms. The default, `jump_hud_strafe 1`, is a plain 0-100% bar
+filling from the left with a mark at 90% to aim for — one thing moving, always
+the same way. `jump_hud_strafe 2` is **centre-anchored** instead: the bar fills
+outward from the middle, so the side tells you which way to correct as well as
+how much you are losing. That is more information, at the cost of a bar that
+changes direction. Both read the same number.
 
 Four things worth knowing:
 
@@ -525,9 +526,9 @@ any change to the entity contract.
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
 | `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view |
-| `jump_hud_speed` | `1` | **Client-side.** The speedometer within it |
+| `jump_hud_speed` | `0` | **Client-side.** The speedometer |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
-| `jump_hud_strafe` | `2` | **Client-side.** Strafe meter: `0` off, `1` a plain 0-100% bar, `2` centre-anchored |
+| `jump_hud_strafe` | `0` | **Client-side.** Strafe meter: `1` a plain 0-100% bar, `2` centre-anchored |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
 
 ### Map rotation and the vote pool

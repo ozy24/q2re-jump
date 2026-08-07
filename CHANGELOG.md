@@ -40,8 +40,9 @@ released — see [docs/release-process.md](docs/release-process.md).
   good. At 400 ups the difference between a 43° strafe and a 45° one is the difference between
   taking everything on offer and taking none of it.
 
-  Two forms: centre-anchored by default, so the side tells you which way to correct and the
-  distance tells you how much you are losing, or a plain 0-100% bar with `jump_hud_strafe 1`.
+  Two forms: a plain 0-100% bar by default, or `jump_hud_strafe 2` for a centre-anchored one that
+  fills outward from the middle, so the side tells you which way to correct as well as how much
+  you are losing.
 
   It is derived from the game's own acceleration maths rather than estimated, including the rule
   that pmove divides your view pitch by three before working out which way you are trying to go —
