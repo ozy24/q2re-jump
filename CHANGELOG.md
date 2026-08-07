@@ -12,26 +12,32 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
-- **A speedometer on the HUD**, centred just above the bottom of the screen, in units per
-  second — where you can read it mid-jump without looking away from the map. It measures
-  horizontal speed only — the way both upstream jump mods measure it, and the way maps' own
-  speed gates measure it — so it tracks the strafing that actually earns distance instead of
-  spiking every time you jump or fall. Following another player shows their speed; free-flying
-  spectators see nothing. It hides itself when you are standing still.
+- **A speedometer**, centred just above the bottom of the screen, in units per second — where
+  you can read it mid-jump without looking away from the map. It measures horizontal speed only,
+  the way both upstream jump mods measure it and the way maps' own speed gates measure it, so it
+  tracks the strafing that actually earns distance instead of spiking every time you jump or
+  fall. Following another player shows their speed; free-flying spectators see nothing. It hides
+  itself at rest, and carries no caption — both upstream mods label theirs "Speed", which at
+  rerelease resolutions is a word you read once and never again.
 
-  It carries no caption: both upstream mods label theirs "Speed", which at rerelease resolutions
-  is a word you read once and then never again. `jump_speedometer 0` hides it for everyone.
+  The reading is replaced forty times a second by default, matching the server frame rate. Both
+  upstream mods ran on a 10 Hz server, so theirs changed ten times a second by construction, and
+  four digits are much easier to read at that rate: **`jump_hud_speed_hz 10`** gives you it.
+  That is a refresh rate rather than smoothing, so the number is always exact, just sampled less
+  often.
 
-  It updates every server frame by default — forty times a second. Both upstream mods ran on a
-  10 Hz server, so theirs changed ten times a second by construction, and four digits are much
-  easier to read at that rate: **`jump_speedometer_hz 10`** gives you it. That is a refresh
-  rate rather than smoothing, so the number shown is always exact, just sampled less often.
+  **It is drawn by this DLL's own client half, so it needs the DLL installed.** That is a
+  deliberate split: the server's status bar carries everything needed to *play*, so a stock
+  client can race with no download, and this DLL carries everything about playing *better*. Most
+  of that could not be server-side at any price — a strafe meter needs your movement keys, a key
+  display your buttons, a per-jump readout the exact frame you left the ground. The speedometer
+  was the one piece that could have gone either way, and keeping it with the rest is what stops
+  the performance HUD being half in one place and half in the other.
 
-- **A movement overlay for anyone running the mod's own client**, off by default and enabled
-  with `jump_hud 1`. On a server running `jump_speedometer 0` it draws the speed number itself,
-  in the rerelease's proportional font rather than the HUD's number pics — the two never draw at
-  once. It is sampled from the client's own prediction every rendered frame, so it is
-  finer-grained than anything the server could send, and costs no network traffic.
+- **The client half now samples your movement every rendered frame**, out of the game's own
+  prediction, which is what makes the readouts above finer-grained than anything the server
+  could send — and it costs no network traffic at all. `jump_hud 0` turns the whole overlay off
+  and gives you the exact view a stock client has.
 
 - **The map's time remaining is now on the HUD**, at the foot of the right-hand column under
   your PB, instead of only on the scoreboard. It updates itself on the client, so it costs

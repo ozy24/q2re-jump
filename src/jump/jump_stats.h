@@ -57,54 +57,17 @@ constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO; // 31: 1 while ju
 // the two in sync. Clients past this index just don't get a PB display.
 constexpr int JUMP_MAX_PB_STRING_CLIENTS = 64;
 
-// ---------------------------------------------------------------------------
-// Beyond the CTF block
-// ---------------------------------------------------------------------------
+// All 13 usable CTF slots (18-31 less 27) are taken, so the CTF block is closed.
+// New stats go in 54-63, which are genuinely free: STAT_LAST is 54
+// (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
+// nothing reads it either, which makes it safer ground than the CTF block,
+// where 27's problem is precisely that the stock statusbar reads it. All ten
+// are currently unused.
 //
-// All 13 usable CTF slots (18-31 less 27) are taken, so the speedometer takes
-// the first genuinely free index instead. STAT_LAST is 54 (bg_local.h) and
-// MAX_STATS is 64 (game.h), so 54-63 belong to nobody.
-//
-// That makes 54 strictly SAFER than any CTF slot: 27 is forbidden because the
-// stock statusbar draws a pic from it, whereas nothing anywhere reads 54 -
-// every stat CG_ExecuteLayoutString reads is either an index taken from our own
-// layout string or one of a fixed named set, all 53 or below.
-//
-// Horizontal speed in units per second, truncated and clamped to
-// jump::SPEED_STAT_MAX. The clamp is not cosmetic: the statusbar draws this in
-// a `num 4` field, and an over-wide value is truncated to its LEADING digits,
-// so an unclamped 12345 would read as a believable 1234. 0 means "hide", which
-// is what the ifstat gate in Jump_EmitStatusbar tests - and is the hook any
-// future per-player toggle would use, since CS_STATUSBAR is one shared
-// broadcast layout that cannot vary between clients.
-constexpr player_stat_t JUMP_STAT_SPEED = (player_stat_t) 54;
-
-// If an upstream merge ever grows STAT_LAST past 54, fail the build rather than
-// let two stats share a slot. The upper bound is MAX_STATS, not the upstream
-// static_assert in bg_local.h: that one allows STAT_LAST == MAX_STATS + 1,
-// which is one past the end of a 64-element array.
-static_assert((int) JUMP_STAT_SPEED >= (int) STAT_LAST, "jump stat overlaps an engine stat");
-static_assert((int) JUMP_STAT_SPEED < (int) MAX_STATS, "jump stat out of range");
-
-// The CTF block is closed. New stats go in 54-63; 54 is taken, 55-63 remain.
-
-// Where the statusbar puts the speedometer's digits: layout units up from the
-// bottom edge, the top of a 24-tall digit row. Shared with the cgame half
-// because the overlay's peak/trend line sits directly on top of that row, and
-// two copies of the number would drift apart the first time it moved.
-constexpr int JUMP_SPEED_DIGITS_YB = -104;
-
-// How long the cgame overlay holds a speed reading before replacing it, in ms.
-// 25 is one server frame at the rerelease's 40 Hz, which matches what the
-// statusbar does by default - without it the overlay would churn at the render
-// rate instead, which is faster still and unreadable.
-//
-// The statusbar's own cadence is the jump_speedometer_hz cvar rather than this,
-// since a server cvar is not visible over here. They agree at the default; a
-// host who slows the shared one down does not slow this one, but this one only
-// draws on a server that has turned the shared one off, so the two never
-// disagree on screen.
-constexpr int JUMP_SPEED_REFRESH_MS = 25;
+// Ten, not eleven: bg_local.h's own static_assert allows
+// STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past
+// the end of a 64-element array. Guard a new stat with `< MAX_STATS` rather
+// than trusting that one.
 
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;

@@ -79,7 +79,7 @@ Per-client state lives in `jump_clients[MAX_CLIENTS]` (a module global), **not**
 This is deliberate: new fields on `gclient_t` / `level_locals_t` need matching entries in the
 savegame reflection tables in `g_save.cpp`. Keep it that way.
 
-### One DLL, two halves — and why the client half is tiny
+### One DLL, two halves — play here, play better there
 
 The DLL exports both the game (`GetGameAPI`) and the cgame (`GetCGameAPI`). The client half is
 **`jump_hud_draw.cpp`** (the overlay) and **`jump_cg_move.cpp`** (movement sampling), hooked with
@@ -87,14 +87,30 @@ two lines in `cg_screen.cpp` and two in `cg_main.cpp`.
 
 This matters: a player on **stock, unmodified Q2RE can join and play**. Everything the mod sends is
 stock protocol — the `CS_STATUSBAR` layout script, `svc_layout`, `CS_PLAYERSKINS`, and ordinary
-prints. So the server-authored statusbar must carry the whole HUD (timer, checkpoints, stores,
-team, PB); the cgame overlay adds only what a layout script cannot express.
+prints.
 
-The overlay defaults **off** (`jump_hud 0`) so the host sees what everyone else sees. Treat the
-statusbar as the HUD and the overlay as the exception: a layout script can draw a live value only
-with the HUD's number pics, so anything a stock client should have must fit that vocabulary, and
-the overlay is for what genuinely cannot — currently the PB delta, which is a subtraction, and no
-layout token subtracts.
+**The line between the halves is what a player needs, not what a layout can technically do:**
+
+- The **server statusbar carries everything needed to _play_** — timer, checkpoints, stores, team,
+  PB, time remaining. A stock client can be shown that and nothing else, and nobody should need a
+  download to race.
+- The **client overlay carries everything about playing _better_** — speedometer today; strafe
+  meter, key display and per-jump readouts next.
+
+Draw the line there rather than at "can a layout express it?", because most performance tooling
+genuinely cannot go server-side: a strafe meter needs the `usercmd_t`, a key display needs button
+state, a per-jump readout needs the ground edge at frame resolution. Only the speedometer could
+have gone either way — it is one live integer, which is exactly what a `num` token draws. It was
+built server-side first and then moved, because splitting one performance readout away from the
+rest leaves the tooling half in one place and half in the other, and a HUD assembled from two
+philosophies reads like an accident.
+
+The consequence to accept, not fix: a stock client has no speedometer. That is the price of the
+line being clean, and the answer is that the DLL is a download away.
+
+The overlay defaults **on** (`jump_hud 1`) — installing the file *is* the opt-in, since the server
+already sends everything a run needs. `jump_hud 0` gives the exact stock-client view, which is
+worth keeping for checking what players actually see.
 
 Two overlay elements were built and then cut after seeing them in play: a peak-of-jump figure (a
 high-water mark, so stale the moment you stop matching it, and speed barely changes in flight so it
@@ -102,11 +118,6 @@ mostly restated the number below it) and a signed gain/loss figure (honest, but 
 moving next to a number you are trying to read). `jump::speed_state_t` still computes both, since
 the per-jump readouts that would replace them want the same ground-edge state. The lesson is worth
 keeping: an annotation has to answer a question the live number cannot, not restate it.
-
-The speedometer is the one element that exists on both sides, so note how they avoid drawing at
-once: `Jump_SetStats` zeroes `JUMP_STAT_SPEED` when `jump_speedometer` is off, and the overlay
-treats a zero stat as "the bar is not drawing a number, so I will". The stat doubles as the flag
-because the client cannot see a server cvar, and this needs no extra plumbing.
 
 **Never add pmove changes.** `p_move.cpp` and `bg_local.h` are untouched by design, which is what
 keeps a stock client's prediction identical to the server. Classic 125fps feel is explicitly out

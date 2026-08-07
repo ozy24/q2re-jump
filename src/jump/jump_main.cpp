@@ -17,8 +17,6 @@ cvar_t *jump_box_models;
 cvar_t *jump_data_dir;
 cvar_t *jump_records_max;
 cvar_t *jump_idle_time;
-cvar_t *jump_speedometer;
-cvar_t *jump_speedometer_hz;
 cvar_t *jump_map_pool;
 
 bool Jump_Active()
@@ -66,23 +64,6 @@ void Jump_Init()
 
 	// Seconds of no input before a player is moved to spectator; 0 disables.
 	jump_idle_time = gi.cvar("jump_idle_time", "300", CVAR_NOFLAGS);
-
-	// The status bar's speedometer. On by default, because it is the one every
-	// player sees - a layout script can only draw a live value with the HUD's
-	// number pics, so this is also the only speedometer a stock client can be
-	// shown. 0 hides it for everyone, which is the setting for a server whose
-	// players all run this DLL and use the client overlay's smaller one.
-	jump_speedometer = gi.cvar("jump_speedometer", "1", CVAR_NOFLAGS);
-
-	// How often the speedometer reading is replaced, in Hz. 40 is the
-	// rerelease's server frame rate, so the default is "every frame" - the
-	// native behaviour, and the one to leave alone unless you dislike it.
-	//
-	// Both upstream mods ran on a 10 Hz server, so theirs changed ten times a
-	// second by construction rather than by choice; `jump_speedometer_hz 10`
-	// is that cadence, and four digits are markedly easier to read at it.
-	// Anything at or above the tick rate is every frame; 0 or less likewise.
-	jump_speedometer_hz = gi.cvar("jump_speedometer_hz", "40", CVAR_NOFLAGS);
 
 	// Maps that can be voted for but are not in the rotation. Same format as
 	// the engine's g_map_list: whitespace separated map names.

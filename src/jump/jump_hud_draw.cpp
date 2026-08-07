@@ -1,21 +1,20 @@
 // [Jump] cgame-side HUD overlay.
 //
-// This is the client half of the mod, and it is deliberately small. A stock
-// client that connects to a jump server never runs it and still gets a complete
-// HUD, because the timer, checkpoints, stores, team, personal best and speed
-// are all drawn by the server-authored statusbar (Jump_InitStatusbar) using
-// only tokens the stock layout interpreter understands.
+// This is the client half of the mod, and it draws the performance HUD.
 //
-// So this file must NOT repeat anything the statusbar draws. It adds the two
-// things a layout script genuinely cannot express: a signed, coloured delta
-// against your personal best once a run is banked, and - alongside the
-// statusbar's speed number, never instead of it - the best speed of the current
-// jump and whether you are gaining or losing it. Those come from the movement
-// samples in jump_cg_move.cpp, which are per-frame and predicted; a layout
-// script sees neither.
+// The division of labour is deliberate. The server-authored statusbar
+// (Jump_InitStatusbar) carries everything needed to PLAY - timer, checkpoints,
+// stores, team, personal best, time remaining - because a stock client can be
+// shown that and nothing else, and nobody should need a download to race. This
+// file carries everything about playing BETTER, and it lives here because most
+// of it could not live anywhere else: a strafe meter needs the usercmd, a key
+// display needs button state, a per-jump readout needs the ground edge at frame
+// resolution. None of that reaches a layout script. The speedometer alone could
+// have gone server-side, but splitting one performance readout away from the
+// rest would leave the HUD half in one place and half in the other.
 //
-// It is off by default, so out of the box everyone - including the host of a
-// listen server - sees exactly what a stock client sees. `jump_hud 1` opts in.
+// So: a stock client gets a complete, playable HUD. Downloading this DLL is
+// what adds the tooling, and the tooling is all here.
 
 #include "../cg_local.h"
 #include "jump_logic.h"
@@ -25,18 +24,41 @@
 
 #include <cstdio>
 
+// Centred, one block up from the bottom edge, where a first-person player is
+// already looking. Both upstream mods put their speedometer in the bottom-right
+// corner, which is a glance away from the map at exactly the moment you want the
+// number; q2re-map-trainer centres it, and this follows that.
+//
+// Layout units up from the bottom, matching the statusbar's yb anchors so this
+// sits in the same coordinate space as everything the server draws.
+static constexpr float JUMP_SPEED_YB = -96.f;
+
+// How long a reading stays up before it is replaced, in ms. This is the
+// rerelease's server frame; without it the number would churn at the render
+// rate, which can be several hundred times a second.
+static constexpr uint64_t JUMP_SPEED_REFRESH_MS = 25;
+
 static cvar_t *jump_hud;
 static cvar_t *jump_hud_speed;
+static cvar_t *jump_hud_speed_hz;
 
 void Jump_InitClientCvars()
 {
-	// Default off: the stock-client view is the one everybody shares, so it is
-	// the honest thing to show by default.
-	jump_hud = cgi.cvar("jump_hud", "0", CVAR_ARCHIVE);
+	// On by default. Installing this DLL is itself the opt-in: the server's
+	// statusbar already carries everything a run needs, so the only reason to
+	// have the file is the tooling in here. `jump_hud 0` gives the exact
+	// stock-client view, which is worth having for checking what players see.
+	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
 
-	// The speed readout: the gain/loss figure, plus the number itself on a
-	// server that has turned its own speedometer off.
 	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
+
+	// How often the speed reading is replaced, in Hz. 40 is the rerelease's
+	// server frame rate. Both upstream mods ran on a 10 Hz server and so
+	// changed theirs ten times a second by construction rather than by choice,
+	// and four digits are markedly easier to read at that rate: 10 gives you
+	// it. This is a refresh rate, not smoothing - the value shown is always an
+	// exact instantaneous speed, only sampled less often.
+	jump_hud_speed_hz = cgi.cvar("jump_hud_speed_hz", "40", CVAR_ARCHIVE);
 
 	// CG_InitScreen runs between levels and on reconnect - the same place the
 	// vanilla HUD clears its notify state - so this is where stale samples go.
@@ -101,31 +123,20 @@ static void Jump_DrawPbDelta(const jump_overlay_ctx_t &ctx)
 						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
 }
 
-// The speed number, drawn only on a server that has turned its own off.
+// The speedometer.
 //
-// Two annotations used to live here and both were cut after seeing them in
+// Two annotations used to live beside it and both were cut after seeing them in
 // play. Peak-of-jump was a high-water mark, so it went stale the moment you
 // stopped matching it, and since speed barely changes in flight it mostly
-// duplicated the number underneath it. The signed gain/loss figure was honest
-// but noisy - a second thing moving next to a number you are trying to read.
+// duplicated the number itself. The signed gain/loss figure was honest but
+// noisy - a second thing moving next to a number you are trying to read.
 //
-// What replaces them should answer a question the live number cannot, rather
+// What replaces them has to answer a question the live number cannot, rather
 // than restating it: speed at takeoff against the previous jump, or how much of
 // the available acceleration a strafe actually captured. jump::speed_state_t
-// still tracks peak and trend because both want the same ground-edge state.
-//
-// Whether it is comes straight from the stat. Jump_SetStats zeroes
-// JUMP_STAT_SPEED when jump_speedometer is off, and the statusbar row is gated
-// on that value, so a zero means "no number on screen" - which is exactly the
-// question this needs answered, and it needs no cvar the client cannot see.
-// The one ambiguity is harmless: the stat is also 0 when you are standing
-// still, and the number this would draw instead is then 0 too, which is hidden
-// below anyway.
-//
-// Drawing our own number when the server already has is the case to avoid. Two
-// speeds a few units apart on the same screen look like a bug, and they would
-// differ: this one is predicted and per-frame, that one is a server snapshot.
-static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
+// still tracks peak and trend, because both of those want the same ground-edge
+// state it already computes.
+static void Jump_DrawSpeedometer(const jump_overlay_ctx_t &ctx)
 {
 	const jump::speed_readout_t &speed = *ctx.speed;
 
@@ -139,35 +150,33 @@ static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 	if (pm_type == PM_NOCLIP || pm_type == PM_SPECTATOR)
 		return;
 
-	// Nothing to add when the statusbar is already showing a number - that is
-	// the normal case, and two speeds a few units apart would look like a bug.
-	if (ctx.ps->stats[JUMP_STAT_SPEED] > 0)
-		return;
-
+	// Hidden when you are standing still, as both upstream mods hide theirs.
 	if (speed.current < 1.f)
 		return;
 
-	// Held for the same span as the statusbar's, and for the same reason: this
-	// one is sampled per rendered frame, so left alone it would churn faster
-	// still. The value shown is a real instantaneous reading, not an average -
-	// only the moment it is taken is rationed.
+	// The reading is held rather than redrawn every frame - see
+	// jump_hud_speed_hz. The value is a real instantaneous speed, never an
+	// average; only the moment it is taken is rationed.
+	const int	   hz = jump_hud_speed_hz ? jump_hud_speed_hz->integer : 0;
+	const uint64_t interval = hz > 0 ? 1000 / (uint64_t) hz : JUMP_SPEED_REFRESH_MS;
+
 	static int32_t	shown = 0;
 	static uint64_t shown_time = 0;
 
 	const uint64_t now = cgi.CL_ClientTime();
 
-	if (now < shown_time || now - shown_time >= (uint64_t) JUMP_SPEED_REFRESH_MS)
+	// The clock runs backwards across a map change, so treat that as due.
+	if (now < shown_time || now - shown_time >= interval)
 	{
 		shown = (int32_t) speed.current;
 		shown_time = now;
 	}
 
-	// In the middle of the row the statusbar's digits would have occupied, whose
-	// anchor is shared rather than copied (jump_stats.h) so moving the block
-	// moves this with it. No caption, for the same reason that one has none.
-	cgi.SCR_DrawFontString(jump::FormatSpeed((float) shown).c_str(), ctx.VirtX(160.f),
-						   ctx.BottomY(JUMP_SPEED_DIGITS_YB + 8.f), ctx.scale, rgba_white, true,
-						   text_align_t::CENTER);
+	// No caption. A four-digit number that climbs as you move is not something
+	// anyone needs told, and the word would be one more thing on a screen you
+	// are reading a map through.
+	cgi.SCR_DrawFontString(jump::FormatSpeed((float) shown).c_str(), ctx.VirtX(160.f), ctx.BottomY(JUMP_SPEED_YB),
+						   ctx.scale, rgba_white, true, text_align_t::CENTER);
 }
 
 void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)
@@ -202,7 +211,7 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	const jump_overlay_ctx_t ctx { ps, hud_vrect, hud_safe, scale, &speed };
 
 	if (want_speed)
-		Jump_DrawSpeedExtras(ctx);
+		Jump_DrawSpeedometer(ctx);
 
 	Jump_DrawPbDelta(ctx);
 }

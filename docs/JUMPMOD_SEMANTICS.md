@@ -279,25 +279,26 @@ and cast the length to an int.
   `jump_hud.cpp:478-546`. Live players and chase viewers get the raw XY speed; free spectators get
   0; replay viewers get speed derived from a 10-frame position delta with a ±10 ups hysteresis.
 
-**Port decision:** match both on the *value* — XY only, truncated to an int, 0 hides — but **not on
-the position**. Both mods sit at `xv 200 / yb -32`, hard against the bottom right; this port centres
-it at `yb -80`, following `q2re-map-trainer`, because speed is read mid-jump and a corner costs a
-glance away from the map. Note `num` right-aligns in a fixed box and never pads, so the box is
-offset to centre the three-digit case rather than the box itself. Chasing shows
-the followed player's speed, which comes free from `G_CheckChaseStats`' bulk stats copy; free
-spectators get 0. B's ±10 hysteresis is **not** ported: it exists only on its replay path, where
-speed is inferred from positions, and this port has no replay system. Two things are new rather
-than ported. The value is clamped to 9999, because KEX's `num` token truncates an over-wide value
-to its *leading* digits and an unclamped 12345 would draw a believable 1234. And the stat lives at
-index 54 rather than in the CTF block, which is full.
+**Port decision:** match both on the *value* — XY only, truncated to an int, hidden at rest, and
+the followed player's reading while chasing. Diverge on everything else, because this port draws it
+**client-side** rather than on the status bar.
 
-Three smaller divergences. The element has **no caption** — both mods label it "Speed", which at
-rerelease resolutions is a word you read once and then never again. It can be turned off
-(`jump_speedometer 0`), which neither mod allows short of A's blanket `cleanhud`. And the refresh rate is a
-cvar (`jump_speedometer_hz`, default 40 = every server frame), because both mods ran on a 10 Hz
-server and so changed theirs ten times a second by construction rather than by choice; `10` restores
-that cadence. It is a refresh rate, not the ±10 ups hysteresis B applies to replays — the value
-shown is exact, only sampled less often.
+That is the significant one. Both mods publish a stat and draw it with the HUD's number pics, which
+is the only way a stock client can be shown a live value at all. This port instead treats the
+status bar as what a player needs to *play* (timer, checkpoints, stores, team, PB) and the cgame
+overlay as what they need to play *better*. The speedometer is the only performance readout that
+could have gone either way — a strafe meter, key display or per-jump figure cannot reach a layout
+script at any price — and putting it with the rest keeps the tooling in one place. The cost,
+accepted rather than worked around: a player on a stock client has no speedometer.
+
+Smaller divergences. The element is **centred above the bottom edge** rather than in the
+bottom-right corner, following `q2re-map-trainer`, because it is read mid-jump and a corner costs a
+glance away from the map. It has **no caption** — both mods label theirs "Speed", which at
+rerelease resolutions is a word you read once and never again. And the refresh rate is a cvar
+(`jump_hud_speed_hz`, default 40), because both mods ran on a 10 Hz server and so changed theirs
+ten times a second by construction rather than by choice; `10` restores that cadence. It is a
+refresh rate, not the ±10 ups hysteresis B applies to replays — the value shown is exact, only
+sampled less often.
 
 **Movement overlay** — **new, not a port.** Neither mod shows peak speed or a gain/loss figure;
 A's `showjumps` (`p_client.c:2308-2331`) prints a per-jump distance and its delta as chat text, and

@@ -160,14 +160,18 @@ records list and `ranks` for everyone's points.
 
 ### The speedometer
 
-A four-digit readout sits centred, one block above the bottom of the screen,
-showing how fast you are moving in units per second. It hides itself when you
-are standing still.
+A readout sits centred, above the bottom of the screen, showing how fast you are
+moving in units per second. It hides itself when you are standing still.
 
-Both upstream mods put it in the bottom-right corner. This port follows
+**It is drawn by the client, so it needs this DLL** — see
+[the performance HUD](#the-performance-hud) below for why. A player on a stock
+client gets everything needed to race and no speedometer.
+
+Both upstream mods put theirs in the bottom-right corner. This port follows
 `q2re-map-trainer` instead and centres it, because speed is the one number you
 want *during* a jump rather than after it, and a corner is somewhere you have to
-look away from the map to read.
+look away from the map to read. There is no caption: a number that climbs as you
+move does not need one.
 
 It measures **horizontal speed only** — vertical movement is excluded. That is
 how both upstream jump mods measure it, and it is the number that matters:
@@ -179,21 +183,12 @@ HUD that disagreed with the gate would be worse than no HUD.
 Following another player shows *their* speed; free-flying spectators see
 nothing, since a camera's speed is not a jump.
 
-Everyone sees it, including players on a stock client, because the server draws
-it as part of the status bar. It has no caption — a four-digit number that
-climbs as you move does not need one, and the word would be one more thing on a
-screen you are reading a map through. `jump_speedometer 0` hides it for
-everyone.
-
-By default it updates every server frame — forty times a second on the
-rerelease. Both upstream mods ran on a 10 Hz server, so theirs changed ten times
-a second by construction rather than by choice, and four digits are markedly
-easier to read at that rate. `jump_speedometer_hz 10` gives you it.
-
-That setting is a refresh rate, not smoothing: the number shown is always an
-exact instantaneous speed, never an average — only the moment it is sampled is
-rationed. The element still appears and disappears the instant you start and
-stop moving, whatever the rate.
+By default the reading is replaced forty times a second, matching the server
+frame rate. Both upstream mods ran on a 10 Hz server, so theirs changed ten
+times a second by construction rather than by choice, and four digits are
+markedly easier to read at that rate: `jump_hud_speed_hz 10` gives you it. That
+is a refresh rate, not smoothing — the number shown is always an exact
+instantaneous speed, only sampled less often.
 
 ### Finishing
 
@@ -236,23 +231,35 @@ Movement matters just as much. Prediction runs through `Pmove` in the client, an
 no pmove changes at all, so a stock client predicts identically to the server. That is the real
 payoff of building on rerelease physics rather than emulating the old engine.
 
-So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, speed — plus
-every message and the times board. What they miss is the client-side overlay described below, which
-adds nothing a run depends on.
+So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, time
+remaining — plus every message and the times board. Everything a run depends on is there. What they
+miss is the performance HUD described below.
 
-### The client-side overlay
+### The performance HUD
 
-The overlay draws the coloured delta against your personal best after a finish — a subtraction, and
-a layout script has no token that subtracts.
+The split between the two halves is deliberate, and it is about what a player needs rather than
+what a status bar can technically draw:
 
-It also draws the speed number itself, but *only* on a server running `jump_speedometer 0`, in the
-rerelease's proportional font rather than the HUD's number pics. The two never draw at once. That
-one comes from movement the client samples every rendered frame out of its own prediction, so it is
-finer-grained than anything the server could send at the tick rate, and nothing goes over the
-network for it.
+- **The server draws what you need to play** — timer, checkpoints, stores, team, PB, time
+  remaining. Every player gets it, whatever client they are on.
+- **This DLL draws what you need to play better** — the speedometer today; a strafe meter, key
+  display and per-jump readouts are the intended direction.
 
-**The overlay is off by default**, so out of the box you see exactly what everyone else sees —
-which is the useful default when you are hosting.
+The line is there because most performance tooling *cannot* be server-side. A strafe meter needs
+your movement keys, a key display needs your button state, a per-jump readout needs the exact frame
+you left the ground — none of which reaches a status bar. The speedometer alone could have gone
+either way, and it did start server-side, but splitting one readout away from the rest would leave
+the tooling half in one place and half in the other.
+
+Everything here is sampled from the client's own movement prediction every rendered frame, so it is
+finer-grained than anything the server could send, and nothing goes over the network for it.
+
+The overlay also draws the coloured delta against your personal best after a finish — a
+subtraction, and no layout token subtracts.
+
+**It is on by default**: installing the DLL is itself the opt-in, since the server already sends
+everything a run needs. `jump_hud 0` gives the exact stock-client view, which is worth a look when
+you are hosting and want to see what your players see.
 
 | Cvar | Default | Effect |
 |---|---|---|
@@ -484,10 +491,9 @@ any change to the entity contract.
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
-| `jump_speedometer` | `1` | The speedometer on the shared status bar, which is the one every player sees. `0` hides it for everyone |
-| `jump_speedometer_hz` | `40` | How often that reading is replaced. `40` is the server frame rate, i.e. every frame; `10` is the cadence both upstream mods had |
-| `jump_hud` | `0` | **Client-side**, unlike the others. The movement overlay: gain/loss figure and PB delta. Off means you see the exact stock-client view |
-| `jump_hud_speed` | `1` | **Client-side.** The speed readout within that overlay |
+| `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view |
+| `jump_hud_speed` | `1` | **Client-side.** The speedometer within it |
+| `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
 
 ### Map rotation and the vote pool
 
