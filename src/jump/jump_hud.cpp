@@ -68,6 +68,17 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
 
+	// How the finished run compared with the personal best before it. Shown
+	// only while that run is still the one on screen: the flag is cleared when
+	// a new one starts, so the number cannot outlive what it describes.
+	const ptrdiff_t delta_index = ent->client - game.clients;
+
+	ent->client->ps.stats[JUMP_STAT_DELTA_STRING] =
+		(jc->has_finish_delta && jc->state == jump_run_state_t::finished && delta_index >= 0 &&
+		 delta_index < JUMP_MAX_DELTA_STRING_CLIENTS)
+			? (int16_t) (CONFIG_JUMP_DELTA_STRING + delta_index)
+			: 0;
+
 
 	// The banner is the same for everyone, which is what makes setting it here
 	// enough. G_CheckChaseStats bulk-copies the stats array from the player
@@ -134,6 +145,38 @@ void Jump_UpdatePbString(edict_t *ent)
 		return;
 
 	gi.configstring((int) (CONFIG_JUMP_PB_STRING + index), jump::FormatTime(jc->pb_time_ms).c_str());
+}
+
+void Jump_UpdateDeltaString(edict_t *ent, int64_t time_ms, int64_t previous_pb_ms)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	// Nothing to compare against on a first completion. The run's own time is
+	// already on the timer and in the finish message.
+	if (previous_pb_ms <= 0)
+	{
+		jc->has_finish_delta = false;
+		return;
+	}
+
+	const ptrdiff_t index = ent->client - game.clients;
+
+	if (index < 0 || index >= JUMP_MAX_DELTA_STRING_CLIENTS)
+		return;
+
+	// Against the personal best as it stood BEFORE this run. Comparing with the
+	// stored value after submission would read +0.000 on every new best, which
+	// is the one run you most want a number for.
+	gi.configstring((int) (CONFIG_JUMP_DELTA_STRING + index),
+					jump::FormatDelta(time_ms - previous_pb_ms).c_str());
+
+	jc->has_finish_delta = true;
 }
 
 // The timelimit the current CS_STATUSBAR was built against. The time_limit
@@ -225,6 +268,25 @@ static void Jump_EmitStatusbar()
 		.yt(st_y)
 		.xr(st_num)
 		.num(2, JUMP_STAT_STORES)
+		.endifstat();
+
+	// How the run you just finished compared with your personal best, at the
+	// foot of the same column and gated so it appears only after a finish. This
+	// used to be drawn by the client overlay - it is the one figure a layout
+	// cannot compute, since no token subtracts - but it changes once per run,
+	// so publishing the finished string costs one configstring write and every
+	// player gets it, stock client or not.
+	//
+	// loc_stat_rstring measures the text and ends it AT the cursor, so it lines
+	// up with the digit columns above under either font. It also always draws
+	// white: there is no coloured right-aligned variant, so the leading sign
+	// carries the good or bad news by itself.
+	constexpr int delta_y = st_y + 24 + row_gap;
+
+	sb.ifstat(JUMP_STAT_DELTA_STRING)
+		.yt(delta_y)
+		.xr(right)
+		.loc_stat_rstring(JUMP_STAT_DELTA_STRING)
 		.endifstat();
 
 	// Personal best is a stat_string (arbitrary text), not digit stats, so it

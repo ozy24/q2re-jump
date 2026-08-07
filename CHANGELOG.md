@@ -52,6 +52,13 @@ released — see [docs/release-process.md](docs/release-process.md).
   not your outcome, so clipping a wall costs you speed the bar will not blame you for. Air only,
   smoothed over about a second, and `jump_hud_strafe 0` turns it off.
 
+- **How your finished run compared with your best is now on the HUD for everyone**, under the
+  stores counter: a signed `-1.234` against your personal best as it stood before the run. It used
+  to be drawn only for players running this DLL, on the grounds that no layout token subtracts —
+  but it is worked out once per run, which is cheap enough to send as text. It is also now correct
+  on the run that matters most: it previously compared against the best *including* the run just
+  finished, so a new personal best read as no improvement at all.
+
 - **The client half now samples your movement every rendered frame**, out of the game's own
   prediction, which is what makes the readouts above finer-grained than anything the server
   could send — and it costs no network traffic at all. `jump_hud 0` turns the whole overlay off

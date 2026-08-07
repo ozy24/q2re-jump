@@ -57,12 +57,31 @@ constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO; // 31: 1 while ju
 // the two in sync. Clients past this index just don't get a PB display.
 constexpr int JUMP_MAX_PB_STRING_CLIENTS = 64;
 
+// Same sizing for the finish-delta block (CONFIG_JUMP_DELTA_STRING).
+constexpr int JUMP_MAX_DELTA_STRING_CLIENTS = 64;
+
+// How your finished run compared with your personal best beforehand, as a
+// pre-formatted signed string ("-1.234") in a per-client configstring. Same
+// reasoning as JUMP_STAT_PB_STRING: it changes once per completed run, so it
+// can afford to be text rather than costing one stat per digit.
+//
+// This lives on the server rather than in the client overlay - where it used to
+// be, as the one thing a layout script cannot compute - so that every player
+// gets it, including anyone on a stock client. The cost of the move is the
+// colour: loc_stat_rstring always draws white and there is no coloured
+// right-aligned variant, so the leading sign has to carry the good/bad news on
+// its own.
+constexpr player_stat_t JUMP_STAT_DELTA_STRING = (player_stat_t) 54;
+
+static_assert((int) JUMP_STAT_DELTA_STRING >= (int) STAT_LAST, "jump stat overlaps an engine stat");
+static_assert((int) JUMP_STAT_DELTA_STRING < (int) MAX_STATS, "jump stat out of range");
+
 // All 13 usable CTF slots (18-31 less 27) are taken, so the CTF block is closed.
 // New stats go in 54-63, which are genuinely free: STAT_LAST is 54
 // (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
 // nothing reads it either, which makes it safer ground than the CTF block,
-// where 27's problem is precisely that the stock statusbar reads it. All ten
-// are currently unused.
+// where 27's problem is precisely that the stock statusbar reads it. 54 is
+// taken by the finish delta above; 55-63 remain.
 //
 // Ten, not eleven: bg_local.h's own static_assert allows
 // STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past

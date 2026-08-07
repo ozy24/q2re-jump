@@ -266,8 +266,9 @@ no pmove changes at all, so a stock client predicts identically to the server. T
 payoff of building on rerelease physics rather than emulating the old engine.
 
 So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, time
-remaining — plus every message and the times board. Everything a run depends on is there. What they
-miss is the performance HUD described below.
+remaining, and how their finished run compared with their best — plus every message and the times
+board. Everything a run depends on is there. What they miss is the performance HUD described
+below.
 
 ### The performance HUD
 
@@ -288,12 +289,14 @@ the tooling half in one place and half in the other.
 Everything here is sampled from the client's own movement prediction every rendered frame, so it is
 finer-grained than anything the server could send, and nothing goes over the network for it.
 
-The overlay also draws the coloured delta against your personal best after a finish — a
-subtraction, and no layout token subtracts.
+Nothing else is drawn here. The personal-best delta used to be, on the grounds that no layout token
+subtracts — but it only has to be worked out once per run, which makes it cheap enough to send as
+text, so it moved to the status bar where every player gets it.
 
-**It is on by default**: installing the DLL is itself the opt-in, since the server already sends
-everything a run needs. `jump_hud 0` gives the exact stock-client view, which is worth a look when
-you are hosting and want to see what your players see.
+**The readouts are off by default.** Installing the DLL opts you into the overlay existing; it does
+not decide that you want a speedometer and a strafe bar on screen. `jump_hud_speed 1` and
+`jump_hud_strafe 1` turn them on, and `jump_hud 0` switches the whole overlay off for an exact
+stock-client view.
 
 | Cvar | Default | Effect |
 |---|---|---|

@@ -54,6 +54,11 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
+	// A finish-delta string has been published for this player and still
+	// describes the run on screen. Cleared when a new run starts, so a stale
+	// comparison cannot outlive the run it was about.
+	bool has_finish_delta = false;
+
 	// --- per map: the join gate ---
 	// Nobody enters the map until they have answered the join menu, and every
 	// level re-asks, so all three reset in Jump_InitLevel.
@@ -206,6 +211,10 @@ void Jump_AnnounceFrame();
 // Re-issues CS_STATUSBAR when the timelimit moves - the map countdown bakes an
 // absolute server frame into the layout. No-op on every other frame.
 void Jump_StatusbarFrame();
+
+// Publishes the signed difference between the run just finished and the
+// personal best as it stood beforehand. Call once, at the finish.
+void Jump_UpdateDeltaString(edict_t *ent, int64_t time_ms, int64_t previous_pb_ms);
 
 // jump_mset.cpp
 enum class jump_mset_result_t

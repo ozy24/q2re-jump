@@ -197,6 +197,12 @@ void Jump_Finish(edict_t *ent)
 
 	const std::string time_str = jump::FormatTime(time_ms);
 
+	// Against the personal best as it stood before this run - Jump_SubmitTime
+	// below may replace it. Practice runs get one too: the time is not recorded,
+	// but "you would have been a second up" is exactly the feedback you are
+	// practising for.
+	Jump_UpdateDeltaString(ent, time_ms, Jump_PersonalBest(ent));
+
 	// Finishing leaves you standing on the pad, as it does upstream; nothing
 	// starts a new run until you ask for one.
 	gi.LocCenter_Print(ent, G_Fmt("Finished in {}\nkill to run again", time_str.c_str()).data());

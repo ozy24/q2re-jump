@@ -23,15 +23,20 @@
 // colour and frame-rate resolution, and that is this side of the line.
 //
 // So: a stock client gets a complete, playable HUD. Downloading this DLL is
-// what adds the tooling, and the tooling is all here.
+// what adds the tooling, and the tooling is all here - nothing else.
+//
+// The personal-best delta used to be drawn here, on the grounds that no layout
+// token subtracts. It moved to the server once it was clear that it only has to
+// be computed once per run, which makes it affordable as a configstring and
+// gives it to every player rather than to whoever installed this file. If you
+// are about to add something here, ask that question first: does it change more
+// often than a player can read it? If not, it belongs on the status bar.
 
 #include "../cg_local.h"
 #include "jump_logic.h"
 #include "jump_stats.h"
 #include "jump_cg_move.h"
 #include "jump_hud_draw.h"
-
-#include <cstdio>
 
 // Centred, one block up from the bottom edge, where a first-person player is
 // already looking. Both upstream mods put their speedometer in the bottom-right
@@ -128,36 +133,6 @@ struct jump_overlay_ctx_t
 		return (int32_t) ((hud_vrect.y + hud_vrect.height + virt) * scale) - hud_safe.y;
 	}
 };
-
-// The signed delta against your personal best, once a run is banked. A layout
-// script cannot do this: the two times are a stat and a configstring, and there
-// is no token that subtracts.
-static void Jump_DrawPbDelta(const jump_overlay_ctx_t &ctx)
-{
-	if (ctx.ps->stats[JUMP_STAT_RUN_STATE] != JUMP_RUN_FINISHED)
-		return;
-
-	// PB is a stat_string (jump_stats.h) - the stat holds a configstring
-	// index, 0 while there is nothing to compare against yet.
-	const int32_t pb_index = ctx.ps->stats[JUMP_STAT_PB_STRING];
-
-	if (!pb_index)
-		return; // first completion, nothing to compare against
-
-	long long pb_sec = 0, pb_ms = 0;
-	sscanf(cgi.get_configstring(pb_index), "%lld.%lld", &pb_sec, &pb_ms);
-	const int64_t pb_total_ms = pb_sec * 1000 + pb_ms;
-
-	const int64_t run_total_ms = ctx.ps->stats[JUMP_STAT_TIME_SEC] * 1000LL +
-								 ctx.ps->stats[JUMP_STAT_TIME_HUN_TENS] * 100LL +
-								 ctx.ps->stats[JUMP_STAT_TIME_HUN_UNITS] * 10LL + ctx.ps->stats[JUMP_STAT_TIME_THOU];
-
-	const std::string text = jump::FormatDelta(run_total_ms - pb_total_ms);
-
-	// In the right-hand run column, below the checkpoint block.
-	cgi.SCR_DrawFontString(text.c_str(), ctx.RightX(-16), (int32_t) (104.f * ctx.scale), ctx.scale,
-						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
-}
 
 // The speedometer.
 //
@@ -363,6 +338,4 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 
 	if (want_strafe)
 		Jump_DrawStrafeMeter(ctx);
-
-	Jump_DrawPbDelta(ctx);
 }

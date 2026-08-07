@@ -92,8 +92,8 @@ prints.
 **The line between the halves is what a player needs, not what a layout can technically do:**
 
 - The **server statusbar carries everything needed to _play_** — timer, checkpoints, stores, team,
-  PB, time remaining. A stock client can be shown that and nothing else, and nobody should need a
-  download to race.
+  PB, time remaining, and the finish delta. A stock client can be shown that and nothing else, and
+  nobody should need a download to race.
 - The **client overlay carries everything about playing _better_** — speedometer and strafe meter
   today; key display and per-jump readouts next.
 
@@ -119,6 +119,12 @@ line being clean, and the answer is that the DLL is a download away.
 The overlay defaults **on** (`jump_hud 1`) — installing the file *is* the opt-in, since the server
 already sends everything a run needs. `jump_hud 0` gives the exact stock-client view, which is
 worth keeping for checking what players actually see.
+
+The test for putting something here rather than on the status bar is **how often it changes**, not
+whether a layout could express it. The finish delta lived here for a while as "the one thing no
+layout token can subtract" — until it was clear that it is computed once per run, which makes it
+affordable as a configstring and hands it to every player. Anything that changes slower than a
+player can read it belongs on the bar.
 
 The strafe meter is the element that *passed* the test the next two failed. It answers a question
 the number cannot — *was that the best angle available?* — rather than restating one it already

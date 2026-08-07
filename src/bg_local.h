@@ -78,6 +78,13 @@ enum
 	CONFIG_JUMP_PB_STRING,
 	CONFIG_JUMP_PB_STRING_END = CONFIG_JUMP_PB_STRING + 64 - 1,
 
+	// [Jump] One slot per potential player, holding the signed difference
+	// between the run they just finished and their personal best beforehand
+	// (e.g. "-1.234"). Same trade as the PB string: it is written once per
+	// completed run, which is rare enough to afford a configstring broadcast.
+	CONFIG_JUMP_DELTA_STRING,
+	CONFIG_JUMP_DELTA_STRING_END = CONFIG_JUMP_DELTA_STRING + 64 - 1,
+
 	// [Jump] The HUD banner for a new personal best or a new map record. One
 	// slot, not one per client like the PB string above: the text is the same
 	// for everyone who sees it.
