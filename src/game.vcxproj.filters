@@ -62,6 +62,9 @@
     <ClInclude Include="jump\jump_stats.h">
       <Filter>jump</Filter>
     </ClInclude>
+    <ClInclude Include="jump\jump_cg_move.h">
+      <Filter>jump</Filter>
+    </ClInclude>
     <ClInclude Include="jump\jump_hud_draw.h">
       <Filter>jump</Filter>
     </ClInclude>
@@ -212,6 +215,9 @@
       <Filter>jump</Filter>
     </ClCompile>
     <ClCompile Include="jump\jump_team.cpp">
+      <Filter>jump</Filter>
+    </ClCompile>
+    <ClCompile Include="jump\jump_cg_move.cpp">
       <Filter>jump</Filter>
     </ClCompile>
     <ClCompile Include="jump\jump_hud_draw.cpp">

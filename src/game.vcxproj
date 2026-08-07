@@ -109,6 +109,7 @@
     <ClInclude Include="ctf\g_ctf.h" />
     <ClInclude Include="ctf\p_ctf_menu.h" />
     <ClInclude Include="jump\jump.h" />
+    <ClInclude Include="jump\jump_cg_move.h" />
     <ClInclude Include="jump\jump_hud_draw.h" />
     <ClInclude Include="jump\jump_stats.h" />
     <ClInclude Include="jump\jump_local.h" />
@@ -168,6 +169,7 @@
     <ClCompile Include="jump\jump_ents.cpp" />
     <ClCompile Include="jump\jump_finish.cpp" />
     <ClCompile Include="jump\jump_hud.cpp" />
+    <ClCompile Include="jump\jump_cg_move.cpp" />
     <ClCompile Include="jump\jump_hud_draw.cpp" />
     <ClCompile Include="jump\jump_logic.cpp" />
     <ClCompile Include="jump\jump_main.cpp" />

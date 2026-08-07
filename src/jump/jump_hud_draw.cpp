@@ -1,14 +1,18 @@
 // [Jump] cgame-side HUD overlay.
 //
-// This is the only client-side part of the mod, and it is deliberately tiny.
-// A stock client that connects to a jump server never runs it and still gets a
-// complete HUD, because the timer, checkpoints, stores, team and personal best
+// This is the client half of the mod, and it is deliberately small. A stock
+// client that connects to a jump server never runs it and still gets a complete
+// HUD, because the timer, checkpoints, stores, team, personal best and speed
 // are all drawn by the server-authored statusbar (Jump_InitStatusbar) using
 // only tokens the stock layout interpreter understands.
 //
-// So this file must NOT repeat anything the statusbar draws. It adds the one
-// thing a layout script genuinely cannot express: a signed, coloured delta
-// against your personal best once a run is banked.
+// So this file must NOT repeat anything the statusbar draws. It adds the two
+// things a layout script genuinely cannot express: a signed, coloured delta
+// against your personal best once a run is banked, and - alongside the
+// statusbar's speed number, never instead of it - the best speed of the current
+// jump and whether you are gaining or losing it. Those come from the movement
+// samples in jump_cg_move.cpp, which are per-frame and predicted; a layout
+// script sees neither.
 //
 // It is off by default, so out of the box everyone - including the host of a
 // listen server - sees exactly what a stock client sees. `jump_hud 1` opts in.
@@ -16,36 +20,71 @@
 #include "../cg_local.h"
 #include "jump_logic.h"
 #include "jump_stats.h"
+#include "jump_cg_move.h"
 #include "jump_hud_draw.h"
 
 #include <cstdio>
 
 static cvar_t *jump_hud;
+static cvar_t *jump_hud_speed;
+
+// Dimmer than the value it annotates, so the eye lands on the number first.
+static constexpr rgba_t jump_dim = { 170, 170, 170, 255 };
 
 void Jump_InitClientCvars()
 {
 	// Default off: the stock-client view is the one everybody shares, so it is
 	// the honest thing to show by default.
 	jump_hud = cgi.cvar("jump_hud", "0", CVAR_ARCHIVE);
+
+	// On by default but inert until jump_hud is set, so one flip opts into the
+	// overlay and this only exists to trim it back.
+	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
+
+	// CG_InitScreen runs between levels and on reconnect - the same place the
+	// vanilla HUD clears its notify state - so this is where stale samples go.
+	Jump_CG_ResetSamples();
 }
 
-void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
+// Shared by every overlay element. The anchor helpers mirror the arithmetic
+// CG_ExecuteLayoutString applies to xv / xr / yb, so an element positioned here
+// lands exactly where the equivalent statusbar token would put it - including
+// the safe-area inset, which the layout applies to edge anchors only.
+struct jump_overlay_ctx_t
 {
-	if (!ps->stats[JUMP_STAT_ENABLED])
-		return;
+	const player_state_t		*ps;
+	vrect_t						 hud_vrect;
+	vrect_t						 hud_safe;
+	int32_t						 scale;
+	const jump::speed_readout_t *speed;
 
-	if (!jump_hud || !jump_hud->integer)
-		return;
+	int32_t VirtX(float virt) const
+	{
+		return (int32_t) ((hud_vrect.x + hud_vrect.width / 2.f + (virt - 160.f)) * scale);
+	}
 
-	if (ps->stats[STAT_LAYOUTS] & LAYOUTS_HIDE_HUD)
-		return;
+	int32_t RightX(float virt) const
+	{
+		return (int32_t) ((hud_vrect.x + hud_vrect.width + virt) * scale) - hud_safe.x;
+	}
 
-	if (ps->stats[JUMP_STAT_RUN_STATE] != JUMP_RUN_FINISHED)
+	int32_t BottomY(float virt) const
+	{
+		return (int32_t) ((hud_vrect.y + hud_vrect.height + virt) * scale) - hud_safe.y;
+	}
+};
+
+// The signed delta against your personal best, once a run is banked. A layout
+// script cannot do this: the two times are a stat and a configstring, and there
+// is no token that subtracts.
+static void Jump_DrawPbDelta(const jump_overlay_ctx_t &ctx)
+{
+	if (ctx.ps->stats[JUMP_STAT_RUN_STATE] != JUMP_RUN_FINISHED)
 		return;
 
 	// PB is a stat_string (jump_stats.h) - the stat holds a configstring
 	// index, 0 while there is nothing to compare against yet.
-	const int32_t pb_index = ps->stats[JUMP_STAT_PB_STRING];
+	const int32_t pb_index = ctx.ps->stats[JUMP_STAT_PB_STRING];
 
 	if (!pb_index)
 		return; // first completion, nothing to compare against
@@ -54,13 +93,93 @@ void Jump_DrawHud(const player_state_t *ps, vrect_t hud_vrect, int32_t scale)
 	sscanf(cgi.get_configstring(pb_index), "%lld.%lld", &pb_sec, &pb_ms);
 	const int64_t pb_total_ms = pb_sec * 1000 + pb_ms;
 
-	const int64_t run_total_ms = ps->stats[JUMP_STAT_TIME_SEC] * 1000LL +
-								  ps->stats[JUMP_STAT_TIME_HUN_TENS] * 100LL +
-								  ps->stats[JUMP_STAT_TIME_HUN_UNITS] * 10LL + ps->stats[JUMP_STAT_TIME_THOU];
+	const int64_t run_total_ms = ctx.ps->stats[JUMP_STAT_TIME_SEC] * 1000LL +
+								 ctx.ps->stats[JUMP_STAT_TIME_HUN_TENS] * 100LL +
+								 ctx.ps->stats[JUMP_STAT_TIME_HUN_UNITS] * 10LL + ctx.ps->stats[JUMP_STAT_TIME_THOU];
 
 	const std::string text = jump::FormatDelta(run_total_ms - pb_total_ms);
 
-	// Directly under the statusbar's PB line.
-	cgi.SCR_DrawFontString(text.c_str(), (hud_vrect.width - 16.f) * scale, 104.f * scale, scale,
+	// In the right-hand run column, below the checkpoint block.
+	cgi.SCR_DrawFontString(text.c_str(), ctx.RightX(-16), (int32_t) (104.f * ctx.scale), ctx.scale,
 						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
+}
+
+// Peak and trend, sitting on top of the statusbar's speed block so the three
+// read as one element. The number itself is deliberately absent: the statusbar
+// already draws it, every player sees that one, and two speeds a few units
+// apart on the same screen would look like a bug.
+static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
+{
+	const jump::speed_readout_t &speed = *ctx.speed;
+
+	if (!speed.valid)
+		return;
+
+	// A free-flying camera's speed is noise. PM_FREEZE is kept, because that is
+	// the eyecam case, where the reading is the followed player's.
+	const pmtype_t pm_type = ctx.ps->pmove.pm_type;
+
+	if (pm_type == PM_NOCLIP || pm_type == PM_SPECTATOR)
+		return;
+
+	// Standing still hides the statusbar's number, so hide its annotations too
+	// rather than leave them floating over nothing.
+	if (speed.peak < 1.f)
+		return;
+
+	// One row above the digits, which occupy yb -32 to -8 at xv 200.
+	const int32_t y = ctx.BottomY(-44);
+	const int32_t x = ctx.VirtX(200.f);
+
+	const std::string peak = "peak " + jump::FormatSpeed(speed.peak);
+
+	cgi.SCR_DrawFontString(peak.c_str(), x, y, ctx.scale, jump_dim, true, text_align_t::LEFT);
+
+	if (!speed.trend)
+		return;
+
+	// Measured, not counted: the kfont is proportional and scr_usekfont is a
+	// private static of cg_screen.cpp, so a character-width estimate would
+	// drift under one font or the other.
+	const vec2_t size = cgi.SCR_MeasureFontString(peak.c_str(), ctx.scale);
+
+	cgi.SCR_DrawFontString(jump::FormatSpeedDelta(speed.delta).c_str(), x + (int32_t) size.x + 6 * ctx.scale, y,
+						   ctx.scale, speed.trend > 0 ? rgba_green : rgba_red, true, text_align_t::LEFT);
+}
+
+void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)
+{
+	// Prediction only ever runs for the primary local player, and the sampler
+	// below must commit exactly once per rendered frame.
+	if (isplit != 0)
+		return;
+
+	if (!ps->stats[JUMP_STAT_ENABLED])
+	{
+		// Not a jump level - a stock deathmatch map on the same DLL must not
+		// accumulate history, and this also stops the Pmove wrapper sampling.
+		Jump_CG_ResetSamples();
+		return;
+	}
+
+	const bool enabled = jump_hud && jump_hud->integer;
+	const bool want_speed = enabled && jump_hud_speed && jump_hud_speed->integer;
+
+	// Called before the display gates, and every frame: it owns the sampling
+	// flag the Pmove wrapper reads, so skipping it would leave the wrapper
+	// collecting samples nobody is going to draw.
+	const jump::speed_readout_t &speed = Jump_CG_SampleFrame(ps, want_speed);
+
+	if (!enabled)
+		return;
+
+	if (ps->stats[STAT_LAYOUTS] & (LAYOUTS_HIDE_HUD | LAYOUTS_INTERMISSION))
+		return;
+
+	const jump_overlay_ctx_t ctx { ps, hud_vrect, hud_safe, scale, &speed };
+
+	if (want_speed)
+		Jump_DrawSpeedExtras(ctx);
+
+	Jump_DrawPbDelta(ctx);
 }

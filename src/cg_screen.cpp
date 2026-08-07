@@ -1738,8 +1738,8 @@ void CG_DrawHUD (int32_t isplit, const cg_server_data_t *data, vrect_t hud_vrect
     // draw notify
     CG_DrawNotify(isplit, hud_vrect, hud_safe, scale);
 
-    // [Jump] run timer / team overlay
-    Jump_DrawHud(ps, hud_vrect, scale);
+    // [Jump] movement / personal best overlay
+    Jump_DrawHud(isplit, ps, hud_vrect, hud_safe, scale);
 
     // svc_layout still drawn with hud off
     if (ps->stats[STAT_LAYOUTS] & LAYOUTS_LAYOUT)

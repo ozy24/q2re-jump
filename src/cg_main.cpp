@@ -3,6 +3,7 @@
 
 #include "cg_local.h"
 #include "m_flash.h"
+#include "jump/jump_cg_move.h" // [Jump]
 
 cgame_import_t cgi;
 cgame_export_t cglobals;
@@ -101,7 +102,7 @@ Q2GAME_API cgame_export_t *GetCGameAPI(cgame_import_t *import)
 	cglobals.Init = InitCGame;
 	cglobals.Shutdown = ShutdownCGame;
 
-	cglobals.Pmove = Pmove;
+	cglobals.Pmove = Jump_CG_Pmove; // [Jump] observes the predicted move, then calls Pmove unchanged
 	cglobals.DrawHUD = CG_DrawHUD;
 	cglobals.LayoutFlags = CG_LayoutFlags;
 	cglobals.TouchPics = CG_TouchPics;
