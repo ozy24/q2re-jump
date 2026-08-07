@@ -556,6 +556,269 @@ speed_readout_t speed_state_t::Update(const move_ring_t &ring, uint64_t window_m
 	return out;
 }
 
+// ---------------------------------------------------------------------------
+// Strafe efficiency
+// ---------------------------------------------------------------------------
+
+static constexpr double JUMP_PI = 3.14159265358979323846;
+
+static double Radians(double degrees)
+{
+	return degrees * (JUMP_PI / 180.0);
+}
+
+void MoveAxes(float pitch_deg, float yaw_deg, float roll_deg, float out_forward_xy[2],
+			  float out_right_xy[2])
+{
+	// pmove wraps pitch into (-180,180] and divides by three before building the
+	// axes (p_move.cpp:1684-1692). Skipping either step tilts every wishdir this
+	// file derives, by up to 13% on the forward axis.
+	double pitch = pitch_deg;
+
+	while (pitch > 180.0)
+		pitch -= 360.0;
+	while (pitch <= -180.0)
+		pitch += 360.0;
+
+	pitch /= 3.0;
+
+	const double p = Radians(pitch);
+	const double y = Radians(yaw_deg);
+	const double r = Radians(roll_deg);
+
+	const double sp = std::sin(p), cp = std::cos(p);
+	const double sy = std::sin(y), cy = std::cos(y);
+	const double sr = std::sin(r), cr = std::cos(r);
+
+	out_forward_xy[0] = (float) (cp * cy);
+	out_forward_xy[1] = (float) (cp * sy);
+
+	// AngleVectors' right vector. At roll 0 this is (sin yaw, -cos yaw) and
+	// carries no pitch at all - only forward is scaled by cos(pitch/3).
+	out_right_xy[0] = (float) (-sr * sp * cy + cr * sy);
+	out_right_xy[1] = (float) (-sr * sp * sy - cr * cy);
+}
+
+void WishVelocity(float pitch_deg, float yaw_deg, float roll_deg, float forwardmove, float sidemove,
+				  float out_xy[2])
+{
+	float forward[2], right[2];
+	MoveAxes(pitch_deg, yaw_deg, roll_deg, forward, right);
+
+	out_xy[0] = forward[0] * forwardmove + right[0] * sidemove;
+	out_xy[1] = forward[1] * forwardmove + right[1] * sidemove;
+}
+
+float AccelGain(float speed, float along, float target, float budget)
+{
+	double a = (double) target - (double) along;
+
+	if (a < 0.0)
+		a = 0.0;
+	if (a > (double) budget)
+		a = (double) budget;
+
+	const double s = speed;
+	const double delta = 2.0 * a * (double) along + a * a;
+
+	if (delta == 0.0)
+		return 0.f;
+
+	// Algebraically sqrt(s*s + delta) - s, but that form loses about four
+	// significant digits in float at jump speeds, where s*s is ~1e5 and delta is
+	// a few thousand. The denominator is at least s, so no new hazard.
+	const double root = std::sqrt(s * s + delta);
+
+	if (root + s <= 0.0)
+		return 0.f;
+
+	return (float) (delta / (root + s));
+}
+
+float BestAlong(float speed, float target, float budget)
+{
+	double u = (double) target - (double) budget;
+
+	// The low clamp is zero, not -speed. Past this point the gain is
+	// s^2 + target^2 - along^2, which peaks at along = 0, so when the budget
+	// exceeds the target the best direction is perpendicular to your velocity.
+	// Clamping lower reports a large loss as the maximum gain.
+	if (u < 0.0)
+		u = 0.0;
+	if (u > (double) speed)
+		u = speed;
+
+	return (float) u;
+}
+
+strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float yaw_deg,
+						   float roll_deg, float forwardmove, float sidemove, float dt, bool ducked,
+						   int air_accel)
+{
+	strafe_frame_t out;
+
+	// A negative sv_airaccelerate is reachable - the cvar has no lower bound -
+	// and would make the whole model degenerate.
+	const float accel = air_accel > 0 ? (float) air_accel : (air_accel == 0 ? 1.f : 0.f);
+
+	if (accel <= 0.f || dt <= 0.f)
+		return out;
+
+	float wishvel[2];
+	WishVelocity(pitch_deg, yaw_deg, roll_deg, forwardmove, sidemove, wishvel);
+
+	float wishspeed = HorizontalSpeed(wishvel[0], wishvel[1]);
+
+	if (wishspeed < 1.f)
+		return out; // no directional input: nothing was on offer
+
+	const float wishdir[2] = { wishvel[0] / wishspeed, wishvel[1] / wishspeed };
+
+	// The clamp reduces wishspeed only; wishdir was normalised before it and is
+	// deliberately left alone, exactly as PM_AirMove does it.
+	const float maxspeed = ducked ? PM_DUCKSPEED : PM_MAXSPEED;
+
+	if (wishspeed > maxspeed)
+		wishspeed = maxspeed;
+
+	out.wishspeed = wishspeed;
+	out.target = air_accel != 0 ? (wishspeed < PM_AIR_TARGET ? wishspeed : PM_AIR_TARGET) : wishspeed;
+	out.budget = accel * wishspeed * dt;
+
+	const float speed = HorizontalSpeed(vel_before_xy[0], vel_before_xy[1]);
+
+	out.along = vel_before_xy[0] * wishdir[0] + vel_before_xy[1] * wishdir[1];
+	out.along_best = BestAlong(speed, out.target, out.budget);
+
+	out.gain = AccelGain(speed, out.along, out.target, out.budget);
+	out.gain_max = AccelGain(speed, out.along_best, out.target, out.budget);
+
+	out.over_turning = out.along < out.along_best;
+	out.opportunity = out.gain_max > STRAFE_MIN_GAIN;
+
+	return out;
+}
+
+strafe_frame_kind_t ClassifyStrafeFrame(const move_sample_t &sample)
+{
+	// Anything that would make the reconstruction inexact is excluded outright
+	// rather than shown as a bad score - telling a player they strafed badly
+	// when the truth is we could not tell is the one failure worth avoiding.
+	if (!sample.predicted || !sample.inputs_valid || sample.msec == 0)
+		return strafe_frame_kind_t::excluded;
+
+	if (sample.discontinuity || !sample.pm_normal)
+		return strafe_frame_kind_t::excluded;
+
+	// Ground at either end of the command: friction ran, or the slide move put
+	// us on the floor partway through.
+	if (sample.on_ground_entry || sample.on_ground || sample.jumped)
+		return strafe_frame_kind_t::excluded;
+
+	// PM_AddCurrents rewrites the wish vector on ladders and in water, and both
+	// take friction.
+	if (sample.on_ladder || sample.water_level != 0)
+		return strafe_frame_kind_t::excluded;
+
+	if (sample.timed_move)
+		return strafe_frame_kind_t::excluded;
+
+	if (sample.forwardmove == 0.f && sample.sidemove == 0.f)
+		return strafe_frame_kind_t::no_opportunity;
+
+	return strafe_frame_kind_t::usable;
+}
+
+void strafe_state_t::Reset()
+{
+	weight = 0.f;
+	taken = 0.f;
+	signed_loss = 0.f;
+	last_time_ms = 0;
+	have_last = false;
+}
+
+strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms)
+{
+	strafe_readout_t out;
+
+	const move_sample_t *now = ring.Get(1);
+
+	if (!now)
+	{
+		Reset();
+		return out;
+	}
+
+	// A teleport or a recall must not be averaged across.
+	if (now->discontinuity)
+		Reset();
+
+	uint64_t dt_ms = 0;
+
+	if (have_last && now->time_ms > last_time_ms)
+		dt_ms = now->time_ms - last_time_ms;
+
+	if (dt_ms > 2000)
+		dt_ms = 2000;
+
+	last_time_ms = now->time_ms;
+	have_last = true;
+
+	if (tau_ms == 0)
+		tau_ms = 1;
+
+	const double decay = std::exp(-(double) dt_ms / (double) tau_ms);
+
+	weight = (float) (weight * decay);
+	taken = (float) (taken * decay);
+	signed_loss = (float) (signed_loss * decay);
+
+	const strafe_frame_kind_t kind = ClassifyStrafeFrame(*now);
+
+	if (kind == strafe_frame_kind_t::usable)
+	{
+		const float vel[2] = { now->vel_before[0], now->vel_before[1] };
+
+		const strafe_frame_t frame =
+			StrafeFrame(vel, now->view_pitch, now->view_yaw, now->view_roll, now->forwardmove,
+						now->sidemove, now->msec / 1000.f, now->ducked, now->air_accel);
+
+		if (frame.opportunity)
+		{
+			// Clamped at zero rather than allowed negative, so one frame of
+			// accelerating backwards reads as a zero rather than cancelling out
+			// a good frame either side of it.
+			const float got = frame.gain > 0.f ? frame.gain : 0.f;
+
+			weight += frame.gain_max;
+			taken += got;
+			signed_loss += (frame.over_turning ? 1.f : -1.f) * (frame.gain_max - got);
+
+			out.frame = got / frame.gain_max;
+			out.opportunity = true;
+		}
+	}
+
+	if (weight > STRAFE_MIN_WEIGHT)
+	{
+		out.valid = true;
+		out.efficiency = taken / weight;
+		out.offset = signed_loss / weight;
+
+		if (out.efficiency < 0.f)
+			out.efficiency = 0.f;
+		if (out.efficiency > 1.f)
+			out.efficiency = 1.f;
+		if (out.offset < -1.f)
+			out.offset = -1.f;
+		if (out.offset > 1.f)
+			out.offset = 1.f;
+	}
+
+	return out;
+}
+
 bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)
 {
 	if (ent_is_viewer)

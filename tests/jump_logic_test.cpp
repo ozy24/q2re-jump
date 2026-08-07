@@ -464,6 +464,39 @@ static jump::move_sample_t MakeSample(uint64_t time_ms, float speed, bool on_gro
 	return sample;
 }
 
+static bool Near(float got, float want, float eps)
+{
+	const float diff = got > want ? got - want : want - got;
+
+	if (diff <= eps)
+		return true;
+
+	printf("  got %.6f, want %.6f (+/- %.6f)\n", got, want, eps);
+	return false;
+}
+
+// A clean airborne sample: predicted, real inputs, no ground, water, ladder or
+// timed state - i.e. one the strafe meter will actually measure.
+static jump::move_sample_t MakeAirSample(uint64_t time_ms, float vx, float vy, float yaw,
+										 float fmove, float smove, uint8_t msec, int air_accel = 0)
+{
+	jump::move_sample_t sample;
+	sample.time_ms = time_ms;
+	sample.vel_before[0] = vx;
+	sample.vel_before[1] = vy;
+	sample.velocity[0] = vx;
+	sample.velocity[1] = vy;
+	sample.speed = jump::HorizontalSpeed(vx, vy);
+	sample.view_yaw = yaw;
+	sample.forwardmove = fmove;
+	sample.sidemove = smove;
+	sample.msec = msec;
+	sample.air_accel = air_accel;
+	sample.predicted = true;
+	sample.inputs_valid = true;
+	return sample;
+}
+
 static void TestMoveRing()
 {
 	jump::move_ring_t ring;
@@ -645,6 +678,294 @@ static void TestSpeedState()
 	CHECK(state.Update(ring).peak == 100.f);
 }
 
+static void TestMoveAxes()
+{
+	float forward[2], right[2];
+
+	jump::MoveAxes(0.f, 0.f, 0.f, forward, right);
+	CHECK(Near(forward[0], 1.f, 1e-5f));
+	CHECK(Near(forward[1], 0.f, 1e-5f));
+	CHECK(Near(right[0], 0.f, 1e-5f));
+	CHECK(Near(right[1], -1.f, 1e-5f));
+
+	jump::MoveAxes(0.f, 90.f, 0.f, forward, right);
+	CHECK(Near(forward[0], 0.f, 1e-5f));
+	CHECK(Near(forward[1], 1.f, 1e-5f));
+	CHECK(Near(right[0], 1.f, 1e-5f));
+	CHECK(Near(right[1], 0.f, 1e-5f));
+
+	// Pitch reaches the move axes divided by three, so looking 60 degrees down
+	// scales forward by cos(20), not cos(60). Right is untouched by pitch.
+	jump::MoveAxes(60.f, 0.f, 0.f, forward, right);
+	CHECK(Near(forward[0], 0.93969f, 1e-4f));
+	CHECK(Near(right[0], 0.f, 1e-5f));
+	CHECK(Near(right[1], -1.f, 1e-5f));
+
+	// Angles arrive unwrapped: 330 is -30, so a third of it is -10.
+	jump::MoveAxes(330.f, 0.f, 0.f, forward, right);
+	CHECK(Near(forward[0], 0.98481f, 1e-4f));
+}
+
+static void TestAccelGain()
+{
+	// From rest every direction is equally good and you get the whole budget.
+	CHECK(Near(jump::AccelGain(0.f, 0.f, 300.f, 7.5f), 7.5f, 1e-3f));
+
+	// Perfectly aligned and well below the target: also the whole budget.
+	CHECK(Near(jump::AccelGain(100.f, 100.f, 300.f, 7.5f), 7.5f, 1e-3f));
+
+	// Accelerating into your own velocity loses speed. This must not be
+	// clamped away here - the sign is real, and BestAlong depends on it.
+	CHECK(Near(jump::AccelGain(100.f, -100.f, 300.f, 7.5f), -7.5f, 1e-3f));
+
+	// Already past the target: PM_Accelerate's addspeed <= 0 early-out.
+	CHECK(Near(jump::AccelGain(400.f, 400.f, 300.f, 7.5f), 0.f, 1e-4f));
+}
+
+static void TestBestAlong()
+{
+	// Vanilla air at speed: the optimum sits a budget below the target.
+	CHECK(Near(jump::BestAlong(400.f, 300.f, 7.5f), 292.5f, 1e-3f));
+
+	// Too slow to be off-axis at all - clamps to your own speed, i.e. point
+	// straight along the velocity, and the gain is then the full budget.
+	CHECK(Near(jump::BestAlong(100.f, 300.f, 7.5f), 100.f, 1e-3f));
+	CHECK(Near(jump::AccelGain(100.f, 100.f, 300.f, 7.5f), 7.5f, 1e-3f));
+
+	// The regression that matters. With the 30-clamp air model the budget
+	// exceeds the target, and the optimum is a projection of ZERO - strafe
+	// perpendicular. Clamping the low end below zero would return -45 here and
+	// report a 1.4 ups LOSS as the best available gain.
+	CHECK(Near(jump::BestAlong(400.f, 30.f, 75.f), 0.f, 1e-4f));
+	CHECK(jump::AccelGain(400.f, -45.f, 30.f, 75.f) < 0.f);
+	CHECK(jump::AccelGain(400.f, 0.f, 30.f, 75.f) > 0.f);
+}
+
+static void TestStrafeFrame()
+{
+	const float still[2] = { 400.f, 0.f };
+
+	// No directional input: nothing was on offer, which is not the same as
+	// having wasted what was.
+	jump::strafe_frame_t none = jump::StrafeFrame(still, 0.f, 0.f, 0.f, 0.f, 0.f, 0.025f, false, 0);
+	CHECK(!none.opportunity);
+
+	// The headline case. At 400 ups on vanilla air physics, holding forward
+	// captures NONE of what was available - the projection is already past the
+	// target, so the engine's early-out fires and you gain nothing, while a
+	// 43 degree strafe would have gained 5.5 ups.
+	jump::strafe_frame_t fwd =
+		jump::StrafeFrame(still, 0.f, 0.f, 0.f, 400.f, 0.f, 0.025f, false, 0);
+	CHECK(fwd.opportunity);
+	CHECK(Near(fwd.wishspeed, 300.f, 1e-3f)); // clamped from 400
+	CHECK(Near(fwd.budget, 7.5f, 1e-3f));
+	CHECK(Near(fwd.along_best, 292.5f, 1e-2f));
+	CHECK(Near(fwd.gain_max, 5.5166f, 1e-2f));
+	CHECK(Near(fwd.gain, 0.f, 1e-3f));
+	// Aiming straight down your own velocity is the too-little-turn error.
+	CHECK(!fwd.over_turning);
+
+	// The same input at 100 ups is perfect: below the optimum's reach, pointing
+	// straight along the velocity is the best there is.
+	const float slow[2] = { 100.f, 0.f };
+	jump::strafe_frame_t aligned =
+		jump::StrafeFrame(slow, 0.f, 0.f, 0.f, 400.f, 0.f, 0.025f, false, 0);
+	CHECK(Near(aligned.gain, aligned.gain_max, 1e-4f));
+	CHECK(Near(aligned.gain, 7.5f, 1e-3f));
+
+	// Ducking clamps wishspeed to 100, which drops both the target and the
+	// budget - the same input that was perfect above now captures nothing.
+	jump::strafe_frame_t ducked =
+		jump::StrafeFrame(slow, 0.f, 0.f, 0.f, 400.f, 0.f, 0.025f, true, 0);
+	CHECK(Near(ducked.wishspeed, 100.f, 1e-3f));
+	CHECK(Near(ducked.budget, 2.5f, 1e-3f));
+	CHECK(Near(ducked.gain, 0.f, 1e-3f));
+	CHECK(ducked.gain_max > 2.f);
+
+	// The 30-clamp model: perpendicular is exactly optimal, so a pure sideways
+	// input at 90 degrees of yaw scores full marks.
+	jump::strafe_frame_t perp =
+		jump::StrafeFrame(still, 0.f, 90.f, 0.f, 400.f, 0.f, 0.025f, false, 10);
+	CHECK(Near(perp.target, 30.f, 1e-4f));
+	CHECK(Near(perp.budget, 75.f, 1e-3f));
+	CHECK(Near(perp.along, 0.f, 1e-3f));
+	CHECK(Near(perp.along_best, 0.f, 1e-4f));
+	CHECK(Near(perp.gain, perp.gain_max, 1e-4f));
+	CHECK(Near(perp.gain, 1.1234f, 1e-2f));
+
+	// Same model at 125 fps: the budget drops below the target, so the optimum
+	// moves off perpendicular. This is the frame-rate dependence the vanilla
+	// model does not have, and it is why air_accel is stored per sample.
+	jump::strafe_frame_t fast =
+		jump::StrafeFrame(still, 0.f, 90.f, 0.f, 400.f, 0.f, 0.008f, false, 10);
+	CHECK(Near(fast.budget, 24.f, 1e-3f));
+	CHECK(fast.along_best > 5.f);
+}
+
+static void TestClassifyStrafeFrame()
+{
+	const jump::move_sample_t clean = MakeAirSample(0, 400.f, 0.f, 0.f, 400.f, 0.f, 25);
+	CHECK(jump::ClassifyStrafeFrame(clean) == jump::strafe_frame_kind_t::usable);
+
+	// Every exclusion, one field at a time.
+	jump::move_sample_t s = clean;
+	s.predicted = false;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.inputs_valid = false;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.msec = 0;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.discontinuity = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.pm_normal = false;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	// Ground at either end of the command: friction ran, or the slide move put
+	// us on the floor partway through.
+	s = clean;
+	s.on_ground_entry = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.on_ground = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.jumped = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.on_ladder = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.water_level = 1;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	s = clean;
+	s.timed_move = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+
+	// Exact, but nothing to capture.
+	s = clean;
+	s.forwardmove = 0.f;
+	s.sidemove = 0.f;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::no_opportunity);
+}
+
+static void TestStrafeState()
+{
+	jump::move_ring_t	 ring;
+	jump::strafe_state_t state;
+
+	CHECK(!state.Update(ring).valid);
+
+	// A run of perfect frames converges on 1.0 and reports no error either way.
+	jump::strafe_readout_t out;
+
+	for (int i = 0; i < 10; i++)
+	{
+		ring.Push(MakeAirSample((uint64_t) i * 25, 100.f, 0.f, 0.f, 400.f, 0.f, 25));
+		out = state.Update(ring);
+	}
+
+	CHECK(out.valid);
+	CHECK(Near(out.efficiency, 1.f, 1e-3f));
+	CHECK(Near(out.offset, 0.f, 1e-3f));
+
+	// Then a run capturing nothing: the reading falls away rather than
+	// snapping, and the sign says which way the error went.
+	for (int i = 10; i < 40; i++)
+	{
+		ring.Push(MakeAirSample((uint64_t) i * 25, 400.f, 0.f, 0.f, 400.f, 0.f, 25));
+		out = state.Update(ring);
+	}
+
+	CHECK(out.valid);
+	CHECK(out.efficiency < 0.15f);
+	CHECK(out.offset < -0.5f); // aiming along the velocity: turning too little
+
+	// Ground frames are excluded, so the accumulator decays rather than being
+	// cleared. A brief touch of ground must NOT blank the bar: a bunny-hop
+	// chain crosses the ground twice a second, and an element that vanishes at
+	// 2 Hz is worse than one that holds its last reading.
+	int i = 40;
+
+	for (int hop = 0; hop < 4; hop++, i++)
+	{
+		jump::move_sample_t ground = MakeAirSample((uint64_t) i * 25, 300.f, 0.f, 0.f, 400.f, 0.f, 25);
+		ground.on_ground_entry = true;
+		ground.on_ground = true;
+		ring.Push(ground);
+		out = state.Update(ring);
+	}
+
+	CHECK(out.valid);
+
+	// Standing on the ground does eventually blank it - a couple of seconds,
+	// not instantly - and it must decay there rather than snapping to 0 or 1.
+	for (; i < 200; i++)
+	{
+		jump::move_sample_t ground = MakeAirSample((uint64_t) i * 25, 300.f, 0.f, 0.f, 400.f, 0.f, 25);
+		ground.on_ground_entry = true;
+		ground.on_ground = true;
+		ring.Push(ground);
+		out = state.Update(ring);
+	}
+
+	CHECK(!out.valid);
+
+	// A teleport resets the accumulator rather than averaging across it.
+	ring.Clear();
+	state.Reset();
+
+	for (int i = 0; i < 10; i++)
+	{
+		ring.Push(MakeAirSample((uint64_t) i * 25, 100.f, 0.f, 0.f, 400.f, 0.f, 25));
+		state.Update(ring);
+	}
+
+	jump::move_sample_t ported = MakeAirSample(250, 400.f, 0.f, 0.f, 400.f, 0.f, 25);
+	ported.discontinuity = true;
+	ring.Push(ported);
+	out = state.Update(ring);
+
+	// Only that frame is in the average now, so the smoothed value is its own
+	// raw ratio - which for this input is zero.
+	CHECK(Near(out.efficiency, out.frame, 1e-4f));
+
+	// Frame-rate independence: the same movement sampled at 8 ms and at 25 ms
+	// over the same wall-clock span must converge on the same reading. This is
+	// what the ratio-of-sums smoothing buys, and it is worth enforcing rather
+	// than asserting in a comment.
+	jump::move_ring_t	 slow_ring, fast_ring;
+	jump::strafe_state_t slow_state, fast_state;
+	jump::strafe_readout_t slow_out, fast_out;
+
+	for (uint64_t t = 0; t <= 1000; t += 25)
+	{
+		slow_ring.Push(MakeAirSample(t, 400.f, 0.f, 0.f, 400.f, 100.f, 25));
+		slow_out = slow_state.Update(slow_ring);
+	}
+
+	for (uint64_t t = 0; t <= 1000; t += 8)
+	{
+		fast_ring.Push(MakeAirSample(t, 400.f, 0.f, 0.f, 400.f, 100.f, 8));
+		fast_out = fast_state.Update(fast_ring);
+	}
+
+	CHECK(slow_out.valid && fast_out.valid);
+	CHECK(Near(slow_out.efficiency, fast_out.efficiency, 0.02f));
+}
+
 int main()
 {
 	TestFormatTime();
@@ -660,6 +981,12 @@ int main()
 	TestFormatSpeed();
 	TestMoveRing();
 	TestSpeedState();
+	TestMoveAxes();
+	TestAccelGain();
+	TestBestAlong();
+	TestStrafeFrame();
+	TestClassifyStrafeFrame();
+	TestStrafeState();
 	TestRecords();
 	TestJumpersPolicy();
 	TestSortPlayerRows();
