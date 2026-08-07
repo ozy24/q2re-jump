@@ -34,6 +34,23 @@ released — see [docs/release-process.md](docs/release-process.md).
   was the one piece that could have gone either way, and keeping it with the rest is what stops
   the performance HUD being half in one place and half in the other.
 
+- **A strafe meter**, a small bar under the speedometer showing how much of the acceleration that
+  was available to you on each frame your input actually took. This is the thing the speed number
+  cannot tell you — it says where you ended up, not whether the input that got you there was any
+  good. At 400 ups the difference between a 43° strafe and a 45° one is the difference between
+  taking everything on offer and taking none of it.
+
+  Two forms: centre-anchored by default, so the side tells you which way to correct and the
+  distance tells you how much you are losing, or a plain 0-100% bar with `jump_hud_strafe 1`.
+
+  It is derived from the game's own acceleration maths rather than estimated, including the rule
+  that pmove divides your view pitch by three before working out which way you are trying to go —
+  so looking down really does change your strafe angle. It follows the server's
+  `sv_airaccelerate`: on the default the best angle opens up as you get faster, around 43° at 400
+  ups, while a non-zero value pins it near 90° and makes framerate matter. It grades your input,
+  not your outcome, so clipping a wall costs you speed the bar will not blame you for. Air only,
+  smoothed over about a second, and `jump_hud_strafe 0` turns it off.
+
 - **The client half now samples your movement every rendered frame**, out of the game's own
   prediction, which is what makes the readouts above finer-grained than anything the server
   could send — and it costs no network traffic at all. `jump_hud 0` turns the whole overlay off

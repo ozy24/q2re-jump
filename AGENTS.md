@@ -94,8 +94,8 @@ prints.
 - The **server statusbar carries everything needed to _play_** — timer, checkpoints, stores, team,
   PB, time remaining. A stock client can be shown that and nothing else, and nobody should need a
   download to race.
-- The **client overlay carries everything about playing _better_** — speedometer today; strafe
-  meter, key display and per-jump readouts next.
+- The **client overlay carries everything about playing _better_** — speedometer and strafe meter
+  today; key display and per-jump readouts next.
 
 Draw the line there rather than at "can a layout express it?", because most performance tooling
 genuinely cannot go server-side: a strafe meter needs the `usercmd_t`, a key display needs button
@@ -111,6 +111,10 @@ line being clean, and the answer is that the DLL is a download away.
 The overlay defaults **on** (`jump_hud 1`) — installing the file *is* the opt-in, since the server
 already sends everything a run needs. `jump_hud 0` gives the exact stock-client view, which is
 worth keeping for checking what players actually see.
+
+The strafe meter is the element that *passed* the test the next two failed. It answers a question
+the number cannot — *was that the best angle available?* — rather than restating one it already
+shows. That is the bar a new overlay element has to clear.
 
 Two overlay elements were built and then cut after seeing them in play: a peak-of-jump figure (a
 high-water mark, so stale the moment you stop matching it, and speed barely changes in flight so it
@@ -169,6 +173,20 @@ string, or one starting with `$` is read as a localization key.
 
 ## Traps that have already caused bugs
 
+- **pmove divides your view pitch by three.** Before building the move axes, `PM_AirMove`'s caller
+  wraps pitch into `(-180,180]` and divides it by 3 (`p_move.cpp:1684-1692`), for the ground branch
+  as well as the air one. Anything reconstructing `wishdir` from view angles — the strafe meter does
+  — is wrong by up to 13% on the forward axis if it skips that. `jump::MoveAxes` is the one place
+  this is encoded.
+- **`pm_config.airaccel` is not a constant.** It arrives on `CS_AIRACCEL` and `CG_ParseConfigString`
+  updates it whenever the server changes `sv_airaccelerate`. The default is **0**, which selects
+  *vanilla* air acceleration, not the 30-clamp model — a different optimum and a different technique.
+  Read it per pmove call; never cache it.
+- **`pmove_t`'s outputs are cleared at the top of `Pmove`.** `viewangles`, `waterlevel`,
+  `groundentity` and `jump_sound` are all zeroed on entry, so only `pm->s.*` can be read *before* the
+  call — and `pm_flags & PMF_ON_GROUND` read *after* it is where the player landed, not the branch
+  the movement actually took. `jump_cg_move.cpp` reads velocity, `pm_flags`, `pm_time` and `pm_type`
+  before, and everything else after, for exactly this reason.
 - **`pers.netname` is not a name.** The engine overwrites it with an encoded lobby token
   (`##P0`), meaningful only as an argument to the `Loc*` print imports. For anything written to a
   file or baked into a plain string, use `Jump_DisplayName()`, which reads the real name from

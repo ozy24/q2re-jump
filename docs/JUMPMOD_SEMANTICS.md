@@ -300,6 +300,23 @@ ten times a second by construction rather than by choice; `10` restores that cad
 refresh rate, not the ±10 ups hysteresis B applies to replays — the value shown is exact, only
 sampled less often.
 
+**Strafe meter** — **new, and a deliberate divergence.** Neither mod has one. But classic q2jump
+built the machinery to *forbid* the AprQ2/q2pro client's built-in strafe helper and then shipped it
+disabled: `p_client.c:1852-1861` reads `cl_drawstrafehelper` back out of userinfo with the comment
+`// should always be 0!!`, and `:2173` would have stuffed `set cl_drawstrafehelper 0 u`. **Both
+blocks are commented out** in the shipped source, which records no reason why.
+
+**Port decision: ship one, on by default.** The distinction that carries it is visible in that same
+function. The lines *beside* the commented block — kicking for `cl_maxpackets` outside 20-120, and
+forcing `cl_maxfps` into userinfo — are live, because those change *what the physics does*: under
+the 30-clamp air model a 125 fps client gains materially more speed per second than a 40 fps one.
+A strafe meter changes only *what you can see*. It reads out the acceleration model that is in the
+source anyway, it does not touch pmove, and every player can install the same DLL.
+
+Worth recording honestly: it is also unenforceable in principle — the cgame is the client's own
+file, never sent by the server and never inspectable by it — but that is the weakest of the reasons
+and not the one this decision rests on.
+
 **Movement overlay** — **new, not a port.** Neither mod shows peak speed or a gain/loss figure;
 A's `showjumps` (`p_client.c:2308-2331`) prints a per-jump distance and its delta as chat text, and
 both mods' real technique feedback is the key-state HUD plus watching replays. This port draws

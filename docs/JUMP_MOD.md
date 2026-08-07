@@ -190,6 +190,39 @@ markedly easier to read at that rate: `jump_hud_speed_hz 10` gives you it. That
 is a refresh rate, not smoothing — the number shown is always an exact
 instantaneous speed, only sampled less often.
 
+### The strafe meter
+
+A small bar under the speedometer showing **how much of the acceleration that
+was available to you, you actually took**. This is the one thing the speed
+number cannot tell you: it says where you ended up, not whether the input that
+got you there was any good. At 400 ups the difference between a 43° strafe and a
+45° one is the difference between capturing everything on offer and capturing
+none of it, and nothing else on screen shows that.
+
+It comes in two forms — `jump_hud_strafe 2` (the default) is **centre-anchored**:
+the bar fills outward from the middle, so the side tells you which way to
+correct and the distance tells you how much you are losing. `jump_hud_strafe 1`
+is a plain 0-100% bar filling from the left with a mark at 90%, if you find the
+signed version busy. Both read the same number.
+
+Four things worth knowing:
+
+- **It is an air meter.** It empties on the ground, because on the ground the
+  answer is always "all of it" — and because the arithmetic stops being exact
+  there, and a meter that guesses is worse than no meter.
+- **It grades your input, not your outcome.** Clipping a wall or a ramp costs
+  you speed the bar will not blame you for. So a full bar while the number falls
+  is not a contradiction: you strafed well and geometry took it off you.
+- **It follows the server.** On `sv_airaccelerate 0` — the rerelease default —
+  the best angle opens up as you get faster, around 43° at 400 ups. On a server
+  running a non-zero value the best angle sits near 90° and your framerate
+  starts to matter. The bar adapts to whichever is running; your muscle memory
+  does not, which is exactly why it is worth having.
+- **The last few percent are not worth chasing.** The mark is where to aim.
+
+The reading is smoothed over about a second, because the raw frame-by-frame
+value is unreadable. `jump_hud_strafe_tau` is that memory in milliseconds.
+
 ### Finishing
 
 Touching any weapon finishes the run, as does a `trigger_finish` or
@@ -242,7 +275,7 @@ what a status bar can technically draw:
 
 - **The server draws what you need to play** — timer, checkpoints, stores, team, PB, time
   remaining. Every player gets it, whatever client they are on.
-- **This DLL draws what you need to play better** — the speedometer today; a strafe meter, key
+- **This DLL draws what you need to play better** — the speedometer and the strafe meter; a key
   display and per-jump readouts are the intended direction.
 
 The line is there because most performance tooling *cannot* be server-side. A strafe meter needs
@@ -494,6 +527,8 @@ any change to the entity contract.
 | `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view |
 | `jump_hud_speed` | `1` | **Client-side.** The speedometer within it |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
+| `jump_hud_strafe` | `2` | **Client-side.** Strafe meter: `0` off, `1` a plain 0-100% bar, `2` centre-anchored |
+| `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
 
 ### Map rotation and the vote pool
 
