@@ -265,9 +265,16 @@ static void Jump_EmitStatusbar()
 
 	sb.ifstat(JUMP_STAT_ANNOUNCE).yt(announce_y).xv(0).loc_stat_cstring2(JUMP_STAT_ANNOUNCE).endifstat();
 
-	// Team mode lives in the bottom-right corner, away from the run column.
-	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(-16).xr(-76).string2("PRACTICE").endifstat();
-	sb.ifstat(JUMP_STAT_TEAM_RANKED).yb(-16).xr(-60).string2("RANKED").endifstat();
+	// Team mode sits centred on the bottom row, under the speedometer, so the
+	// two things that describe the run you are on read as one column. Both are
+	// literal strings of known length, so they can be centred exactly: string2
+	// draws at CONCHAR_WIDTH (8) per character. Under scr_usekfont's
+	// proportional font they land a few px right of centre, the same caveat as
+	// every other label here.
+	constexpr int team_yb = -16;
+
+	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(team_yb).xv(160 - (8 * 8) / 2).string2("PRACTICE").endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_RANKED).yb(team_yb).xv(160 - (6 * 8) / 2).string2("RANKED").endifstat();
 
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
@@ -307,8 +314,8 @@ static void Jump_EmitStatusbar()
 		.string2("Speed")
 		.endifstat();
 
-	// Map time remaining, one row above PB - the bottom of the right-hand column,
-	// which is also where it belongs visually: it is the only clock here that is
+	// Map time remaining, at the foot of the right-hand column directly under
+	// PB - the two share a right edge, and it is the only clock here that is
 	// not about this run. This is the stock time_limit token: it takes an
 	// absolute server frame and the client does the counting itself, so it costs
 	// no stat slot and no per-frame server work - the reason it beats a pair of
@@ -320,17 +327,17 @@ static void Jump_EmitStatusbar()
 	// (jump_scoreboard.cpp) so the two can never disagree.
 	//
 	// The token draws its own label ("$g_score_time" -> "Time Left: MM:SS"), so
-	// its width belongs to the engine and changes with scr_usekfont. It is
-	// right-aligned though, so anchoring it to the same right edge as PB and
-	// PRACTICE is exact under either font - a left-edge anchor would have to
-	// guess the width and clips when it guesses low.
+	// its width belongs to the engine and changes with both scr_usekfont and
+	// the client's language. That is exactly why it lives on a right edge: it
+	// draws itself ending at the cursor, so an xr anchor is exact whatever it
+	// measures, while centring it would mean guessing a width we cannot know.
 	if (timelimit && timelimit->value > 0)
 	{
 		const int32_t end_frame =
 			(int32_t) (gi.ServerFrame() +
 					   ((gtime_t::from_min(timelimit->value) - level.time)).milliseconds() / gi.frame_time_ms);
 
-		sb.yb(pb_yb - row_gap - label_h).xr(pb_right);
+		sb.yb(team_yb).xr(pb_right);
 		sb.sb << "time_limit " << end_frame << ' ';
 	}
 

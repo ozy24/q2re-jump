@@ -28,7 +28,7 @@ released — see [docs/release-process.md](docs/release-process.md).
   bunny-hop chain keeps its peak across hops; standing still, teleports and recalls clear it.
   `jump_hud_speed 0` trims it back to the shared view without turning the whole overlay off.
 
-- **The map's time remaining is now on the HUD**, at the foot of the right-hand column above
+- **The map's time remaining is now on the HUD**, at the foot of the right-hand column under
   your PB, instead of only on the scoreboard. It updates itself on the client, so it costs
   nothing per frame, and it re-syncs immediately when a `timeextend` vote passes or the
   `timelimit` cvar is changed from the console. Nothing shows when there is no time limit.
