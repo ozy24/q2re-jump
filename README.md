@@ -153,7 +153,7 @@ comparison; this is the summary.
   via `trigger_push` and `jump_cpwall`/`jump_cpbrush`
 - Q2JumpRefresh's eight core msets (`gravity`, `checkpoints`, `damage`,
   `fasttele`, `rocket`, `grenadelauncher`, `hyperblaster`, `bfg`), settable
-  live with `sv jump_mset`
+  live with `sv jump_mset` and readable in game with `msets`
 - Per-map records with the standard 15-place points table, `maptimes` /
   `playertimes` / `ranks`
 - Join menu on connect and on every map change

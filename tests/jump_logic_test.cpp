@@ -351,6 +351,53 @@ static void TestSortPlayerRows()
 	CHECK(rows.empty());
 }
 
+static void TestParseMset()
+{
+	// The forms a cfg file or an `sv jump_mset` argument might reasonably use.
+	CHECK(jump::ParseMsetBool("1") == true);
+	CHECK(jump::ParseMsetBool("0") == false);
+	CHECK(jump::ParseMsetBool("on") == true);
+	CHECK(jump::ParseMsetBool("off") == false);
+	CHECK(jump::ParseMsetBool("yes") == true);
+	CHECK(jump::ParseMsetBool("no") == false);
+
+	// Case and surrounding whitespace are the caller's problem, not the map
+	// author's - a cfg line arrives with its trailing \r still attached.
+	CHECK(jump::ParseMsetBool("TRUE") == true);
+	CHECK(jump::ParseMsetBool("False") == false);
+	CHECK(jump::ParseMsetBool("  On \r") == true);
+
+	// atoi treated every other number as true; keep that, since a saved file
+	// could hold one and rejecting it would change how an existing map plays.
+	CHECK(jump::ParseMsetBool("2") == true);
+	CHECK(jump::ParseMsetBool("-1") == true);
+
+	// The whole point: a typo must be reported, not silently read as off.
+	CHECK(jump::ParseMsetBool("banana") == std::nullopt);
+	CHECK(jump::ParseMsetBool("") == std::nullopt);
+	CHECK(jump::ParseMsetBool("   ") == std::nullopt);
+	CHECK(jump::ParseMsetBool("1x") == std::nullopt);
+	CHECK(jump::ParseMsetBool("onn") == std::nullopt);
+
+	CHECK(jump::ParseMsetInt("800") == 800);
+	CHECK(jump::ParseMsetInt("0") == 0);
+	CHECK(jump::ParseMsetInt("-400") == -400);
+	CHECK(jump::ParseMsetInt("+400") == 400);
+	CHECK(jump::ParseMsetInt(" 800\r") == 800);
+
+	// atoi read all of these as a number; none of them are one.
+	CHECK(jump::ParseMsetInt("800x") == std::nullopt);
+	CHECK(jump::ParseMsetInt("abc") == std::nullopt);
+	CHECK(jump::ParseMsetInt("") == std::nullopt);
+	CHECK(jump::ParseMsetInt("-") == std::nullopt);
+	CHECK(jump::ParseMsetInt("4.5") == std::nullopt);
+	CHECK(jump::ParseMsetInt("8 0 0") == std::nullopt);
+
+	// Out of range clamps rather than wrapping into a plausible gravity.
+	CHECK(jump::ParseMsetInt("99999999999") == 2147483647);
+	CHECK(jump::ParseMsetInt("-99999999999") == -2147483647 - 1);
+}
+
 int main()
 {
 	TestFormatTime();
@@ -361,6 +408,7 @@ int main()
 	TestSanitizeLayoutText();
 	TestIsSafeMapToken();
 	TestIsCheckpointBarrierTarget();
+	TestParseMset();
 	TestRecords();
 	TestJumpersPolicy();
 	TestSortPlayerRows();

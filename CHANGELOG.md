@@ -10,12 +10,27 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`msets` lists the settings in force on the current map** — gravity, `fasttele`, which weapons
+  are tools rather than the finish, and how many checkpoints are required. Typing `mset` prints
+  the same list plus a note that settings come from the server console, since that is the command
+  the other jump mods have and players expect. Both are read-only; setting stays on
+  `sv jump_mset`, because client commands carry no privilege model and these settings decide
+  whether a run counts.
+
 ### Fixed
 
 - **`fasttele` did nothing on maps built with `trigger_teleport`.** Only `misc_teleporter`
   honoured the mset, so on the 39 corpus maps that use the trigger form — `ataraxia`, `mako2-4`,
   the `acejumps` and `stonerjumps` sets among them — you were still frozen for 160 ms on every
   teleport with `fasttele 1` set.
+
+- **Mistyped mset values were silently accepted.** `sv jump_mset fasttele on` reported success and
+  set it to *off*, because values went through `atoi`; `gravity abc` set gravity to zero the same
+  way. Booleans now take `0`/`1`, `on`/`off`, `true`/`false` and `yes`/`no`, integers must be whole
+  numbers, and anything else is rejected with the old value left in place. Keys are matched
+  case-insensitively, so `sv jump_mset FastTele 1` works.
 
 ## [0.4.7] - 2026-08-05
 

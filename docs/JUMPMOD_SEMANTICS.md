@@ -182,6 +182,12 @@ maps in the corpus found zero `misc_teleporter` setting either bit (the only val
 Angles are always snapped, matching B. `fasttele` covers `misc_teleporter` and `trigger_teleport`
 (39 corpus maps, 405 entities); `trigger_ctf_teleport` is left alone as CTF is forced off.
 
+**Port decision (mset parsing):** keys match case-insensitively and values are validated —
+booleans accept `0`/`1`, `on`/`off`, `true`/`false`, `yes`/`no`, integers must be whole tokens.
+Both upstreams use `atoi`, so `fasttele on` silently means off and `gravity abc` silently means
+zero. Rejected values leave the previous value in place and are reported, since a mset that
+quietly did nothing is indistinguishable from a mset that does not work.
+
 ---
 
 ## 5. Points and rankings

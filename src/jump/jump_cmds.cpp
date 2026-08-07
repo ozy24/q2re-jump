@@ -21,6 +21,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  playertimes    your completions and points\n"
 					"  ranks          points for everyone connected\n"
 					"  maplist        maps in the rotation\n"
+					"  msets          settings in force on this map\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -171,6 +172,16 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "jumpers"))
 	{
 		Jump_CmdJumpers(ent);
+		return true;
+	}
+
+	// `mset` is the settable command both upstream mods give players; this port
+	// keeps setting on `sv jump_mset` (console/rcon), so answer the question the
+	// player was actually asking rather than letting it fall through to the
+	// engine's "invalid game command".
+	if (!Q_strcasecmp(cmd, "msets") || !Q_strcasecmp(cmd, "mset"))
+	{
+		Jump_CmdMsets(ent, !Q_strcasecmp(cmd, "mset"));
 		return true;
 	}
 

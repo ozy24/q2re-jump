@@ -204,10 +204,18 @@ void Jump_Announce(const char *text, gtime_t duration);
 void Jump_AnnounceFrame();
 
 // jump_mset.cpp
-void Jump_LoadMsets(const char *entities);
-void Jump_MsetFrame();
-bool Jump_IsUsableWeapon(item_id_t id);
-bool Jump_ApplyMset(const std::string &key, const std::string &value);
+enum class jump_mset_result_t
+{
+	ok,
+	unknown_key,
+	bad_value
+};
+
+void				Jump_LoadMsets(const char *entities);
+void				Jump_MsetFrame();
+bool				Jump_IsUsableWeapon(item_id_t id);
+jump_mset_result_t	Jump_ApplyMset(const std::string &key, const std::string &value);
+void				Jump_CmdMsets(edict_t *ent, bool show_server_hint);
 
 // jump_vote.cpp
 void Jump_LoadMapList();

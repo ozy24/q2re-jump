@@ -20,48 +20,72 @@ jump_mset_t jump_mset;
 // Applying values
 // ---------------------------------------------------------------------------
 
-static bool Jump_ParseBool(const std::string &value)
+// Distinguishes an unknown key from a bad value so the caller can say which it
+// was; both upstream mods parse with atoi and accept either silently.
+jump_mset_result_t Jump_ApplyMset(const std::string &key, const std::string &value)
 {
-	return atoi(value.c_str()) != 0;
-}
+	// Keys are matched case-insensitively, like every other command in this
+	// file and like classic q2jump's Q_stricmp.
+	const auto named = [&key](const char *name) { return Q_strcasecmp(key.c_str(), name) == 0; };
 
-// Returns false when the key is not a known mset, so the `sv jump_mset` command
-// can report a typo rather than silently accepting it.
-bool Jump_ApplyMset(const std::string &key, const std::string &value)
-{
-	if (key == "gravity")
-	{
-		jump_mset.gravity = atoi(value.c_str());
-		jump_mset.gravity_set = true;
-	}
+	// Assigns through `field` only when the value parses, so a rejected mset
+	// leaves the previous value alone rather than half-applying.
+	const auto set_bool = [&value](bool &field) {
+		const std::optional<bool> parsed = jump::ParseMsetBool(value);
+
+		if (!parsed)
+			return false;
+
+		field = *parsed;
+		return true;
+	};
+
+	const auto set_int = [&value](int &field, bool &was_set) {
+		const std::optional<int> parsed = jump::ParseMsetInt(value);
+
+		if (!parsed)
+			return false;
+
+		field	= *parsed;
+		was_set = true;
+		return true;
+	};
+
+	bool ok;
+
+	if (named("gravity"))
+		ok = set_int(jump_mset.gravity, jump_mset.gravity_set);
 	// The code in Q2JumpRefresh calls this "checkpoints" while its own docs
 	// and the classic mod call it "checkpoint_total"; accept either.
-	else if (key == "checkpoints" || key == "checkpoint_total")
-	{
-		jump_mset.checkpoint_total = atoi(value.c_str());
-		jump_mset.checkpoint_total_set = true;
-	}
-	else if (key == "damage")
-		jump_mset.damage = Jump_ParseBool(value);
-	else if (key == "fasttele")
-		jump_mset.fasttele = Jump_ParseBool(value);
-	else if (key == "rocket")
-		jump_mset.weapon_rocket = Jump_ParseBool(value);
-	else if (key == "grenadelauncher")
-		jump_mset.weapon_grenadelauncher = Jump_ParseBool(value);
-	else if (key == "hyperblaster")
-		jump_mset.weapon_hyperblaster = Jump_ParseBool(value);
-	else if (key == "bfg")
-		jump_mset.weapon_bfg = Jump_ParseBool(value);
+	else if (named("checkpoints") || named("checkpoint_total"))
+		ok = set_int(jump_mset.checkpoint_total, jump_mset.checkpoint_total_set);
+	else if (named("damage"))
+		ok = set_bool(jump_mset.damage);
+	else if (named("fasttele"))
+		ok = set_bool(jump_mset.fasttele);
+	else if (named("rocket"))
+		ok = set_bool(jump_mset.weapon_rocket);
+	else if (named("grenadelauncher"))
+		ok = set_bool(jump_mset.weapon_grenadelauncher);
+	else if (named("hyperblaster"))
+		ok = set_bool(jump_mset.weapon_hyperblaster);
+	else if (named("bfg"))
+		ok = set_bool(jump_mset.weapon_bfg);
 	else
 	{
 		Jump_Log("unknown mset '%s'", key.c_str());
-		return false;
+		return jump_mset_result_t::unknown_key;
+	}
+
+	if (!ok)
+	{
+		Jump_Log("bad value '%s' for mset '%s'", value.c_str(), key.c_str());
+		return jump_mset_result_t::bad_value;
 	}
 
 	Jump_Log("mset %s = %s", key.c_str(), value.c_str());
 
-	return true;
+	return jump_mset_result_t::ok;
 }
 
 // Space-separated "key value key value ..." as used by the worldspawn key.
@@ -298,6 +322,28 @@ static void Jump_MsetList()
 	gi.Com_PrintFmt("checkpoints required: {}\n", Jump_CheckpointTotal());
 }
 
+// The player-facing half of the listing above. Read-only on purpose: setting
+// stays on `sv jump_mset` for the reason in the block comment above, but a
+// player who thinks a mset is broken needs to be able to see its value.
+//
+// `show_server_hint` is set when they typed `mset`, the command the upstream
+// mods have and this port does not, so the reply says where settings come from
+// instead of the engine's "invalid game command".
+void Jump_CmdMsets(edict_t *ent, bool show_server_hint)
+{
+	std::string out = G_Fmt("Map settings for {}:\n", jump_level.mapname).data();
+
+	for (const auto &pair : Jump_MsetPairs())
+		out += G_Fmt("  {} {}\n", pair.first, pair.second).data();
+
+	out += G_Fmt("checkpoints required: {}\n", Jump_CheckpointTotal()).data();
+
+	if (show_server_hint)
+		out += "These are set by the server, not by players: sv jump_mset <key> <value>\n";
+
+	gi.Client_Print(ent, PRINT_HIGH, out.c_str());
+}
+
 static void Jump_MsetSave()
 {
 	const std::filesystem::path path = Jump_MsetPath(jump_level.mapname);
@@ -315,10 +361,18 @@ static void Jump_MsetSave()
 
 static void Jump_MsetSet(const char *key, const char *value)
 {
-	if (!Jump_ApplyMset(key, value))
+	switch (Jump_ApplyMset(key, value))
 	{
+	case jump_mset_result_t::unknown_key:
 		gi.Com_PrintFmt("unknown mset '{}'\n", key);
 		return;
+
+	case jump_mset_result_t::bad_value:
+		gi.Com_PrintFmt("bad value '{}' for mset '{}'\n", value, key);
+		return;
+
+	case jump_mset_result_t::ok:
+		break;
 	}
 
 	// Mirror the two side effects a level load performs, so a live change behaves

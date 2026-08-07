@@ -300,6 +300,82 @@ bool IsCheckpointBarrierTarget(const std::string &target)
 	return true;
 }
 
+// Trimmed and lowercased, which is all either mset parser needs.
+static std::string NormalizeMsetValue(const std::string &value)
+{
+	const size_t first = value.find_first_not_of(" \t\r\n");
+
+	if (first == std::string::npos)
+		return {};
+
+	const size_t last = value.find_last_not_of(" \t\r\n");
+
+	std::string out = value.substr(first, last - first + 1);
+
+	for (char &c : out)
+	{
+		if (c >= 'A' && c <= 'Z')
+			c = (char) (c - 'A' + 'a');
+	}
+
+	return out;
+}
+
+std::optional<bool> ParseMsetBool(const std::string &value)
+{
+	const std::string text = NormalizeMsetValue(value);
+
+	if (text.empty())
+		return std::nullopt;
+
+	if (text == "1" || text == "on" || text == "true" || text == "yes")
+		return true;
+
+	if (text == "0" || text == "off" || text == "false" || text == "no")
+		return false;
+
+	// Anything else has to be a number to count, so "fasttele banana" is an
+	// error while the "fasttele 2" a cfg file might hold still means on.
+	if (const std::optional<int> number = ParseMsetInt(text))
+		return *number != 0;
+
+	return std::nullopt;
+}
+
+std::optional<int> ParseMsetInt(const std::string &value)
+{
+	const std::string text = NormalizeMsetValue(value);
+
+	if (text.empty())
+		return std::nullopt;
+
+	size_t i = 0;
+
+	if (text[i] == '+' || text[i] == '-')
+		i++;
+
+	if (i >= text.size())
+		return std::nullopt;
+
+	for (size_t j = i; j < text.size(); j++)
+	{
+		if (text[j] < '0' || text[j] > '9')
+			return std::nullopt;
+	}
+
+	// strtol rather than atoi: atoi is undefined on overflow, and a gravity
+	// value that wrapped would be worse than one clamped to the extreme.
+	const long number = std::strtol(text.c_str(), nullptr, 10);
+
+	if (number > INT32_MAX)
+		return INT32_MAX;
+
+	if (number < INT32_MIN)
+		return INT32_MIN;
+
+	return (int) number;
+}
+
 bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)
 {
 	if (ent_is_viewer)

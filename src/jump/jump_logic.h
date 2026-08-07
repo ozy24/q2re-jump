@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -175,6 +176,23 @@ std::string SanitizeLayoutText(const std::string &text, size_t max_len = 20);
 // deliberately case-insensitive, which can only widen the match and costs
 // nothing — every instance in the original corpus is already lowercase.
 bool IsCheckpointBarrierTarget(const std::string &target);
+
+// ---------------------------------------------------------------------------
+// Mset values
+// ---------------------------------------------------------------------------
+
+// Both upstream mods parse mset values with atoi, so "fasttele on" quietly
+// means off and "gravity abc" quietly means zero. These return nullopt instead,
+// so a typo in a cfg file or an `sv jump_mset` argument gets reported rather
+// than silently changing how a map plays.
+
+// Accepts 0/1, on/off, true/false, yes/no, case-insensitively. Any other whole
+// number is true, matching atoi's behaviour for values like "2".
+std::optional<bool> ParseMsetBool(const std::string &value);
+
+// Whole-token integer: leading and trailing spaces are allowed, trailing
+// garbage is not, so "800x" is rejected rather than read as 800.
+std::optional<int> ParseMsetInt(const std::string &value);
 
 // ---------------------------------------------------------------------------
 // jumpers visibility / audio policy (engine-free)

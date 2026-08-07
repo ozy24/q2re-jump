@@ -38,6 +38,7 @@ lobby, so everything below is a console command.
 | `playertimes` | Your completions and points |
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
+| `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -480,10 +481,21 @@ blind:
 | `sv jump_mset save` | Write `jump/mset/<mapname>.cfg` |
 | `sv jump_mset reload` | Re-read that file over the current values |
 
+Keys are case-insensitive. Booleans take `0`/`1`, `on`/`off`, `true`/`false` or
+`yes`/`no`; anything else is rejected and reported rather than read as `0`, which
+is what both upstream mods do and what makes a mistyped mset look like a broken
+one.
+
 `gravity` is pushed to `sv_gravity` and a checkpoint change invalidates the
 cached total, so a live edit behaves exactly like one read from the file.
 `reload` does not undo live edits to keys the file omits — restart the map for
 that. See "Weapons that are tools, not finish lines" for why this matters.
+
+**Setting msets is console/rcon only.** Both upstream mods expose a settable
+`mset` command to players, gated on `sv_cheats`; this port does not, because
+client commands carry no privilege model and these settings decide whether a run
+counts. Players get the read-only `msets` command instead, and typing `mset`
+prints the same list plus a pointer to `sv jump_mset`.
 
 ### Records
 
