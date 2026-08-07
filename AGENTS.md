@@ -103,13 +103,22 @@ runs, so button state, movement axes and the pre-move velocity are all there —
 command rather than one per rendered frame, which makes it a **better** sampler than the client
 half, not a worse one. The strafe meter's maths is exact on the server for precisely that reason.
 
-What the server lacks is a way to **draw**. The layout language shows a live value in only three
-shapes: the HUD's 16×24 number pics (`num`), a pic chosen by stat (`pic` — needs art that does not
-ship with Quake II), and a variable-length bar via the `health_bars` token. That last one is the
-one to remember, because it is easy to miss and it is what makes a server-side strafe bar possible
-at all. Its terms are not negotiable: red fill on grey, roughly half the screen wide, horizontally
-centred, drawn one text line below a caption it takes from `CONFIG_HEALTH_BAR_NAME`, with only the
-cursor's y under your control.
+What the server lacks is a way to **draw**. The layout language shows a live value in only four
+shapes, and the fourth is the one worth remembering:
+
+1. `num` — the HUD's 16×24 number pics. Digits and minus only.
+2. `pic` — an image chosen by stat. Needs art that does not ship with Quake II.
+3. `health_bars` — the only *graphical* variable-length bar. Tried for the strafe meter and
+   rejected: it is fixed at roughly half the screen width and only ever draws red, so it came out
+   enormous, and red forced the fill to mean "waste" rather than "captured" — backwards from every
+   other bar anyone has seen.
+4. **A stat pointing at one of several pre-rendered configstrings.** This is the general trick, and
+   it is what the strafe meter uses: write every state the element can be in once at level load
+   (`[####--------]` at each fill level), then point a `stat_string` at whichever one matches. The
+   width, the characters, the colour and the direction all become yours, and it costs one stat plus
+   a handful of configstrings *written once* — no per-frame text traffic, which is the thing that
+   would otherwise make this unaffordable. Reach for it whenever a live value needs a shape the
+   other three cannot give.
 
 So the rule is: **if the bar can draw it at all, it goes on the bar**, because that reaches every
 player. The overlay is for what the bar genuinely cannot render well — a speed number in small

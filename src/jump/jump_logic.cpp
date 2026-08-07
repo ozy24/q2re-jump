@@ -826,29 +826,48 @@ strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms
 	return Add(frame, usable, dt_ms, tau_ms);
 }
 
-uint8_t StrafeHealthBarByte(const strafe_readout_t &readout)
+int StrafeBarLevel(const strafe_readout_t &readout, int segments)
 {
-	if (!readout.valid)
-		return 0; // bit 7 clear: the token draws nothing at all
+	if (!readout.valid || segments < 1)
+		return -1;
 
-	float loss = 1.f - readout.efficiency;
+	float efficiency = readout.efficiency;
 
-	if (loss < 0.f)
-		loss = 0.f;
-	if (loss > 1.f)
-		loss = 1.f;
+	if (efficiency < 0.f)
+		efficiency = 0.f;
+	if (efficiency > 1.f)
+		efficiency = 1.f;
 
-	// 1 rather than 0 for a perfect strafe, so the element stays on screen at
-	// its lowest reading instead of vanishing - a bar that disappears when you
-	// get it right teaches the wrong lesson.
-	int fill = (int) (loss * 127.f + 0.5f);
+	int level = (int) (efficiency * segments + 0.5f);
 
-	if (fill < 1)
-		fill = 1;
-	if (fill > 127)
-		fill = 127;
+	if (level < 0)
+		level = 0;
+	if (level > segments)
+		level = segments;
 
-	return (uint8_t) (0x80 | fill);
+	return level;
+}
+
+std::string StrafeBarString(int level, int segments)
+{
+	if (segments < 1)
+		return {};
+
+	if (level < 0)
+		level = 0;
+	if (level > segments)
+		level = segments;
+
+	// Plain ASCII on purpose. The bar has to render in both HUD fonts - the
+	// 1997 character set and the rerelease's own - and anything outside ASCII
+	// is only guaranteed in one of them.
+	std::string out = "[";
+
+	out.append((size_t) level, '#');
+	out.append((size_t) (segments - level), '-');
+	out += ']';
+
+	return out;
 }
 
 bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)

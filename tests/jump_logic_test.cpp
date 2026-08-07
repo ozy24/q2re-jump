@@ -966,34 +966,52 @@ static void TestStrafeState()
 	CHECK(Near(slow_out.efficiency, fast_out.efficiency, 0.02f));
 }
 
-static void TestStrafeHealthBarByte()
+static void TestStrafeBarLevel()
 {
 	jump::strafe_readout_t out;
 
-	// Nothing measured: bit 7 clear, so the token draws nothing at all.
-	CHECK(jump::StrafeHealthBarByte(out) == 0);
+	// Nothing measured: no bar at all, which the caller turns into a zeroed
+	// stat so the row is gated off entirely.
+	CHECK(jump::StrafeBarLevel(out) == -1);
 
 	out.valid = true;
 
-	// The fill is WASTE, not efficiency - the token only draws red, and a full
-	// red bar has to mean something is wrong.
+	// Fill is EFFICIENCY - full means you took everything on offer. The
+	// health-bar token this replaced could only draw red, which forced the
+	// opposite reading; text does not, so the bar runs the way every other
+	// bar anyone has seen does.
 	out.efficiency = 0.f;
-	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 127));
+	CHECK(jump::StrafeBarLevel(out, 12) == 0);
+
+	out.efficiency = 1.f;
+	CHECK(jump::StrafeBarLevel(out, 12) == 12);
 
 	out.efficiency = 0.5f;
-	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 64));
+	CHECK(jump::StrafeBarLevel(out, 12) == 6);
 
-	// A perfect strafe still shows one pixel rather than vanishing: an element
-	// that disappears when you get it right teaches the wrong lesson.
-	out.efficiency = 1.f;
-	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 1));
-
-	// Out-of-range input cannot escape the 7 bits or clear the visible flag.
+	// Out-of-range input cannot escape the bar.
 	out.efficiency = 2.f;
-	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 1));
+	CHECK(jump::StrafeBarLevel(out, 12) == 12);
 
 	out.efficiency = -1.f;
-	CHECK(jump::StrafeHealthBarByte(out) == (0x80 | 127));
+	CHECK(jump::StrafeBarLevel(out, 12) == 0);
+
+	// Every level has a string, and they are all the same width - a bar that
+	// changed length as it filled would shift the whole HUD row.
+	const size_t width = jump::StrafeBarString(0, 12).size();
+
+	CHECK(width == 14); // 12 cells plus the two brackets
+
+	for (int i = 0; i <= 12; i++)
+		CHECK(jump::StrafeBarString(i, 12).size() == width);
+
+	CHECK_EQ(jump::StrafeBarString(0, 12), "[------------]");
+	CHECK_EQ(jump::StrafeBarString(12, 12), "[############]");
+	CHECK_EQ(jump::StrafeBarString(4, 12), "[####--------]");
+
+	// Out-of-range levels clamp rather than running off the end.
+	CHECK_EQ(jump::StrafeBarString(-3, 12), "[------------]");
+	CHECK_EQ(jump::StrafeBarString(99, 12), "[############]");
 }
 
 int main()
@@ -1017,7 +1035,7 @@ int main()
 	TestStrafeFrame();
 	TestClassifyStrafeFrame();
 	TestStrafeState();
-	TestStrafeHealthBarByte();
+	TestStrafeBarLevel();
 	TestRecords();
 	TestJumpersPolicy();
 	TestSortPlayerRows();

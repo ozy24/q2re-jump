@@ -516,11 +516,21 @@ struct strafe_state_t
 	strafe_readout_t Update(const move_ring_t &ring, uint64_t tau_ms = STRAFE_TAU_MS);
 };
 
-// The efficiency as the statusbar's health-bar byte: bit 7 marks it visible,
-// bits 0-6 are a 0-127 fill. Inverted deliberately - the fill shows what you
-// are WASTING, because that token only ever draws red, and a full red bar has
-// to mean something is wrong. Empty is a perfect strafe.
-uint8_t StrafeHealthBarByte(const strafe_readout_t &readout);
+// How many cells the statusbar's strafe bar has. The bar is drawn as text
+// picked from a set of pre-rendered strings, so this is also how many of those
+// strings there are, plus one for empty.
+constexpr int STRAFE_BAR_SEGMENTS = 12;
+
+// Which of those strings to show: 0..STRAFE_BAR_SEGMENTS filled cells, or -1
+// when there is nothing to show. Fill is EFFICIENCY - full means you are
+// taking everything on offer, which is the direction every other bar in every
+// other game already trained people to expect.
+int StrafeBarLevel(const strafe_readout_t &readout, int segments = STRAFE_BAR_SEGMENTS);
+
+// One of those pre-rendered strings, e.g. "[####--------]". Built once per level
+// and parked in configstrings, so showing the bar costs a stat pointing at one
+// of them rather than a text write per frame.
+std::string StrafeBarString(int level, int segments = STRAFE_BAR_SEGMENTS);
 
 // ---------------------------------------------------------------------------
 // jumpers visibility / audio policy (engine-free)

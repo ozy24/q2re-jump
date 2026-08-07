@@ -68,18 +68,13 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
 
-	// The strafe meter, as the stock health-bar stat. That token is the only
-	// thing in the layout language that draws a variable-length bar, and it is
-	// free here: G_SetStats zeroes it a few lines above because a jump map has
-	// no health-bar entities, and we run last.
-	//
-	// The fill shows what you are WASTING rather than what you took, because
-	// the token only ever draws red - so empty is a perfect strafe and "burn
-	// the red down" is the instruction. Players running this DLL turn it off
-	// (`strafebar`) and use the overlay's finer version instead.
-	byte *const health_bar = reinterpret_cast<byte *>(&ent->client->ps.stats[STAT_HEALTH_BARS]);
+	// The strafe meter: the stat points at whichever pre-rendered bar string
+	// matches the reading. Players running this DLL turn it off (`strafebar`,
+	// sent automatically by their client) and use the overlay's finer version.
+	const int strafe_level = jc->server_strafebar ? jump::StrafeBarLevel(jc->strafe_readout) : -1;
 
-	health_bar[0] = jc->server_strafebar ? jump::StrafeHealthBarByte(jc->strafe_readout) : 0;
+	ent->client->ps.stats[JUMP_STAT_STRAFE_BAR] =
+		strafe_level >= 0 ? (int16_t) (CONFIG_JUMP_STRAFE_BAR + strafe_level) : 0;
 
 	// The banner is the same for everyone, which is what makes setting it here
 	// enough. G_CheckChaseStats bulk-copies the stats array from the player
@@ -239,27 +234,25 @@ static void Jump_EmitStatusbar()
 		.num(2, JUMP_STAT_STORES)
 		.endifstat();
 
-	// The strafe meter. `health_bars` is the only token in the whole layout
-	// language that draws a variable-length bar, which is why the meter is
-	// shaped the way it is: if a stock client is to see a bar at all, this is
-	// what it has to be built from.
+	// The strafe meter: a caption and a row of characters, both centred, above
+	// where the client overlay draws speed.
 	//
-	// What the token dictates, and we do not control: it draws its own caption
-	// from CONFIG_HEALTH_BAR_NAME at the cursor, then the bar one text line
-	// below, horizontally centred at about half the screen width, red fill on
-	// grey. The cursor's y is the only handle we have, so the block is
-	// positioned by its caption.
+	// Drawn as text rather than with the `health_bars` token, which was tried
+	// first. That token is the only graphical bar the layout can produce, but
+	// it is fixed at roughly half the screen width and only ever red - so it
+	// came out enormous, and red forced the fill to mean "waste" rather than
+	// "captured", which reads backwards from every other bar anyone has seen.
+	// Characters cost a stat and a few configstrings, and hand back the width,
+	// the colour and the direction.
 	//
-	// The fill is therefore what you are WASTING rather than what you took -
-	// red has to mean something is wrong, and a full red bar for a perfect
-	// strafe would read exactly backwards. Empty is perfect.
-	//
-	// It is free of the stat budget: STAT_HEALTH_BARS belongs to boss health
-	// bars, a jump map has none, and G_SetStats zeroes it a few lines before
-	// Jump_SetStats runs.
-	constexpr int strafe_yb = -128;
+	// The centred variants measure the string themselves, so the bar stays
+	// centred under either HUD font - which a hand-computed left edge would
+	// not. cstring2 has no statusbar_t method, so it is emitted raw.
+	constexpr int strafe_yb = -124;
 
-	sb.ifstat(STAT_HEALTH_BARS).yb(strafe_yb).xv(0).health_bars().endifstat();
+	sb.ifstat(JUMP_STAT_STRAFE_BAR).yb(strafe_yb).xv(0);
+	sb.sb << "cstring2 \"strafe\" ";
+	sb.yb(strafe_yb + 10).xv(0).loc_stat_cstring2(JUMP_STAT_STRAFE_BAR).endifstat();
 
 	// Personal best is a stat_string (arbitrary text), not digit stats, so it
 	// can't use the big chunky num font the timer/checkpoints use - see

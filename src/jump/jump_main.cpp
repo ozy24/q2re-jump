@@ -103,11 +103,16 @@ void Jump_InitLevel(const char *entities)
 		jump_level.sound_pb = gi.soundindex("misc/secret.wav");
 		jump_level.sound_record = gi.soundindex("ctf/flagcap.wav");
 
-		// The strafe bar's caption, which the health_bars token draws from this
-		// configstring and nowhere else. Set once per level rather than per
-		// frame - and it needs saying, because a bar that grows as you get
-		// worse is not what anyone assumes on first sight.
-		gi.configstring(CONFIG_HEALTH_BAR_NAME, "strafe waste");
+		// Every fill level of the strafe bar, written once here so that showing
+		// it during play is a stat pointing at one of these rather than a text
+		// write per frame - a configstring write broadcasts to everyone, which
+		// would be unaffordable at frame rate and is free at map load.
+		static_assert(jump::STRAFE_BAR_SEGMENTS + 1 <=
+						  CONFIG_JUMP_STRAFE_BAR_END - CONFIG_JUMP_STRAFE_BAR + 1,
+					  "strafe bar needs more configstring slots");
+
+		for (int i = 0; i <= jump::STRAFE_BAR_SEGMENTS; i++)
+			gi.configstring(CONFIG_JUMP_STRAFE_BAR + i, jump::StrafeBarString(i).c_str());
 	}
 
 	Jump_InvalidateCheckpointTotal();

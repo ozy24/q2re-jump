@@ -57,12 +57,28 @@ constexpr player_stat_t JUMP_STAT_ENABLED = STAT_CTF_TEAMINFO; // 31: 1 while ju
 // the two in sync. Clients past this index just don't get a PB display.
 constexpr int JUMP_MAX_PB_STRING_CLIENTS = 64;
 
+// The strafe meter, as an index into the pre-rendered bar strings in
+// CONFIG_JUMP_STRAFE_BAR. A stat_string indexes a configstring BY VALUE, so 0
+// means "hidden" and the row must sit inside an ifstat - an ungated 0 would
+// draw configstring 0.
+//
+// Text rather than the health_bars token, which was tried first: that one is
+// the only graphical bar the layout can draw, but it is fixed at roughly half
+// the screen width and only ever red, so it was both enormous and had to be
+// inverted to mean "waste" for red to make sense. A row of characters costs one
+// stat and a handful of configstrings written once per level, and in exchange
+// the width, the colour and the direction are all ours.
+constexpr player_stat_t JUMP_STAT_STRAFE_BAR = (player_stat_t) 54;
+
+static_assert((int) JUMP_STAT_STRAFE_BAR >= (int) STAT_LAST, "jump stat overlaps an engine stat");
+static_assert((int) JUMP_STAT_STRAFE_BAR < (int) MAX_STATS, "jump stat out of range");
+
 // All 13 usable CTF slots (18-31 less 27) are taken, so the CTF block is closed.
 // New stats go in 54-63, which are genuinely free: STAT_LAST is 54
 // (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
 // nothing reads it either, which makes it safer ground than the CTF block,
-// where 27's problem is precisely that the stock statusbar reads it. All ten
-// are currently unused.
+// where 27's problem is precisely that the stock statusbar reads it. 54 is
+// taken by the strafe bar above; 55-63 remain.
 //
 // Ten, not eleven: bg_local.h's own static_assert allows
 // STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past

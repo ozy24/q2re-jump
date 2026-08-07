@@ -201,12 +201,15 @@ capturing everything on offer and capturing none of it, and nothing else on
 screen shows that.
 
 **Everyone gets it, including players on a stock client** — it is drawn by the
-server. Read it backwards from what you might expect: the bar shows what you are
-**losing**, so an empty bar is a perfect strafe and the instruction is to burn
-the red down. That is not a stylistic choice; the only bar the layout language
-can draw is red, and a full red bar had to mean something was wrong.
+server, as a short row of characters under a `strafe` label:
 
-`strafebar` turns it off if you would rather not see it.
+```
+        strafe
+    [########----]
+```
+
+It fills as you do well, so a full bar means you are taking everything that was
+on offer. `strafebar` turns it off if you would rather not see it.
 
 If you are running the mod's own DLL you can have a finer version instead:
 `jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or

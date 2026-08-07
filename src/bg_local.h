@@ -78,6 +78,14 @@ enum
 	CONFIG_JUMP_PB_STRING,
 	CONFIG_JUMP_PB_STRING_END = CONFIG_JUMP_PB_STRING + 64 - 1,
 
+	// [Jump] The strafe meter's bar, pre-rendered at every fill level
+	// ("[####--------]") and written once per level. A player's stat points at
+	// whichever one matches their reading, so the bar costs no text traffic at
+	// all during play - which is what makes a per-frame readout affordable as a
+	// configstring at all.
+	CONFIG_JUMP_STRAFE_BAR,
+	CONFIG_JUMP_STRAFE_BAR_END = CONFIG_JUMP_STRAFE_BAR + 32 - 1,
+
 	// [Jump] The HUD banner for a new personal best or a new map record. One
 	// slot, not one per client like the PB string above: the text is the same
 	// for everyone who sees it.
