@@ -127,8 +127,9 @@ static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 	if (speed.peak < 1.f)
 		return;
 
-	// One row above the digits, which occupy yb -80 to -56 (jump_hud.cpp).
-	const int32_t y = ctx.BottomY(-92);
+	// One row above the statusbar's digits, whose anchor is shared rather than
+	// copied (jump_stats.h) so moving the block moves this with it.
+	const int32_t y = ctx.BottomY(JUMP_SPEED_DIGITS_YB - 12.f);
 
 	const std::string peak = "peak " + jump::FormatSpeed(speed.peak);
 	const std::string delta = speed.trend ? jump::FormatSpeedDelta(speed.delta) : std::string();

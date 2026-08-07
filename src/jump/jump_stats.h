@@ -88,6 +88,12 @@ static_assert((int) JUMP_STAT_SPEED < (int) MAX_STATS, "jump stat out of range")
 
 // The CTF block is closed. New stats go in 54-63; 54 is taken, 55-63 remain.
 
+// Where the statusbar puts the speedometer's digits: layout units up from the
+// bottom edge, the top of a 24-tall digit row. Shared with the cgame half
+// because the overlay's peak/trend line sits directly on top of that row, and
+// two copies of the number would drift apart the first time it moved.
+constexpr int JUMP_SPEED_DIGITS_YB = -104;
+
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;
 constexpr int16_t JUMP_RUN_FINISHED = 2;

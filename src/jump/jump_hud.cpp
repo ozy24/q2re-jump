@@ -169,10 +169,15 @@ static void Jump_EmitStatusbar()
 	//         1234.56
 	//      Checkpoint
 	//             0/1
-	//              PB
-	//            9.87
+	//          stores
+	//               2
 	//
-	//                        PRACTICE   (bottom right)
+	//               [ 298 ]     (speedometer, centred)
+	//                Speed
+	//
+	//                              PB   (bottom right, above the team label)
+	//                            9.87
+	// Time Left: 04:23             PRACTICE
 	//
 	constexpr int right = -8; // last digit column ends here
 
@@ -222,6 +227,24 @@ static void Jump_EmitStatusbar()
 		.num(2, JUMP_STAT_CHECKPOINT_TOTAL)
 		.endifstat();
 
+	// Stores, the next row down in the same column. It belongs with the
+	// checkpoint counter rather than off in a corner: both are things you have
+	// collected during this run, and both are counts you glance at rather than
+	// read continuously. Same anchoring rule as the labels above - the label's
+	// xr leaves room for its own width so it ends flush at `right`.
+	constexpr int st_label_y = cp_y + 24 + row_gap;
+	constexpr int st_y = st_label_y + label_h + 2;
+	constexpr int st_num = right - Jump_NumWidth(2);
+
+	sb.ifstat(JUMP_STAT_STORES)
+		.yt(st_label_y)
+		.xr(right - 6 * 8)
+		.string2("stores")
+		.yt(st_y)
+		.xr(st_num)
+		.num(2, JUMP_STAT_STORES)
+		.endifstat();
+
 	// Personal best is a stat_string (arbitrary text), not digit stats, so it
 	// can't use the big chunky num font the timer/checkpoints use - see
 	// jump_stats.h for why it's a stat_string at all. Small text reads better
@@ -265,19 +288,13 @@ static void Jump_EmitStatusbar()
 
 	sb.ifstat(JUMP_STAT_ANNOUNCE).yt(announce_y).xv(0).loc_stat_cstring2(JUMP_STAT_ANNOUNCE).endifstat();
 
-	// Team mode sits centred on the bottom row, under the speedometer, so the
-	// two things that describe the run you are on read as one column. Both are
-	// literal strings of known length, so they can be centred exactly: string2
-	// draws at CONCHAR_WIDTH (8) per character. Under scr_usekfont's
-	// proportional font they land a few px right of centre, the same caveat as
-	// every other label here.
+	// Team mode in the bottom-right corner, under PB. PRACTICE (8 chars, xr -76)
+	// and RANKED (6 chars, xr -60) both end at the same right edge, xr(-12),
+	// since string2 draws at CONCHAR_WIDTH (8) per character.
 	constexpr int team_yb = -16;
 
-	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(team_yb).xv(160 - (8 * 8) / 2).string2("PRACTICE").endifstat();
-	sb.ifstat(JUMP_STAT_TEAM_RANKED).yb(team_yb).xv(160 - (6 * 8) / 2).string2("RANKED").endifstat();
-
-	// Stores held, bottom left and out of the way of the run column.
-	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_PRACTICE).yb(team_yb).xr(-76).string2("PRACTICE").endifstat();
+	sb.ifstat(JUMP_STAT_TEAM_RANKED).yb(team_yb).xr(-60).string2("RANKED").endifstat();
 
 	// Speedometer: centred, one block up from the bottom edge, where a
 	// first-person player is already looking. Both upstream mods put it at
@@ -301,7 +318,7 @@ static void Jump_EmitStatusbar()
 	// still. That gate is also the only way this could ever be varied per
 	// player: a CS_STATUSBAR write broadcasts to everyone, so the layout itself
 	// is the same for all of them.
-	constexpr int speed_digits_yb = -80;
+	constexpr int speed_digits_yb = JUMP_SPEED_DIGITS_YB; // shared with the cgame overlay
 	constexpr int speed_digits_x = 160 - (Jump_NumWidth(4) - 3 * 16) - (3 * 16) / 2; // centres 3 digits
 	constexpr int speed_label_x = 160 - (5 * 8) / 2;								 // "Speed", 5 chars
 
@@ -314,30 +331,35 @@ static void Jump_EmitStatusbar()
 		.string2("Speed")
 		.endifstat();
 
-	// Map time remaining, at the foot of the right-hand column directly under
-	// PB - the two share a right edge, and it is the only clock here that is
-	// not about this run. This is the stock time_limit token: it takes an
-	// absolute server frame and the client does the counting itself, so it costs
-	// no stat slot and no per-frame server work - the reason it beats a pair of
-	// `num` fields. The cost is that the frame number is a snapshot, which is
-	// what Jump_StatusbarFrame below exists to refresh.
+	// Map time remaining, bottom left - the corner nothing else uses now, and
+	// the right place for the one clock here that is not about this run. This
+	// is the stock time_limit token: it takes an absolute server frame and the
+	// client does the counting itself, so it costs no stat slot and no
+	// per-frame server work - the reason it beats a pair of `num` fields. The
+	// cost is that the frame number is a snapshot, which is what
+	// Jump_StatusbarFrame below exists to refresh.
 	//
 	// statusbar_t has no method for it, so emit the raw token rather than
 	// growing the upstream wrapper. Same expression as the scoreboard
 	// (jump_scoreboard.cpp) so the two can never disagree.
 	//
-	// The token draws its own label ("$g_score_time" -> "Time Left: MM:SS"), so
-	// its width belongs to the engine and changes with both scr_usekfont and
-	// the client's language. That is exactly why it lives on a right edge: it
-	// draws itself ending at the cursor, so an xr anchor is exact whatever it
-	// measures, while centring it would mean guessing a width we cannot know.
+	// The awkward part: the token draws its own label ("$g_score_time" ->
+	// "Time Left: MM:SS") ending AT the cursor, and measures the width itself.
+	// A right-edge anchor is therefore exact, but a left-edge one has to put
+	// the cursor where the text should END, which means estimating a width the
+	// server cannot know - it depends on the client's font and language. The
+	// estimate below is the English string at CONCHAR_WIDTH, which is what the
+	// stock font gives; a narrower font just leaves a wider left margin, and
+	// only a much longer translation would push the text off the left edge.
 	if (timelimit && timelimit->value > 0)
 	{
 		const int32_t end_frame =
 			(int32_t) (gi.ServerFrame() +
 					   ((gtime_t::from_min(timelimit->value) - level.time)).milliseconds() / gi.frame_time_ms);
 
-		sb.yb(team_yb).xr(pb_right);
+		constexpr int time_left_chars = 16; // "Time Left: 04:23"
+
+		sb.yb(team_yb).xl(8 + time_left_chars * 8);
 		sb.sb << "time_limit " << end_frame << ' ';
 	}
 
