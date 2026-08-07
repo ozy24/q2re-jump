@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-07
+
 ### Added
 
 - **A speedometer**, centred just above the bottom of the screen, in units per second — where
