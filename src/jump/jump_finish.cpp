@@ -197,15 +197,24 @@ void Jump_Finish(edict_t *ent)
 
 	const std::string time_str = jump::FormatTime(time_ms);
 
-	// Against the personal best as it stood before this run - Jump_SubmitTime
-	// below may replace it. Practice runs get one too: the time is not recorded,
-	// but "you would have been a second up" is exactly the feedback you are
+	// Read before Jump_SubmitTime below replaces it, so the comparison describes
+	// the run the player just made rather than the one it became - a new best
+	// would otherwise read as no improvement at all.
+	const int64_t previous_pb = Jump_PersonalBest(ent);
+
+	std::string finish_line = G_Fmt("Finished in {}", time_str.c_str()).data();
+
+	// How it went against your best, in the message rather than as its own HUD
+	// element: it is about the run that just ended, so it should leave with the
+	// message that announces it. Practice runs get one too - the time is not
+	// recorded, but "you would have been a second up" is the feedback you are
 	// practising for.
-	Jump_UpdateDeltaString(ent, time_ms, Jump_PersonalBest(ent));
+	if (previous_pb > 0)
+		finish_line += G_Fmt(" ({})", jump::FormatDelta(time_ms - previous_pb).c_str()).data();
 
 	// Finishing leaves you standing on the pad, as it does upstream; nothing
 	// starts a new run until you ask for one.
-	gi.LocCenter_Print(ent, G_Fmt("Finished in {}\nkill to run again", time_str.c_str()).data());
+	gi.LocCenter_Print(ent, G_Fmt("{}\nkill to run again", finish_line.c_str()).data());
 
 	// Practice runs are timed for your own benefit but are never broadcast and
 	// never recorded.
@@ -218,9 +227,6 @@ void Jump_Finish(edict_t *ent)
 		return;
 	}
 
-	// Compare against the stored table before submitting, so the announcement
-	// describes the run the player just made rather than the one it became.
-	const int64_t previous_pb = Jump_PersonalBest(ent);
 	const int64_t previous_record = Jump_MapRecord();
 
 	const int rank = Jump_SubmitTime(ent, time_ms);

@@ -266,9 +266,9 @@ no pmove changes at all, so a stock client predicts identically to the server. T
 payoff of building on rerelease physics rather than emulating the old engine.
 
 So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, time
-remaining, and how their finished run compared with their best — plus every message and the times
-board. Everything a run depends on is there. What they miss is the performance HUD described
-below.
+remaining — plus every message and the times board, including how the run they just finished
+compared with their best. Everything a run depends on is there. What they miss is the performance
+HUD described below.
 
 ### The performance HUD
 
@@ -290,8 +290,9 @@ Everything here is sampled from the client's own movement prediction every rende
 finer-grained than anything the server could send, and nothing goes over the network for it.
 
 Nothing else is drawn here. The personal-best delta used to be, on the grounds that no layout token
-subtracts — but it only has to be worked out once per run, which makes it cheap enough to send as
-text, so it moved to the status bar where every player gets it.
+subtracts — but it belongs to the run that just ended, so it now rides along in the "Finished in…"
+message and leaves when that does. Every player gets it, and nothing has to decide when to take it
+off the screen.
 
 **The readouts are off by default.** Installing the DLL opts you into the overlay existing; it does
 not decide that you want a speedometer and a strafe bar on screen. `jump_hud_speed 1` and

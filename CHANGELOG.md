@@ -52,12 +52,12 @@ released — see [docs/release-process.md](docs/release-process.md).
   not your outcome, so clipping a wall costs you speed the bar will not blame you for. Air only,
   smoothed over about a second, and `jump_hud_strafe 0` turns it off.
 
-- **How your finished run compared with your best is now on the HUD for everyone**, under the
-  stores counter: a signed `-1.234` against your personal best as it stood before the run. It used
-  to be drawn only for players running this DLL, on the grounds that no layout token subtracts —
-  but it is worked out once per run, which is cheap enough to send as text. It is also now correct
-  on the run that matters most: it previously compared against the best *including* the run just
-  finished, so a new personal best read as no improvement at all.
+- **The finish message now tells you how the run went against your best** — `Finished in 12.345
+  (-1.234)`. It used to be a separate figure drawn on the side, and only for players running this
+  DLL; putting it in the message gives it to everyone, and means it leaves the screen when the
+  message does rather than needing its own rule for when to disappear. It is also now correct on
+  the run that matters most: the old one compared against the best *including* the run just
+  finished, so a new personal best read as no improvement at all. Practice runs get one too.
 
 - **The client half now samples your movement every rendered frame**, out of the game's own
   prediction, which is what makes the readouts above finer-grained than anything the server

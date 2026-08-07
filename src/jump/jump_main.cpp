@@ -215,9 +215,6 @@ void Jump_ResetRun(jump_client_t &jc)
 	jc.run_start_ms = 0;
 	jc.checkpoints = 0;
 
-	// The finish delta describes a run that is over. Starting another one must
-	// take it off the HUD, or it reads as a comment on the new run.
-	jc.has_finish_delta = false;
 }
 
 void Jump_RestartRun(edict_t *ent)
