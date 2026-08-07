@@ -128,6 +128,7 @@ extern cvar_t *jump_box_models;
 extern cvar_t *jump_data_dir;
 extern cvar_t *jump_records_max;
 extern cvar_t *jump_idle_time;
+extern cvar_t *jump_speedometer;
 extern cvar_t *jump_map_pool;
 
 // ---------------------------------------------------------------------------

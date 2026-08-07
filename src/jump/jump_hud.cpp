@@ -79,8 +79,14 @@ void Jump_SetStats(edict_t *ent)
 	// never reaches this line (G_SetSpectatorStats skips G_SetStats when
 	// chase_target is set) and inherits the followed player's value through
 	// G_CheckChaseStats' bulk copy, which is exactly the behaviour we want.
+	//
+	// The jump_speedometer cvar rides the same gate rather than rebuilding the
+	// layout: CS_STATUSBAR is a broadcast, so re-emitting it to toggle one row
+	// would cost every client the whole bar, whereas a stat is per-player and
+	// delta-compressed. It also means the client overlay can tell whether the
+	// server is drawing a speed number just by looking at the stat.
 	ent->client->ps.stats[JUMP_STAT_SPEED] =
-		(jc->team == jump_team_t::spectator)
+		(jc->team == jump_team_t::spectator || !jump_speedometer->integer)
 			? 0
 			: (int16_t) jump::SpeedStat(ent->velocity[0], ent->velocity[1]);
 
@@ -165,11 +171,11 @@ static void Jump_EmitStatusbar()
 	// virtual px from the right edge (negative). Text is left-aligned from the
 	// cursor, so each label's xr leaves room for its own width.
 	//
-	//            time
+	//            Time
 	//         1234.56
 	//      Checkpoint
 	//             0/1
-	//          stores
+	//          Stores
 	//               2
 	//
 	//               [ 298 ]     (speedometer, centred)
@@ -197,7 +203,7 @@ static void Jump_EmitStatusbar()
 	constexpr int t_label_y = 4;
 	constexpr int t_y = t_label_y + label_h + 2;
 
-	sb.yt(t_label_y).xr(right - 32).string2("time");
+	sb.yt(t_label_y).xr(right - 32).string2("Time");
 	sb.yt(t_y).xr(t_secs).num(4, JUMP_STAT_TIME_SEC);
 	sb.yt(t_y + sep_drop).xr(t_dot).string(".");
 	sb.yt(t_y).xr(t_tens).num(1, JUMP_STAT_TIME_HUN_TENS);
@@ -239,7 +245,7 @@ static void Jump_EmitStatusbar()
 	sb.ifstat(JUMP_STAT_STORES)
 		.yt(st_label_y)
 		.xr(right - 6 * 8)
-		.string2("stores")
+		.string2("Stores")
 		.yt(st_y)
 		.xr(st_num)
 		.num(2, JUMP_STAT_STORES)

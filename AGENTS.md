@@ -88,8 +88,17 @@ two lines in `cg_screen.cpp` and two in `cg_main.cpp`.
 This matters: a player on **stock, unmodified Q2RE can join and play**. Everything the mod sends is
 stock protocol — the `CS_STATUSBAR` layout script, `svc_layout`, `CS_PLAYERSKINS`, and ordinary
 prints. So the server-authored statusbar must carry the whole HUD (timer, checkpoints, stores,
-team, PB, speed); the cgame overlay adds only what a layout script cannot express, and defaults
-**off** (`jump_hud 0`) so the host sees what everyone else sees.
+team, PB); the cgame overlay adds only what a layout script cannot express.
+
+The one deliberate exception is the speedometer, and it is worth knowing why before adding a
+second one. A layout script can only draw a live number with the HUD's number pics (16×24), which
+at that size dominate the screen — so the statusbar's speedometer is behind `jump_speedometer`,
+**off** by default, and the overlay draws a small one instead. That is also why the overlay now
+defaults **on** (`jump_hud 1`), where it used to default off so the host saw what everyone else
+saw. `jump_hud 0` still gives the exact stock-client view. The overlay decides whether to draw its
+own number by reading `JUMP_STAT_SPEED`: `Jump_SetStats` zeroes it when the server-side one is off,
+so the stat doubles as "is the statusbar drawing a number?" — the client cannot see a server cvar,
+and this needs no extra plumbing.
 
 **Never add pmove changes.** `p_move.cpp` and `bg_local.h` are untouched by design, which is what
 keeps a stock client's prediction identical to the server. Classic 125fps feel is explicitly out

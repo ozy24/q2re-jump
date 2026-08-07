@@ -33,12 +33,16 @@ static constexpr rgba_t jump_dim = { 170, 170, 170, 255 };
 
 void Jump_InitClientCvars()
 {
-	// Default off: the stock-client view is the one everybody shares, so it is
-	// the honest thing to show by default.
-	jump_hud = cgi.cvar("jump_hud", "0", CVAR_ARCHIVE);
+	// On by default. This used to be off, on the principle that the host should
+	// see what everyone else sees - but the speedometer changed that calculus:
+	// the server draws it with the HUD's number pics, which are 16x24 and
+	// dominate the screen, so it is off by default server-side
+	// (jump_speedometer) and this overlay is where the speed readout normally
+	// lives. `jump_hud 0` still gives the exact stock-client view.
+	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
 
-	// On by default but inert until jump_hud is set, so one flip opts into the
-	// overlay and this only exists to trim it back.
+	// The speed readout: the number itself when the server is not drawing one,
+	// plus the peak and trend a layout script cannot express either way.
 	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
 
 	// CG_InitScreen runs between levels and on reconnect - the same place the
@@ -104,10 +108,20 @@ static void Jump_DrawPbDelta(const jump_overlay_ctx_t &ctx)
 						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
 }
 
-// Peak and trend, sitting on top of the statusbar's speed block so the three
-// read as one element. The number itself is deliberately absent: the statusbar
-// already draws it, every player sees that one, and two speeds a few units
-// apart on the same screen would look like a bug.
+// The speed readout: peak and trend always, and the number itself when the
+// server is not drawing one.
+//
+// Whether it is comes straight from the stat. Jump_SetStats zeroes
+// JUMP_STAT_SPEED when jump_speedometer is off, and the statusbar row is gated
+// on that value, so a zero means "no number on screen" - which is exactly the
+// question this needs answered, and it needs no cvar the client cannot see.
+// The one ambiguity is harmless: the stat is also 0 when you are standing
+// still, and the number this would draw instead is then 0 too, which is hidden
+// below anyway.
+//
+// Drawing our own number when the server already has is the case to avoid. Two
+// speeds a few units apart on the same screen look like a bug, and they would
+// differ: this one is predicted and per-frame, that one is a server snapshot.
 static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 {
 	const jump::speed_readout_t &speed = *ctx.speed;
@@ -127,9 +141,25 @@ static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 	if (speed.peak < 1.f)
 		return;
 
-	// One row above the statusbar's digits, whose anchor is shared rather than
-	// copied (jump_stats.h) so moving the block moves this with it.
-	const int32_t y = ctx.BottomY(JUMP_SPEED_DIGITS_YB - 12.f);
+	// The statusbar's digit row is 24 tall and starts at JUMP_SPEED_DIGITS_YB
+	// (shared rather than copied, jump_stats.h, so moving the block moves this
+	// with it). Our own number goes in the middle of that row when there is no
+	// row, and peak/trend sit one line above either way.
+	const bool	  server_drawing = ctx.ps->stats[JUMP_STAT_SPEED] > 0;
+	const int32_t line_height = (int32_t) cgi.SCR_FontLineHeight(ctx.scale);
+	const int32_t speed_y = ctx.BottomY(JUMP_SPEED_DIGITS_YB + 8.f);
+	const int32_t y = speed_y - line_height - 2 * ctx.scale;
+
+	// The current-speed test is separate from the peak one above: peak lingers
+	// for a moment after you stop, and a lone "0" sitting there is exactly what
+	// the statusbar's own zero gate exists to avoid.
+	if (!server_drawing && speed.current >= 1.f)
+	{
+		// No label: the number is the only thing at this spot, and "Speed"
+		// under it is the sort of caption you read once and never again.
+		cgi.SCR_DrawFontString(jump::FormatSpeed(speed.current).c_str(), ctx.VirtX(160.f), speed_y, ctx.scale,
+							   rgba_white, true, text_align_t::CENTER);
+	}
 
 	const std::string peak = "peak " + jump::FormatSpeed(speed.peak);
 	const std::string delta = speed.trend ? jump::FormatSpeedDelta(speed.delta) : std::string();
