@@ -3,6 +3,7 @@
 #include "jump_logic.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -374,6 +375,185 @@ std::optional<int> ParseMsetInt(const std::string &value)
 		return INT32_MIN;
 
 	return (int) number;
+}
+
+float HorizontalSpeed(float vel_x, float vel_y)
+{
+	return (float) std::sqrt((double) vel_x * (double) vel_x + (double) vel_y * (double) vel_y);
+}
+
+int SpeedStat(float vel_x, float vel_y)
+{
+	const double speed = std::sqrt((double) vel_x * (double) vel_x + (double) vel_y * (double) vel_y);
+
+	// Written as a negated comparison so that NaN lands here rather than
+	// reaching the cast, where it would be undefined.
+	if (!(speed > 0.0))
+		return 0;
+
+	if (speed >= (double) SPEED_STAT_MAX)
+		return SPEED_STAT_MAX;
+
+	return (int) speed;
+}
+
+std::string FormatSpeed(float ups)
+{
+	char buf[16];
+	snprintf(buf, sizeof(buf), "%d", SpeedStat(ups, 0.f));
+	return buf;
+}
+
+std::string FormatSpeedDelta(float ups)
+{
+	const int magnitude = SpeedStat(ups, 0.f);
+
+	// The sign follows the magnitude, not the input: a loss too small to show
+	// as a digit would otherwise read "-0".
+	char buf[16];
+	snprintf(buf, sizeof(buf), "%s%d", (ups < 0.f && magnitude > 0) ? "-" : "+", magnitude);
+	return buf;
+}
+
+void move_ring_t::Clear()
+{
+	next = 0;
+	count = 0;
+}
+
+void move_ring_t::Push(const move_sample_t &sample)
+{
+	samples[next] = sample;
+	next = (next + 1) % MOVE_SAMPLES;
+
+	if (count < MOVE_SAMPLES)
+		count++;
+}
+
+const move_sample_t *move_ring_t::Get(int prev) const
+{
+	if (count == 0)
+		return nullptr;
+
+	if (prev < 1)
+		prev = 1;
+	if (prev > count)
+		prev = count;
+
+	const int index = (next - prev + MOVE_SAMPLES * 2) % MOVE_SAMPLES;
+	return &samples[index];
+}
+
+const move_sample_t *move_ring_t::AtAge(uint64_t now_ms, uint64_t age_ms) const
+{
+	// Signed, so that an age reaching back before the first sample yields no
+	// match rather than wrapping around and returning the oldest one held.
+	const int64_t target = (int64_t) now_ms - (int64_t) age_ms;
+
+	for (int prev = 1; prev <= count; prev++)
+	{
+		const move_sample_t *sample = Get(prev);
+
+		// A discontinuity is a wall, not a data point: whatever the player was
+		// doing on the other side of a teleport or a recall says nothing about
+		// what they are doing now.
+		if (sample->discontinuity)
+			return nullptr;
+
+		if ((int64_t) sample->time_ms <= target)
+			return sample;
+	}
+
+	return nullptr; // the history does not reach back that far
+}
+
+void speed_state_t::Reset()
+{
+	peak = 0.f;
+	peak_time_ms = 0;
+	grounded_since_ms = 0;
+	grounded = false;
+}
+
+speed_readout_t speed_state_t::Update(const move_ring_t &ring, uint64_t window_ms, float deadband_ups)
+{
+	const move_sample_t *now = ring.Get(1);
+
+	if (!now)
+	{
+		Reset();
+		return {};
+	}
+
+	speed_readout_t out;
+	out.current = now->speed;
+	out.valid = true;
+
+	if (now->discontinuity)
+	{
+		// Start again from here: the speed either side of a teleport is not a
+		// gain or a loss, and the peak before it was somebody else's problem.
+		Reset();
+		grounded = now->on_ground_valid && now->on_ground;
+		grounded_since_ms = now->time_ms;
+		peak = now->speed;
+		peak_time_ms = now->time_ms;
+
+		out.peak = peak;
+		return out;
+	}
+
+	if (now->on_ground_valid)
+	{
+		if (now->on_ground && !grounded)
+		{
+			grounded = true;
+			grounded_since_ms = now->time_ms;
+		}
+		else if (!now->on_ground)
+		{
+			grounded = false;
+		}
+
+		if (grounded && now->time_ms - grounded_since_ms > SPEED_PEAK_GROUND_MS)
+		{
+			peak = now->speed;
+			peak_time_ms = now->time_ms;
+		}
+	}
+	else
+	{
+		grounded = false;
+
+		if (now->time_ms - peak_time_ms >= SPEED_PEAK_DECAY_MS)
+		{
+			peak = now->speed;
+			peak_time_ms = now->time_ms;
+		}
+	}
+
+	if (now->speed >= peak)
+	{
+		peak = now->speed;
+		peak_time_ms = now->time_ms;
+	}
+
+	out.peak = peak;
+
+	if (const move_sample_t *then = ring.AtAge(now->time_ms, window_ms))
+	{
+		out.delta = now->speed - then->speed;
+
+		// The deadband is not cosmetic: a standing player's speed jitters by
+		// fractions of a unit, and an arrow that flickers between gaining and
+		// losing is worse than no arrow at all.
+		if (out.delta > deadband_ups)
+			out.trend = 1;
+		else if (out.delta < -deadband_ups)
+			out.trend = -1;
+	}
+
+	return out;
 }
 
 bool PlayerVisibleToViewer(bool show_jumpers, bool eyecam_following_target, bool ent_is_viewer)

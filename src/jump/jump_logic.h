@@ -195,6 +195,140 @@ std::optional<bool> ParseMsetBool(const std::string &value);
 std::optional<int> ParseMsetInt(const std::string &value);
 
 // ---------------------------------------------------------------------------
+// Speedometer
+// ---------------------------------------------------------------------------
+
+// The widest value the HUD's `num 4` field can draw. Over-wide values are
+// truncated to their LEADING digits by the layout interpreter, so 12345 would
+// render as 1234 - a wrong number that looks right. Clamping is a correctness
+// requirement, not cosmetics.
+constexpr int SPEED_STAT_MAX = 9999;
+
+// Horizontal speed, in Quake units per second.
+//
+// X and Y are separate arguments so that no call site can reintroduce Z by
+// accident. Z is excluded because strafe jumping is a horizontal-acceleration
+// skill, because including it would spike the reading on every jump and every
+// fall, and because the speed gates in trigger_push / misc_teleporter compare
+// against this same XY quantity - a HUD that disagreed with the gate would be
+// worse than none. Both upstream mods measure it the same way.
+float HorizontalSpeed(float vel_x, float vel_y);
+
+// HorizontalSpeed for the HUD stat: truncated rather than rounded (matching
+// both upstreams, so the number agrees with a classic server's), clamped to
+// [0, SPEED_STAT_MAX]. Non-finite input yields 0, since casting NaN to int is
+// undefined. 0 is meaningful: it is what hides the element.
+int SpeedStat(float vel_x, float vel_y);
+
+// "1402" - whole units, same clamp as SpeedStat.
+std::string FormatSpeed(float ups);
+
+// "+38" / "-12" - signed whole units, for a gain/loss readout.
+std::string FormatSpeedDelta(float ups);
+
+// ---------------------------------------------------------------------------
+// Movement sampling (client overlay)
+// ---------------------------------------------------------------------------
+
+// One rendered frame's worth of movement state, as observed by the cgame.
+//
+// The full field set is here from the start even though the speedometer reads
+// only a few of them: the strafe meter, key display and per-jump stats that
+// follow all take their inputs from this struct, and adding fields later would
+// mean revisiting the sampler's replay-safety argument.
+struct move_sample_t
+{
+	uint64_t time_ms = 0;		 // client time when the sample was committed
+	float	 speed = 0.f;		 // HorizontalSpeed of `velocity`
+	float	 velocity[3] = { 0, 0, 0 };
+	float	 origin[3] = { 0, 0, 0 };
+	float	 view_yaw = 0.f;
+	float	 forwardmove = 0.f;
+	float	 sidemove = 0.f;
+	uint16_t buttons = 0;
+	uint8_t	 msec = 0;
+
+	bool on_ground = false;
+	// False when on_ground belongs to somebody else - chase cam copies the
+	// followed player's velocity but not their pm_flags, so the ground state is
+	// the viewer's. Consumers must not treat it as the subject's.
+	bool on_ground_valid = true;
+	// False when the inputs are not real: demo playback runs pmove once with a
+	// zeroed usercmd, which would otherwise read as "no keys pressed".
+	bool inputs_valid = false;
+	// False when the sample came from the last server snapshot rather than the
+	// predicted state (cl_predict 0, prediction suppressed, or a frame that ran
+	// no pmove at all).
+	bool predicted = false;
+	// The player was moved by something other than physics - teleport, recall,
+	// respawn, or a gap in time. History before this sample is unrelated.
+	bool discontinuity = false;
+};
+
+// ~1 s of history at 250 fps, ~4 s at 60. Enough for the trend window and a
+// typical airtime; the per-jump readout keeps its own summary rather than
+// scanning further back, so this never needs to grow.
+constexpr int MOVE_SAMPLES = 256;
+
+// Fixed-size ring, same contract as store_ring_t above.
+struct move_ring_t
+{
+	move_sample_t samples[MOVE_SAMPLES];
+	int			  next = 0;
+	int			  count = 0;
+
+	void Clear();
+	void Push(const move_sample_t &sample);
+
+	// prev == 1 is the newest sample. Returns nullptr when empty; values past
+	// the history depth clamp to the oldest sample held.
+	const move_sample_t *Get(int prev) const;
+
+	// The newest sample at or before (now_ms - age_ms), for comparing against
+	// where you were a moment ago. Returns nullptr when the history does not
+	// reach that far back, and refuses to look past a discontinuity - comparing
+	// across a teleport would report a speed change nobody made.
+	const move_sample_t *AtAge(uint64_t now_ms, uint64_t age_ms) const;
+
+	bool Empty() const { return count == 0; }
+};
+
+// What the overlay draws: the live speed, the best of the current jump, and
+// whether you are gaining or losing.
+struct speed_readout_t
+{
+	float current = 0.f;
+	float peak = 0.f;
+	float delta = 0.f; // current minus the speed one window ago
+	int	  trend = 0;   // -1 losing, 0 inside the deadband, +1 gaining
+	bool  valid = false;
+};
+
+// Peak resets once the player has been continuously grounded for longer than
+// this, so a bunny-hop chain keeps its peak across hops while standing still
+// clears it.
+constexpr uint64_t SPEED_PEAK_GROUND_MS = 150;
+
+// Fallback for when the ground state is not ours to read (see
+// move_sample_t::on_ground_valid): drop the peak if nothing has matched it for
+// this long, or a spectator's peak latches at the highest value ever seen.
+constexpr uint64_t SPEED_PEAK_DECAY_MS = 1500;
+
+// Tracks the peak and trend across samples. Update() consumes exactly one new
+// sample - the newest in the ring - so call it once per committed sample.
+struct speed_state_t
+{
+	float	 peak = 0.f;
+	uint64_t peak_time_ms = 0;
+	uint64_t grounded_since_ms = 0;
+	bool	 grounded = false;
+
+	void Reset();
+
+	speed_readout_t Update(const move_ring_t &ring, uint64_t window_ms = 250, float deadband_ups = 2.f);
+};
+
+// ---------------------------------------------------------------------------
 // jumpers visibility / audio policy (engine-free)
 // ---------------------------------------------------------------------------
 
