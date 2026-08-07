@@ -38,9 +38,17 @@ static constexpr float JUMP_SPEED_YB = -96.f;
 // rate, which can be several hundred times a second.
 static constexpr uint64_t JUMP_SPEED_REFRESH_MS = 25;
 
+// The strafe bar, directly under the number. Same virtual units as the layout,
+// and the same 4-high bar the stock health meters use.
+static constexpr float JUMP_STRAFE_W = 80.f;
+static constexpr float JUMP_STRAFE_H = 4.f;
+static constexpr float JUMP_STRAFE_GAP = 3.f;
+
 static cvar_t *jump_hud;
 static cvar_t *jump_hud_speed;
 static cvar_t *jump_hud_speed_hz;
+static cvar_t *jump_hud_strafe;
+static cvar_t *jump_hud_strafe_tau;
 
 void Jump_InitClientCvars()
 {
@@ -60,6 +68,18 @@ void Jump_InitClientCvars()
 	// exact instantaneous speed, only sampled less often.
 	jump_hud_speed_hz = cgi.cvar("jump_hud_speed_hz", "40", CVAR_ARCHIVE);
 
+	// The strafe meter: 0 off, 1 a plain 0-100% bar, 2 centre-anchored. 2 is
+	// the default because a bar that only shows magnitude tells you that you
+	// are losing speed but not which way to correct, and the penalty is
+	// lopsided - a shallow strafe still captures most of what is available
+	// while a fractionally steep one captures none of it.
+	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "2", CVAR_ARCHIVE);
+
+	// How long the reading remembers, in ms. Roughly one airtime. The raw
+	// per-frame value is unreadable; this is what makes it a meter rather than
+	// a flicker.
+	jump_hud_strafe_tau = cgi.cvar("jump_hud_strafe_tau", "300", CVAR_ARCHIVE);
+
 	// CG_InitScreen runs between levels and on reconnect - the same place the
 	// vanilla HUD clears its notify state - so this is where stale samples go.
 	Jump_CG_ResetSamples();
@@ -71,11 +91,12 @@ void Jump_InitClientCvars()
 // the safe-area inset, which the layout applies to edge anchors only.
 struct jump_overlay_ctx_t
 {
-	const player_state_t		*ps;
-	vrect_t						 hud_vrect;
-	vrect_t						 hud_safe;
-	int32_t						 scale;
-	const jump::speed_readout_t *speed;
+	const player_state_t		 *ps;
+	vrect_t						  hud_vrect;
+	vrect_t						  hud_safe;
+	int32_t						  scale;
+	const jump::speed_readout_t	 *speed;
+	const jump::strafe_readout_t *strafe;
 
 	int32_t VirtX(float virt) const
 	{
@@ -179,6 +200,101 @@ static void Jump_DrawSpeedometer(const jump_overlay_ctx_t &ctx)
 						   ctx.scale, rgba_white, true, text_align_t::CENTER);
 }
 
+// Green through amber to red as `loss` (0..1) grows. Interpolated rather than
+// banded on purpose: a colour that flips at a threshold flickers on the
+// boundary, which is the same failure that got the peak and trend figures cut.
+static rgba_t Jump_StrafeColour(float loss)
+{
+	if (loss < 0.f)
+		loss = 0.f;
+	if (loss > 1.f)
+		loss = 1.f;
+
+	const float t = loss < 0.5f ? loss * 2.f : (loss - 0.5f) * 2.f;
+
+	const rgba_t from = loss < 0.5f ? rgba_t { 80, 220, 90, 255 } : rgba_t { 235, 200, 60, 255 };
+	const rgba_t to = loss < 0.5f ? rgba_t { 235, 200, 60, 255 } : rgba_t { 235, 70, 60, 255 };
+
+	return { (uint8_t) (from.r + (to.r - from.r) * t), (uint8_t) (from.g + (to.g - from.g) * t),
+			 (uint8_t) (from.b + (to.b - from.b) * t), 255 };
+}
+
+// How much of the acceleration that was available you actually took.
+//
+// This is the one readout the speed number cannot stand in for: it tells you
+// where you ended up, not whether the input that got you there was any good.
+// The maths is jump::StrafeFrame, mirroring PM_AirAccelerate exactly - see
+// jump_logic.h for why an approximation would be worse than nothing.
+//
+// Air only. On the ground the answer is always "all of it", and the
+// reconstruction would stop being exact anyway.
+static void Jump_DrawStrafeMeter(const jump_overlay_ctx_t &ctx)
+{
+	const pmtype_t pm_type = ctx.ps->pmove.pm_type;
+
+	if (pm_type == PM_NOCLIP || pm_type == PM_SPECTATOR)
+		return;
+
+	// Tied to the number above it: if that is hidden, this has nothing to
+	// annotate.
+	if (!ctx.speed->valid || ctx.speed->current < 1.f)
+		return;
+
+	const jump::strafe_readout_t &strafe = *ctx.strafe;
+
+	const float bw = JUMP_STRAFE_W * ctx.scale;
+	const float bh = JUMP_STRAFE_H * ctx.scale;
+	const float bx = (float) ctx.VirtX(160.f) - bw * 0.5f;
+	const float by = (float) ctx.BottomY(JUMP_SPEED_YB) + cgi.SCR_FontLineHeight(ctx.scale) +
+					 JUMP_STRAFE_GAP * ctx.scale;
+
+	const int px = ctx.scale < 1 ? 1 : ctx.scale;
+	const int ix = (int) bx, iy = (int) by, iw = (int) bw, ih = (int) bh;
+
+	// Border, then the empty track over it - the same two-rectangle idiom the
+	// stock health bars use. "_white" is the engine's solid-fill primitive; it
+	// needs no asset and nothing to precache.
+	cgi.SCR_DrawColorPic(ix - px, iy - px, iw + 2 * px, ih + 2 * px, "_white", rgba_black);
+	cgi.SCR_DrawColorPic(ix, iy, iw, ih, "_white", { 40, 40, 40, 200 });
+
+	const bool centred = jump_hud_strafe->integer >= 2;
+
+	// The reference mark: the centre when the bar is signed, the 90% target
+	// when it is not. Static either way - a moving marker beside a moving bar
+	// is two things to read.
+	const int tick = centred ? ix + iw / 2 - px / 2 : ix + (int) (bw * 0.9f);
+	cgi.SCR_DrawColorPic(tick, iy, px, ih, "_white", { 200, 200, 200, 160 });
+
+	// No fill when there is nothing to be a fraction of. An empty track reads
+	// as "no signal"; a full red bar would read as "you are doing it wrong",
+	// and those are different claims. Not hidden entirely, because a hop chain
+	// crosses the ground twice a second and an element that blinks at 2 Hz is
+	// worse than one that sits still.
+	if (!strafe.valid)
+		return;
+
+	const float loss = 1.f - strafe.efficiency;
+	const rgba_t colour = Jump_StrafeColour(loss);
+
+	if (centred)
+	{
+		// Fills outward from the centre. Which side says which way to correct;
+		// how far says how much is being lost, since |offset| is 1 - efficiency
+		// by construction.
+		const int half = iw / 2;
+		const int len = (int) (strafe.offset * half);
+
+		if (len >= 0)
+			cgi.SCR_DrawColorPic(ix + half, iy, len, ih, "_white", colour);
+		else
+			cgi.SCR_DrawColorPic(ix + half + len, iy, -len, ih, "_white", colour);
+	}
+	else
+	{
+		cgi.SCR_DrawColorPic(ix, iy, (int) (bw * strafe.efficiency), ih, "_white", colour);
+	}
+}
+
 void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)
 {
 	// Prediction only ever runs for the primary local player, and the sampler
@@ -196,11 +312,28 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 
 	const bool enabled = jump_hud && jump_hud->integer;
 	const bool want_speed = enabled && jump_hud_speed && jump_hud_speed->integer;
+	const bool want_strafe = enabled && jump_hud_strafe && jump_hud_strafe->integer;
+
+	// Clamped rather than trusted: a typo here would otherwise either freeze
+	// the reading or blank it.
+	if (jump_hud_strafe_tau)
+	{
+		int tau = jump_hud_strafe_tau->integer;
+
+		if (tau < 50)
+			tau = 50;
+		if (tau > 2000)
+			tau = 2000;
+
+		Jump_CG_SetStrafeTau((uint64_t) tau);
+	}
 
 	// Called before the display gates, and every frame: it owns the sampling
 	// flag the Pmove wrapper reads, so skipping it would leave the wrapper
-	// collecting samples nobody is going to draw.
-	const jump::speed_readout_t &speed = Jump_CG_SampleFrame(ps, want_speed);
+	// collecting samples nobody is going to draw. It must be the OR of every
+	// element that reads the ring, or a new element silently reads an empty one
+	// the moment somebody turns the speedometer off.
+	const jump::speed_readout_t &speed = Jump_CG_SampleFrame(ps, want_speed || want_strafe);
 
 	if (!enabled)
 		return;
@@ -208,10 +341,13 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	if (ps->stats[STAT_LAYOUTS] & (LAYOUTS_HIDE_HUD | LAYOUTS_INTERMISSION))
 		return;
 
-	const jump_overlay_ctx_t ctx { ps, hud_vrect, hud_safe, scale, &speed };
+	const jump_overlay_ctx_t ctx { ps, hud_vrect, hud_safe, scale, &speed, &Jump_CG_StrafeReadout() };
 
 	if (want_speed)
 		Jump_DrawSpeedometer(ctx);
+
+	if (want_strafe)
+		Jump_DrawStrafeMeter(ctx);
 
 	Jump_DrawPbDelta(ctx);
 }
