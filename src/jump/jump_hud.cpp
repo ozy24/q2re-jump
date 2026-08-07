@@ -135,11 +135,14 @@ void Jump_UpdatePbString(edict_t *ent)
 	gi.configstring((int) (CONFIG_JUMP_PB_STRING + index), jump::FormatTime(jc->pb_time_ms).c_str());
 }
 
-bool Jump_InitStatusbar()
-{
-	if (!Jump_Active())
-		return false;
+// The timelimit the current CS_STATUSBAR was built against. The time_limit
+// token carries an absolute server frame, not a live value, so the bar has to
+// be rebuilt - not merely re-sent - whenever the deadline moves. -1 means
+// "nothing built yet".
+static float jump_statusbar_timelimit = -1.0f;
 
+static void Jump_EmitStatusbar()
+{
 	statusbar_t sb;
 
 	// Right-edge column: a short label above each number block. Offsets are
@@ -253,6 +256,33 @@ bool Jump_InitStatusbar()
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
 
+	// Map time remaining, one row above PB - the bottom of the right-hand column,
+	// which is also where it belongs visually: it is the only clock here that is
+	// not about this run. This is the stock time_limit token: it takes an
+	// absolute server frame and the client does the counting itself, so it costs
+	// no stat slot and no per-frame server work - the reason it beats a pair of
+	// `num` fields. The cost is that the frame number is a snapshot, which is
+	// what Jump_StatusbarFrame below exists to refresh.
+	//
+	// statusbar_t has no method for it, so emit the raw token rather than
+	// growing the upstream wrapper. Same expression as the scoreboard
+	// (jump_scoreboard.cpp) so the two can never disagree.
+	//
+	// The token draws its own label ("$g_score_time" -> "Time Left: MM:SS"), so
+	// its width belongs to the engine and changes with scr_usekfont. It is
+	// right-aligned though, so anchoring it to the same right edge as PB and
+	// PRACTICE is exact under either font - a left-edge anchor would have to
+	// guess the width and clips when it guesses low.
+	if (timelimit && timelimit->value > 0)
+	{
+		const int32_t end_frame =
+			(int32_t) (gi.ServerFrame() +
+					   ((gtime_t::from_min(timelimit->value) - level.time)).milliseconds() / gi.frame_time_ms);
+
+		sb.yb(pb_yb - row_gap - label_h).xr(pb_right);
+		sb.sb << "time_limit " << end_frame << ' ';
+	}
+
 	// Spectator chase identity — same anchors as stock DM / MuffMode, above
 	// the pickup line. STAT_CHASE points at CONFIG_CTF_PLAYER_NAME (see
 	// G_SetSpectatorStats); xv(80) clears the longer "FOLLOWING" label.
@@ -272,5 +302,33 @@ bool Jump_InitStatusbar()
 
 	gi.configstring(CS_STATUSBAR, sb.sb.str().c_str());
 
+	jump_statusbar_timelimit = timelimit ? timelimit->value : 0.0f;
+}
+
+bool Jump_InitStatusbar()
+{
+	if (!Jump_Active())
+		return false;
+
+	Jump_EmitStatusbar();
+
 	return true;
+}
+
+// The countdown's end frame is baked into the layout, so a vote extension
+// (Jump_PassVote) or a console `timelimit` change leaves it stale. Comparing
+// the cvar is enough: end_frame is invariant while the limit is, since
+// gi.ServerFrame() and level.time advance in lockstep. Change-gated because a
+// CS_STATUSBAR write broadcasts the whole bar to every connected client.
+void Jump_StatusbarFrame()
+{
+	if (!Jump_Active())
+		return;
+
+	const float current = timelimit ? timelimit->value : 0.0f;
+
+	if (current == jump_statusbar_timelimit)
+		return;
+
+	Jump_EmitStatusbar();
 }

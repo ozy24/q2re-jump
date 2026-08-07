@@ -12,6 +12,11 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **The map's time remaining is now on the HUD**, at the foot of the right-hand column above
+  your PB, instead of only on the scoreboard. It updates itself on the client, so it costs
+  nothing per frame, and it re-syncs immediately when a `timeextend` vote passes or the
+  `timelimit` cvar is changed from the console. Nothing shows when there is no time limit.
+
 - **`msets` lists the settings in force on the current map** — gravity, `fasttele`, which weapons
   are tools rather than the finish, and how many checkpoints are required. Typing `mset` prints
   the same list plus a note that settings come from the server console, since that is the command

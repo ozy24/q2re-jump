@@ -165,6 +165,7 @@ void Jump_RunFrame()
 	Jump_IdleFrame();
 	Jump_MsetFrame();
 	Jump_AnnounceFrame();
+	Jump_StatusbarFrame();
 }
 
 void Jump_Shutdown()

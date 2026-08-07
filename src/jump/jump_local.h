@@ -203,6 +203,10 @@ void					   Jump_PlayerTotals(const std::string &id, int &points, int &completio
 void Jump_Announce(const char *text, gtime_t duration);
 void Jump_AnnounceFrame();
 
+// Re-issues CS_STATUSBAR when the timelimit moves - the map countdown bakes an
+// absolute server frame into the layout. No-op on every other frame.
+void Jump_StatusbarFrame();
+
 // jump_mset.cpp
 enum class jump_mset_result_t
 {
