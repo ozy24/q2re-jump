@@ -68,6 +68,22 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
 
+	// Horizontal speed, computed here rather than reusing p_view.cpp's
+	// file-scope `xyspeed`: that global is also written by
+	// target_camera_dummy_think, and the intermission path calls G_SetStats
+	// *before* xyspeed is assigned, so it would publish a stale value there.
+	// One sqrt per client per frame is cheaper than that coupling.
+	//
+	// 0 hides the element, which is what a free spectator gets - a flying
+	// camera's speed is not "speed" in any jumping sense. A CHASING spectator
+	// never reaches this line (G_SetSpectatorStats skips G_SetStats when
+	// chase_target is set) and inherits the followed player's value through
+	// G_CheckChaseStats' bulk copy, which is exactly the behaviour we want.
+	ent->client->ps.stats[JUMP_STAT_SPEED] =
+		(jc->team == jump_team_t::spectator)
+			? 0
+			: (int16_t) jump::SpeedStat(ent->velocity[0], ent->velocity[1]);
+
 	// The banner is the same for everyone, which is what makes setting it here
 	// enough. G_CheckChaseStats bulk-copies the stats array from the player
 	// being chased, so a viewer-specific value would be clobbered - this one
@@ -255,6 +271,34 @@ static void Jump_EmitStatusbar()
 
 	// Stores held, bottom left and out of the way of the run column.
 	sb.ifstat(JUMP_STAT_STORES).yb(-28).xl(8).string2("stores").yb(-32).xl(64).num(2, JUMP_STAT_STORES).endifstat();
+
+	// Speedometer, bottom centre-right, at the anchors both upstream mods use
+	// (q2jump g_ctf.c, Q2JumpRefresh jump_hud.cpp) so a player arriving from
+	// either server finds it where their eyes already go. The spot is empty
+	// here: the run column, PB, time remaining and the team label are all
+	// anchored to an edge, and the stores counter is at the far left.
+	//
+	// The label is right-aligned to the digit box's right edge - that is where
+	// upstream's magic 226 comes from, the box spanning xv 200 to
+	// 200 + Jump_NumWidth(4) less five 8px characters of "Speed". Exact under
+	// the conchar font and approximate under scr_usekfont's proportional one,
+	// the same caveat as the "time" and "Checkpoint" labels above.
+	//
+	// Gated on the value, so 0 hides the whole element while you are standing
+	// still. That gate is also the only way this could ever be varied per
+	// player: a CS_STATUSBAR write broadcasts to everyone, so the layout itself
+	// is the same for all of them.
+	constexpr int speed_digits_x = 200;
+	constexpr int speed_label_x = speed_digits_x + Jump_NumWidth(4) - 5 * 8;
+
+	sb.ifstat(JUMP_STAT_SPEED)
+		.yb(-32)
+		.xv(speed_digits_x)
+		.num(4, JUMP_STAT_SPEED)
+		.yb(-8)
+		.xv(speed_label_x)
+		.string2("Speed")
+		.endifstat();
 
 	// Map time remaining, one row above PB - the bottom of the right-hand column,
 	// which is also where it belongs visually: it is the only clock here that is
