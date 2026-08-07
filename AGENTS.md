@@ -90,15 +90,23 @@ stock protocol — the `CS_STATUSBAR` layout script, `svc_layout`, `CS_PLAYERSKI
 prints. So the server-authored statusbar must carry the whole HUD (timer, checkpoints, stores,
 team, PB); the cgame overlay adds only what a layout script cannot express.
 
-The one deliberate exception is the speedometer, and it is worth knowing why before adding a
-second one. A layout script can only draw a live number with the HUD's number pics (16×24), which
-at that size dominate the screen — so the statusbar's speedometer is behind `jump_speedometer`,
-**off** by default, and the overlay draws a small one instead. That is also why the overlay now
-defaults **on** (`jump_hud 1`), where it used to default off so the host saw what everyone else
-saw. `jump_hud 0` still gives the exact stock-client view. The overlay decides whether to draw its
-own number by reading `JUMP_STAT_SPEED`: `Jump_SetStats` zeroes it when the server-side one is off,
-so the stat doubles as "is the statusbar drawing a number?" — the client cannot see a server cvar,
-and this needs no extra plumbing.
+The overlay defaults **off** (`jump_hud 0`) so the host sees what everyone else sees. Treat the
+statusbar as the HUD and the overlay as the exception: a layout script can draw a live value only
+with the HUD's number pics, so anything a stock client should have must fit that vocabulary, and
+the overlay is for what genuinely cannot — currently the PB delta, which is a subtraction, and no
+layout token subtracts.
+
+Two overlay elements were built and then cut after seeing them in play: a peak-of-jump figure (a
+high-water mark, so stale the moment you stop matching it, and speed barely changes in flight so it
+mostly restated the number below it) and a signed gain/loss figure (honest, but a second thing
+moving next to a number you are trying to read). `jump::speed_state_t` still computes both, since
+the per-jump readouts that would replace them want the same ground-edge state. The lesson is worth
+keeping: an annotation has to answer a question the live number cannot, not restate it.
+
+The speedometer is the one element that exists on both sides, so note how they avoid drawing at
+once: `Jump_SetStats` zeroes `JUMP_STAT_SPEED` when `jump_speedometer` is off, and the overlay
+treats a zero stat as "the bar is not drawing a number, so I will". The stat doubles as the flag
+because the client cannot see a server cvar, and this needs no extra plumbing.
 
 **Never add pmove changes.** `p_move.cpp` and `bg_local.h` are untouched by design, which is what
 keeps a stock client's prediction identical to the server. Classic 125fps feel is explicitly out

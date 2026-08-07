@@ -179,25 +179,17 @@ HUD that disagreed with the gate would be worse than no HUD.
 Following another player shows *their* speed; free-flying spectators see
 nothing, since a camera's speed is not a jump.
 
-**There are two of them, and normally you are looking at the client-side one.**
-The difference is not cosmetic, so it is worth understanding which you have.
+Everyone sees it, including players on a stock client, because the server draws
+it as part of the status bar. It has no caption — a four-digit number that
+climbs as you move does not need one, and the word would be one more thing on a
+screen you are reading a map through. `jump_speedometer 0` hides it for
+everyone.
 
-| | Server status bar (`jump_speedometer 1`) | Client overlay (`jump_hud 1`) |
-|---|---|---|
-| Who sees it | Everyone, including stock clients | Only players running this DLL |
-| Drawn with | The HUD's number pics, 16×24 each | The rerelease's proportional font |
-| Updates | Server tick, lagged by your ping | Every rendered frame, predicted |
-| Extras | A `Speed` caption | Peak speed of the jump, and a gain/loss figure |
-| Default | **Off** | **On** |
-
-The big one is off by default because those number pics are the *only* thing a
-status bar can draw a live value with — a layout script has no proportional
-text — and at that size the readout dominates the screen. Turn it on for a
-server whose players are on stock clients; they see nothing otherwise.
-
-The two never draw at once. The client one checks whether the server is drawing
-a number and only draws its own when it is not, so switching `jump_speedometer`
-on replaces the small number with the large one rather than stacking them.
+The reading is **held for a tenth of a second** rather than refreshed every
+server frame. Both upstream mods ran on a 10 Hz server, so theirs changed ten
+times a second; the rerelease runs at 40, and four digits changing forty times a
+second blur into something you cannot actually read. The value is still a true
+instantaneous speed — only the moment it is sampled is rationed.
 
 ### Finishing
 
@@ -240,30 +232,23 @@ Movement matters just as much. Prediction runs through `Pmove` in the client, an
 no pmove changes at all, so a stock client predicts identically to the server. That is the real
 payoff of building on rerelease physics rather than emulating the old engine.
 
-So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best — plus every
-message and the times board. What they miss is the client-side overlay described below, and, unless
-you set `jump_speedometer 1`, the speedometer along with it.
-
-That last one is the single place where this port does not give a stock client everything. It is a
-deliberate trade: the only way a status bar can draw a live number is the HUD's number pics, which
-are large enough to dominate the screen. Hosting for players on stock clients means turning it on
-and living with the size; hosting for players running this DLL means leaving it off and letting the
-overlay draw it small.
+So a stock player sees the full HUD — timer, checkpoints, stores, team, personal best, speed — plus
+every message and the times board. What they miss is the client-side overlay described below, which
+adds nothing a run depends on.
 
 ### The client-side overlay
 
-Things a layout script cannot express are drawn by the client instead: the coloured delta against
-your personal best after a finish, and the speed readout — the number in the rerelease's own font,
-the best speed of the current jump, and a signed gain/loss figure.
+The overlay draws the coloured delta against your personal best after a finish — a subtraction, and
+a layout script has no token that subtracts.
 
-All of it comes from movement the client samples every rendered frame, out of its own prediction,
-so it is smoother and finer-grained than anything the server could send at the tick rate. Nothing
-is sent over the network for it.
+It also draws the speed number itself, but *only* on a server running `jump_speedometer 0`, in the
+rerelease's proportional font rather than the HUD's number pics. The two never draw at once. That
+one comes from movement the client samples every rendered frame out of its own prediction, so it is
+finer-grained than anything the server could send at the tick rate, and nothing goes over the
+network for it.
 
-**The overlay is on by default.** It used to be off, on the principle that a host should see what
-everyone else sees, but the speedometer changed that: the overlay is now where the speed readout
-normally lives, and defaulting it off would mean defaulting to no speedometer at all. `jump_hud 0`
-still gives the exact stock-client view whenever you want to check it.
+**The overlay is off by default**, so out of the box you see exactly what everyone else sees —
+which is the useful default when you are hosting.
 
 | Cvar | Default | Effect |
 |---|---|---|
@@ -495,8 +480,8 @@ any change to the entity contract.
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
-| `jump_speedometer` | `0` | Draw the speedometer on the shared status bar, in the HUD's big number pics. Everyone sees it, including stock clients — but it is large, so it is off unless your players need it |
-| `jump_hud` | `1` | **Client-side**, unlike the others. The movement overlay: speed, peak, trend, PB delta. `0` gives the exact stock-client view |
+| `jump_speedometer` | `1` | The speedometer on the shared status bar, which is the one every player sees. `0` hides it for everyone |
+| `jump_hud` | `0` | **Client-side**, unlike the others. The movement overlay: gain/loss figure and PB delta. Off means you see the exact stock-client view |
 | `jump_hud_speed` | `1` | **Client-side.** The speed readout within that overlay |
 
 ### Map rotation and the vote pool

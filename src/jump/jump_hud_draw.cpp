@@ -28,21 +28,14 @@
 static cvar_t *jump_hud;
 static cvar_t *jump_hud_speed;
 
-// Dimmer than the value it annotates, so the eye lands on the number first.
-static constexpr rgba_t jump_dim = { 170, 170, 170, 255 };
-
 void Jump_InitClientCvars()
 {
-	// On by default. This used to be off, on the principle that the host should
-	// see what everyone else sees - but the speedometer changed that calculus:
-	// the server draws it with the HUD's number pics, which are 16x24 and
-	// dominate the screen, so it is off by default server-side
-	// (jump_speedometer) and this overlay is where the speed readout normally
-	// lives. `jump_hud 0` still gives the exact stock-client view.
-	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
+	// Default off: the stock-client view is the one everybody shares, so it is
+	// the honest thing to show by default.
+	jump_hud = cgi.cvar("jump_hud", "0", CVAR_ARCHIVE);
 
-	// The speed readout: the number itself when the server is not drawing one,
-	// plus the peak and trend a layout script cannot express either way.
+	// The speed readout: the gain/loss figure, plus the number itself on a
+	// server that has turned its own speedometer off.
 	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
 
 	// CG_InitScreen runs between levels and on reconnect - the same place the
@@ -108,8 +101,18 @@ static void Jump_DrawPbDelta(const jump_overlay_ctx_t &ctx)
 						   run_total_ms <= pb_total_ms ? rgba_green : rgba_red, true, text_align_t::RIGHT);
 }
 
-// The speed readout: peak and trend always, and the number itself when the
-// server is not drawing one.
+// The speed number, drawn only on a server that has turned its own off.
+//
+// Two annotations used to live here and both were cut after seeing them in
+// play. Peak-of-jump was a high-water mark, so it went stale the moment you
+// stopped matching it, and since speed barely changes in flight it mostly
+// duplicated the number underneath it. The signed gain/loss figure was honest
+// but noisy - a second thing moving next to a number you are trying to read.
+//
+// What replaces them should answer a question the live number cannot, rather
+// than restating it: speed at takeoff against the previous jump, or how much of
+// the available acceleration a strafe actually captured. jump::speed_state_t
+// still tracks peak and trend because both want the same ground-edge state.
 //
 // Whether it is comes straight from the stat. Jump_SetStats zeroes
 // JUMP_STAT_SPEED when jump_speedometer is off, and the statusbar row is gated
@@ -136,52 +139,35 @@ static void Jump_DrawSpeedExtras(const jump_overlay_ctx_t &ctx)
 	if (pm_type == PM_NOCLIP || pm_type == PM_SPECTATOR)
 		return;
 
-	// Standing still hides the statusbar's number, so hide its annotations too
-	// rather than leave them floating over nothing.
-	if (speed.peak < 1.f)
+	// Nothing to add when the statusbar is already showing a number - that is
+	// the normal case, and two speeds a few units apart would look like a bug.
+	if (ctx.ps->stats[JUMP_STAT_SPEED] > 0)
 		return;
 
-	// The statusbar's digit row is 24 tall and starts at JUMP_SPEED_DIGITS_YB
-	// (shared rather than copied, jump_stats.h, so moving the block moves this
-	// with it). Our own number goes in the middle of that row when there is no
-	// row, and peak/trend sit one line above either way.
-	const bool	  server_drawing = ctx.ps->stats[JUMP_STAT_SPEED] > 0;
-	const int32_t line_height = (int32_t) cgi.SCR_FontLineHeight(ctx.scale);
-	const int32_t speed_y = ctx.BottomY(JUMP_SPEED_DIGITS_YB + 8.f);
-	const int32_t y = speed_y - line_height - 2 * ctx.scale;
+	if (speed.current < 1.f)
+		return;
 
-	// The current-speed test is separate from the peak one above: peak lingers
-	// for a moment after you stop, and a lone "0" sitting there is exactly what
-	// the statusbar's own zero gate exists to avoid.
-	if (!server_drawing && speed.current >= 1.f)
+	// Held for the same span as the statusbar's, and for the same reason: this
+	// one is sampled per rendered frame, so left alone it would churn faster
+	// still. The value shown is a real instantaneous reading, not an average -
+	// only the moment it is taken is rationed.
+	static int32_t	shown = 0;
+	static uint64_t shown_time = 0;
+
+	const uint64_t now = cgi.CL_ClientTime();
+
+	if (now < shown_time || now - shown_time >= (uint64_t) JUMP_SPEED_REFRESH_MS)
 	{
-		// No label: the number is the only thing at this spot, and "Speed"
-		// under it is the sort of caption you read once and never again.
-		cgi.SCR_DrawFontString(jump::FormatSpeed(speed.current).c_str(), ctx.VirtX(160.f), speed_y, ctx.scale,
-							   rgba_white, true, text_align_t::CENTER);
+		shown = (int32_t) speed.current;
+		shown_time = now;
 	}
 
-	const std::string peak = "peak " + jump::FormatSpeed(speed.peak);
-	const std::string delta = speed.trend ? jump::FormatSpeedDelta(speed.delta) : std::string();
-
-	// Two colours means two draws, so the line has to be centred by hand:
-	// measure both parts, then lay them out from the left of the pair. Measured
-	// rather than counted because the kfont is proportional and scr_usekfont is
-	// a private static of cg_screen.cpp - a character-width estimate would
-	// drift under one font or the other.
-	const float peak_width = cgi.SCR_MeasureFontString(peak.c_str(), ctx.scale).x;
-	const float gap = delta.empty() ? 0.f : 6.f * ctx.scale;
-	const float delta_width = delta.empty() ? 0.f : cgi.SCR_MeasureFontString(delta.c_str(), ctx.scale).x;
-
-	const int32_t left = ctx.VirtX(160.f) - (int32_t) ((peak_width + gap + delta_width) / 2.f);
-
-	cgi.SCR_DrawFontString(peak.c_str(), left, y, ctx.scale, jump_dim, true, text_align_t::LEFT);
-
-	if (delta.empty())
-		return;
-
-	cgi.SCR_DrawFontString(delta.c_str(), left + (int32_t) (peak_width + gap), y, ctx.scale,
-						   speed.trend > 0 ? rgba_green : rgba_red, true, text_align_t::LEFT);
+	// In the middle of the row the statusbar's digits would have occupied, whose
+	// anchor is shared rather than copied (jump_stats.h) so moving the block
+	// moves this with it. No caption, for the same reason that one has none.
+	cgi.SCR_DrawFontString(jump::FormatSpeed((float) shown).c_str(), ctx.VirtX(160.f),
+						   ctx.BottomY(JUMP_SPEED_DIGITS_YB + 8.f), ctx.scale, rgba_white, true,
+						   text_align_t::CENTER);
 }
 
 void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)

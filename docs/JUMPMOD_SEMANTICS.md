@@ -291,12 +291,13 @@ than ported. The value is clamped to 9999, because KEX's `num` token truncates a
 to its *leading* digits and an unclamped 12345 would draw a believable 1234. And the stat lives at
 index 54 rather than in the CTF block, which is full.
 
-The larger divergence is that the status-bar speedometer is **off by default** (`jump_speedometer`),
-where both mods have it always on. A layout script can only draw a live value with the HUD's number
-pics, and at 16×24 the readout dominates a rerelease screen in a way it did not at 1997 resolutions.
-Players running this port's own DLL get a small client-drawn one instead; a host serving stock
-clients turns the big one on. The client half decides which by reading the stat, since it cannot see
-a server cvar and `Jump_SetStats` already zeroes the stat when the element is off.
+Three smaller divergences. The element has **no caption** — both mods label it "Speed", which at
+rerelease resolutions is a word you read once and then never again. It can be turned off
+(`jump_speedometer 0`), which neither mod allows short of A's blanket `cleanhud`. And the reading is
+**held for 100 ms** rather than written every frame: both mods ran on a 10 Hz server, so theirs
+changed ten times a second by construction, while the rerelease's 40 Hz makes four digits
+unreadable. This is a refresh rate, not the ±10 ups hysteresis B applies to replays — the value
+shown is exact, only less often.
 
 **Movement overlay** — **new, not a port.** Neither mod shows peak speed or a gain/loss figure;
 A's `showjumps` (`p_client.c:2308-2331`) prints a per-jump distance and its delta as chat text, and

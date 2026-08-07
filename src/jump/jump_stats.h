@@ -94,6 +94,13 @@ static_assert((int) JUMP_STAT_SPEED < (int) MAX_STATS, "jump stat out of range")
 // two copies of the number would drift apart the first time it moved.
 constexpr int JUMP_SPEED_DIGITS_YB = -104;
 
+// How long a speedometer reading is held before being replaced, in ms. Both
+// upstream mods ran on a 10 Hz server and so changed theirs ten times a second;
+// the rerelease runs at 40, and four digits changing forty times a second blur
+// into something nobody can read. Shared because the cgame overlay draws at the
+// render rate, which is faster still.
+constexpr int JUMP_SPEED_REFRESH_MS = 100;
+
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;
 constexpr int16_t JUMP_RUN_FINISHED = 2;

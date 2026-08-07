@@ -20,6 +20,11 @@
 
 int Jump_CheckpointTotal();
 
+// How long a speedometer reading stays on screen before it is replaced. See
+// the note in Jump_SetStats; the cgame overlay holds its own number for the
+// same span (JUMP_SPEED_REFRESH_MS, jump_stats.h).
+constexpr gtime_t JUMP_SPEED_REFRESH = gtime_t::from_ms(JUMP_SPEED_REFRESH_MS);
+
 // Field box width in virtual px for a `num` of the given digit count.
 static constexpr int Jump_NumWidth(int digits)
 {
@@ -85,10 +90,26 @@ void Jump_SetStats(edict_t *ent)
 	// would cost every client the whole bar, whereas a stat is per-player and
 	// delta-compressed. It also means the client overlay can tell whether the
 	// server is drawing a speed number just by looking at the stat.
-	ent->client->ps.stats[JUMP_STAT_SPEED] =
-		(jc->team == jump_team_t::spectator || !jump_speedometer->integer)
-			? 0
-			: (int16_t) jump::SpeedStat(ent->velocity[0], ent->velocity[1]);
+	const int16_t speed = (jc->team == jump_team_t::spectator || !jump_speedometer->integer)
+							  ? 0
+							  : (int16_t) jump::SpeedStat(ent->velocity[0], ent->velocity[1]);
+
+	// Both upstream mods ran on a 10 Hz server, so their speedometers changed
+	// ten times a second. The rerelease runs at 40, and four digits changing
+	// forty times a second is not a number anyone can read - it just blurs. So
+	// hold each reading; the value is still the true instantaneous speed, it is
+	// simply sampled at a rate an eye can follow.
+	//
+	// Appearing and disappearing is exempt: that is the element showing up when
+	// you start moving, and waiting a tenth of a second for it would read as a
+	// bug rather than as a considered refresh rate.
+	if ((speed == 0) != (jc->speed_shown == 0) || level.time - jc->speed_shown_time >= JUMP_SPEED_REFRESH)
+	{
+		jc->speed_shown = speed;
+		jc->speed_shown_time = level.time;
+	}
+
+	ent->client->ps.stats[JUMP_STAT_SPEED] = jc->speed_shown;
 
 	// The banner is the same for everyone, which is what makes setting it here
 	// enough. G_CheckChaseStats bulk-copies the stats array from the player
@@ -179,7 +200,6 @@ static void Jump_EmitStatusbar()
 	//               2
 	//
 	//               [ 298 ]     (speedometer, centred)
-	//                Speed
 	//
 	//                              PB   (bottom right, above the team label)
 	//                            9.87
@@ -324,18 +344,13 @@ static void Jump_EmitStatusbar()
 	// still. That gate is also the only way this could ever be varied per
 	// player: a CS_STATUSBAR write broadcasts to everyone, so the layout itself
 	// is the same for all of them.
+	// No caption: a four-digit number that climbs when you move is not something
+	// anyone needs told, and a permanent word under it is one more thing on a
+	// screen you are trying to read a map through.
 	constexpr int speed_digits_yb = JUMP_SPEED_DIGITS_YB; // shared with the cgame overlay
 	constexpr int speed_digits_x = 160 - (Jump_NumWidth(4) - 3 * 16) - (3 * 16) / 2; // centres 3 digits
-	constexpr int speed_label_x = 160 - (5 * 8) / 2;								 // "Speed", 5 chars
 
-	sb.ifstat(JUMP_STAT_SPEED)
-		.yb(speed_digits_yb)
-		.xv(speed_digits_x)
-		.num(4, JUMP_STAT_SPEED)
-		.yb(speed_digits_yb + 24)
-		.xv(speed_label_x)
-		.string2("Speed")
-		.endifstat();
+	sb.ifstat(JUMP_STAT_SPEED).yb(speed_digits_yb).xv(speed_digits_x).num(4, JUMP_STAT_SPEED).endifstat();
 
 	// Map time remaining, bottom left - the corner nothing else uses now, and
 	// the right place for the one clock here that is not about this run. This

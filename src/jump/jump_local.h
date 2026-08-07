@@ -54,6 +54,12 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
+	// The speedometer value currently on this player's HUD, and when it was put
+	// there. The reading is deliberately not refreshed every frame - see
+	// JUMP_SPEED_REFRESH in jump_hud.cpp.
+	int16_t speed_shown = 0;
+	gtime_t speed_shown_time = 0_ms;
+
 	// --- per map: the join gate ---
 	// Nobody enters the map until they have answered the join menu, and every
 	// level re-asks, so all three reset in Jump_InitLevel.

@@ -19,20 +19,19 @@ released — see [docs/release-process.md](docs/release-process.md).
   spiking every time you jump or fall. Following another player shows their speed; free-flying
   spectators see nothing. It hides itself when you are standing still.
 
-  There are two of them, and which you get matters. The one on the shared status bar is the only
-  kind a stock client can be shown — but a status bar can only draw a live number with the HUD's
-  chunky number pics, which dominate the screen, so it is behind **`jump_speedometer`** and off
-  by default. Turn it on for a server whose players are on stock clients. Everyone running this
-  DLL gets the small one below instead, and the two never draw at once.
+  It carries no caption: both upstream mods label theirs "Speed", which at rerelease resolutions
+  is a word you read once and then never again. `jump_speedometer 0` hides it for everyone.
 
-- **A movement overlay for anyone running the mod's own client**, now **on** by default
-  (`jump_hud 0` still gives the exact stock-client view). It draws the speed readout in the
-  rerelease's own font — small, and with no caption — plus the best speed of your current jump
-  and a signed figure showing whether you are gaining or losing it, neither of which a status
-  bar can draw at all. Everything is sampled from the client's own prediction every rendered
-  frame, so it is finer-grained than anything the server could send, and costs no network
-  traffic. A bunny-hop chain keeps its peak across hops; standing still, teleports and recalls
-  clear it. `jump_hud_speed 0` trims the speed readout without turning the whole overlay off.
+  The reading is held for a tenth of a second rather than refreshed every frame. Both upstream
+  mods ran on a 10 Hz server, so theirs changed ten times a second; the rerelease runs at 40, and
+  four digits changing that fast just blur. The number is still exact — it is sampled less often,
+  not smoothed.
+
+- **A movement overlay for anyone running the mod's own client**, off by default and enabled
+  with `jump_hud 1`. On a server running `jump_speedometer 0` it draws the speed number itself,
+  in the rerelease's proportional font rather than the HUD's number pics — the two never draw at
+  once. It is sampled from the client's own prediction every rendered frame, so it is
+  finer-grained than anything the server could send, and costs no network traffic.
 
 - **The map's time remaining is now on the HUD**, at the foot of the right-hand column under
   your PB, instead of only on the scoreboard. It updates itself on the client, so it costs

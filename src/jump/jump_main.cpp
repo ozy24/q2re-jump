@@ -66,13 +66,12 @@ void Jump_Init()
 	// Seconds of no input before a player is moved to spectator; 0 disables.
 	jump_idle_time = gi.cvar("jump_idle_time", "300", CVAR_NOFLAGS);
 
-	// The status bar's speedometer, which every player sees including those on
-	// a stock client. Off by default because it is drawn with the HUD's number
-	// pics - 16x24 each, the only thing a layout script can draw a live value
-	// with - and at that size it dominates the screen. Players running this
-	// DLL get the small client-side one instead (jump_hud_draw.cpp); turn this
-	// on for a server whose players are on stock clients.
-	jump_speedometer = gi.cvar("jump_speedometer", "0", CVAR_NOFLAGS);
+	// The status bar's speedometer. On by default, because it is the one every
+	// player sees - a layout script can only draw a live value with the HUD's
+	// number pics, so this is also the only speedometer a stock client can be
+	// shown. 0 hides it for everyone, which is the setting for a server whose
+	// players all run this DLL and use the client overlay's smaller one.
+	jump_speedometer = gi.cvar("jump_speedometer", "1", CVAR_NOFLAGS);
 
 	// Maps that can be voted for but are not in the rotation. Same format as
 	// the engine's g_map_list: whitespace separated map names.
