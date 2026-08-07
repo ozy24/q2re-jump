@@ -185,11 +185,15 @@ climbs as you move does not need one, and the word would be one more thing on a
 screen you are reading a map through. `jump_speedometer 0` hides it for
 everyone.
 
-The reading is **held for a tenth of a second** rather than refreshed every
-server frame. Both upstream mods ran on a 10 Hz server, so theirs changed ten
-times a second; the rerelease runs at 40, and four digits changing forty times a
-second blur into something you cannot actually read. The value is still a true
-instantaneous speed — only the moment it is sampled is rationed.
+By default it updates every server frame — forty times a second on the
+rerelease. Both upstream mods ran on a 10 Hz server, so theirs changed ten times
+a second by construction rather than by choice, and four digits are markedly
+easier to read at that rate. `jump_speedometer_hz 10` gives you it.
+
+That setting is a refresh rate, not smoothing: the number shown is always an
+exact instantaneous speed, never an average — only the moment it is sampled is
+rationed. The element still appears and disappears the instant you start and
+stop moving, whatever the rate.
 
 ### Finishing
 
@@ -481,6 +485,7 @@ any change to the entity contract.
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
 | `jump_speedometer` | `1` | The speedometer on the shared status bar, which is the one every player sees. `0` hides it for everyone |
+| `jump_speedometer_hz` | `40` | How often that reading is replaced. `40` is the server frame rate, i.e. every frame; `10` is the cadence both upstream mods had |
 | `jump_hud` | `0` | **Client-side**, unlike the others. The movement overlay: gain/loss figure and PB delta. Off means you see the exact stock-client view |
 | `jump_hud_speed` | `1` | **Client-side.** The speed readout within that overlay |
 

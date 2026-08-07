@@ -22,10 +22,10 @@ released — see [docs/release-process.md](docs/release-process.md).
   It carries no caption: both upstream mods label theirs "Speed", which at rerelease resolutions
   is a word you read once and then never again. `jump_speedometer 0` hides it for everyone.
 
-  The reading is held for a tenth of a second rather than refreshed every frame. Both upstream
-  mods ran on a 10 Hz server, so theirs changed ten times a second; the rerelease runs at 40, and
-  four digits changing that fast just blur. The number is still exact — it is sampled less often,
-  not smoothed.
+  It updates every server frame by default — forty times a second. Both upstream mods ran on a
+  10 Hz server, so theirs changed ten times a second by construction, and four digits are much
+  easier to read at that rate: **`jump_speedometer_hz 10`** gives you it. That is a refresh
+  rate rather than smoothing, so the number shown is always exact, just sampled less often.
 
 - **A movement overlay for anyone running the mod's own client**, off by default and enabled
   with `jump_hud 1`. On a server running `jump_speedometer 0` it draws the speed number itself,

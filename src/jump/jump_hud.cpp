@@ -20,11 +20,6 @@
 
 int Jump_CheckpointTotal();
 
-// How long a speedometer reading stays on screen before it is replaced. See
-// the note in Jump_SetStats; the cgame overlay holds its own number for the
-// same span (JUMP_SPEED_REFRESH_MS, jump_stats.h).
-constexpr gtime_t JUMP_SPEED_REFRESH = gtime_t::from_ms(JUMP_SPEED_REFRESH_MS);
-
 // Field box width in virtual px for a `num` of the given digit count.
 static constexpr int Jump_NumWidth(int digits)
 {
@@ -94,16 +89,24 @@ void Jump_SetStats(edict_t *ent)
 							  ? 0
 							  : (int16_t) jump::SpeedStat(ent->velocity[0], ent->velocity[1]);
 
-	// Both upstream mods ran on a 10 Hz server, so their speedometers changed
-	// ten times a second. The rerelease runs at 40, and four digits changing
-	// forty times a second is not a number anyone can read - it just blurs. So
-	// hold each reading; the value is still the true instantaneous speed, it is
-	// simply sampled at a rate an eye can follow.
+	// jump_speedometer_hz decides how often that reading is replaced. The
+	// default is the server frame rate, so out of the box this holds nothing
+	// back and the number changes every frame.
 	//
-	// Appearing and disappearing is exempt: that is the element showing up when
-	// you start moving, and waiting a tenth of a second for it would read as a
-	// bug rather than as a considered refresh rate.
-	if ((speed == 0) != (jc->speed_shown == 0) || level.time - jc->speed_shown_time >= JUMP_SPEED_REFRESH)
+	// The setting exists because both upstream mods ran on a 10 Hz server and so
+	// changed theirs ten times a second by construction rather than by choice;
+	// at the rerelease's 40 Hz, four digits blur into something you cannot read.
+	// Note what `jump_speedometer_hz 10` does and does not do: the value shown
+	// is always an exact instantaneous speed, never an average - only the moment
+	// it is sampled is rationed.
+	//
+	// Appearing and disappearing is exempt at any rate. That is the element
+	// showing up as you start moving, and delaying it would read as a bug rather
+	// than as a considered refresh rate.
+	const int	  hz = jump_speedometer_hz->integer;
+	const gtime_t interval = hz > 0 ? gtime_t::from_ms(1000 / hz) : 0_ms;
+
+	if ((speed == 0) != (jc->speed_shown == 0) || level.time - jc->speed_shown_time >= interval)
 	{
 		jc->speed_shown = speed;
 		jc->speed_shown_time = level.time;
