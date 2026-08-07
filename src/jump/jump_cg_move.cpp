@@ -40,12 +40,26 @@ struct jump_pass_t
 	float	 velocity[3] = { 0, 0, 0 };
 	float	 origin[3] = { 0, 0, 0 };
 	float	 view_yaw = 0.f;
+	float	 view_pitch = 0.f;
+	float	 view_roll = 0.f;
 	float	 forwardmove = 0.f;
 	float	 sidemove = 0.f;
 	uint16_t buttons = 0;
 	uint8_t	 msec = 0;
 	uint16_t pm_flags = 0;
 	int		 pm_type = 0;
+
+	// The state the move STARTED from. pmove clears its own outputs at the top,
+	// and the flags it leaves behind afterwards describe where you landed, not
+	// which branch ran - so the strafe meter needs these read beforehand.
+	float	 vel_before[3] = { 0, 0, 0 };
+	uint16_t pm_flags_before = 0;
+	uint16_t pm_time_before = 0;
+	int		 pm_type_before = 0;
+
+	int32_t air_accel = 0;
+	uint8_t water_level = 0;
+	bool	jumped = false;
 };
 
 static jump_pass_t jump_pass;
@@ -54,9 +68,12 @@ static jump_pass_t jump_pass;
 // cvar dereference.
 static bool jump_cg_sampling = false;
 
-static jump::move_ring_t	 jump_ring;
-static jump::speed_state_t	 jump_speed;
-static jump::speed_readout_t jump_readout;
+static jump::move_ring_t	  jump_ring;
+static jump::speed_state_t	  jump_speed;
+static jump::speed_readout_t  jump_readout;
+static jump::strafe_state_t	  jump_strafe;
+static jump::strafe_readout_t jump_strafe_readout;
+static uint64_t				  jump_strafe_tau_ms = jump::STRAFE_TAU_MS;
 
 // The previous committed frame's pmove flags, which move_sample_t does not
 // carry - only the discontinuity verdict derived from them.
@@ -74,6 +91,8 @@ void Jump_CG_ResetSamples()
 	jump_ring.Clear();
 	jump_speed.Reset();
 	jump_readout = {};
+	jump_strafe.Reset();
+	jump_strafe_readout = {};
 	jump_last_pm_flags = 0;
 	jump_last_pm_type = 0;
 	jump_have_last = false;
@@ -93,6 +112,32 @@ void Jump_CG_Pmove(pmove_t *pm)
 		jump_pass.client_time = now;
 	}
 
+	// The pre-move state. Only pm->s.* can be read here: pmove zeroes its own
+	// outputs (viewangles, waterlevel, groundentity, jump_sound) at the top. In
+	// the air this velocity is EXACTLY the one PM_Accelerate will see, because
+	// friction contributes nothing off the ground and PM_CheckJump returns
+	// before touching it - which is what lets the strafe meter be exact rather
+	// than approximate.
+	//
+	// Reads only. Nothing is written to `pm`, so the observation-only contract
+	// above is intact, and because these land in the overwrite-only scratch the
+	// replay argument is unchanged: a replayed command rewrites the same slot
+	// with the same value.
+	float	 vel_before[3] = { 0, 0, 0 };
+	uint16_t pm_flags_before = 0;
+	uint16_t pm_time_before = 0;
+	int		 pm_type_before = 0;
+
+	if (jump_cg_sampling)
+	{
+		for (int i = 0; i < 3; i++)
+			vel_before[i] = pm->s.velocity[i];
+
+		pm_flags_before = (uint16_t) pm->s.pm_flags;
+		pm_time_before = pm->s.pm_time;
+		pm_type_before = (int) pm->s.pm_type;
+	}
+
 	// Unmodified, unconditional, and nothing is written to `pm` either side of
 	// it. This line is the contract with a stock client.
 	Pmove(pm);
@@ -107,15 +152,31 @@ void Jump_CG_Pmove(pmove_t *pm)
 	{
 		jump_pass.velocity[i] = pm->s.velocity[i];
 		jump_pass.origin[i] = pm->s.origin[i];
+		jump_pass.vel_before[i] = vel_before[i];
 	}
 
 	jump_pass.view_yaw = pm->viewangles[YAW];
+	jump_pass.view_pitch = pm->viewangles[PITCH];
+	jump_pass.view_roll = pm->viewangles[ROLL];
 	jump_pass.forwardmove = pm->cmd.forwardmove;
 	jump_pass.sidemove = pm->cmd.sidemove;
 	jump_pass.buttons = (uint16_t) pm->cmd.buttons;
 	jump_pass.msec = pm->cmd.msec;
 	jump_pass.pm_flags = (uint16_t) pm->s.pm_flags;
 	jump_pass.pm_type = (int) pm->s.pm_type;
+
+	jump_pass.pm_flags_before = pm_flags_before;
+	jump_pass.pm_time_before = pm_time_before;
+	jump_pass.pm_type_before = pm_type_before;
+
+	jump_pass.water_level = (uint8_t) pm->waterlevel;
+	jump_pass.jumped = pm->jump_sound;
+
+	// Never cached: this tracks CS_AIRACCEL, and a server can change
+	// sv_airaccelerate mid-map. It selects which acceleration model the meter
+	// measures against, so a stale value would quietly grade against the wrong
+	// physics.
+	jump_pass.air_accel = pm_config.airaccel;
 }
 
 // Everything that moves the player without accelerating them. Comparing across
@@ -196,6 +257,8 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 		}
 
 		sample.view_yaw = jump_pass.view_yaw;
+		sample.view_pitch = jump_pass.view_pitch;
+		sample.view_roll = jump_pass.view_roll;
 		sample.forwardmove = jump_pass.forwardmove;
 		sample.sidemove = jump_pass.sidemove;
 		sample.buttons = jump_pass.buttons;
@@ -205,6 +268,21 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 		// Demo playback runs pmove once with a zeroed usercmd, which would
 		// otherwise read as "no keys pressed" rather than "no keys known".
 		sample.inputs_valid = jump_pass.msec != 0;
+
+		for (int i = 0; i < 3; i++)
+			sample.vel_before[i] = jump_pass.vel_before[i];
+
+		sample.air_accel = jump_pass.air_accel;
+		sample.water_level = jump_pass.water_level;
+		sample.jumped = jump_pass.jumped;
+		sample.ducked = (jump_pass.pm_flags & PMF_DUCKED) != 0;
+		sample.on_ladder = (jump_pass.pm_flags & PMF_ON_LADDER) != 0;
+
+		// The three that have to come from before the move, or they describe
+		// where the player ended up rather than which branch ran.
+		sample.on_ground_entry = (jump_pass.pm_flags_before & PMF_ON_GROUND) != 0;
+		sample.timed_move = jump_pass.pm_time_before != 0;
+		sample.pm_normal = jump_pass.pm_type_before == PM_NORMAL;
 
 		pm_flags = jump_pass.pm_flags;
 		pm_type = jump_pass.pm_type;
@@ -241,6 +319,17 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 
 	jump_ring.Push(sample);
 	jump_readout = jump_speed.Update(jump_ring);
+	jump_strafe_readout = jump_strafe.Update(jump_ring, jump_strafe_tau_ms);
 
 	return jump_readout;
+}
+
+const jump::strafe_readout_t &Jump_CG_StrafeReadout()
+{
+	return jump_strafe_readout;
+}
+
+void Jump_CG_SetStrafeTau(uint64_t tau_ms)
+{
+	jump_strafe_tau_ms = tau_ms;
 }

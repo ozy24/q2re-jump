@@ -20,3 +20,10 @@ void Jump_CG_ResetSamples();
 // per rendered frame. `wanted` is the overlay's cvar state: when false nothing
 // is sampled and the wrapper above costs one bool test per call.
 const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool wanted);
+
+// The strafe reading as of that same call. A separate accessor rather than a
+// second return value, so the speedometer's call site does not change.
+const jump::strafe_readout_t &Jump_CG_StrafeReadout();
+
+// Smoothing memory for the strafe reading, in ms. Set from the cvar each frame.
+void Jump_CG_SetStrafeTau(uint64_t tau_ms);
