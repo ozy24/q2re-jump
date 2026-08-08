@@ -40,6 +40,7 @@ lobby, so everything below is a console command.
 | `maplist` | Maps in the rotation |
 | `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
 | `strafebar` | Show/hide the strafe meter |
+| `speedo` | Show/hide the speedometer |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -164,9 +165,11 @@ records list and `ranks` for everyone's points.
 A readout sits centred, above the bottom of the screen, showing how fast you are
 moving in units per second. It hides itself when you are standing still.
 
-**It is drawn by the client, so it needs this DLL** — see
-[the performance HUD](#the-performance-hud) below for why. A player on a stock
-client gets everything needed to race and no speedometer.
+**Everyone gets it, including players on a stock client** — the server draws it
+in ordinary small text. `speedo` turns it off. If you are running the mod's own
+DLL, `jump_hud_speed 1` swaps in a finer version that updates every rendered
+frame instead; your client tells the server to stop drawing its own, so you
+never see two.
 
 Both upstream mods put theirs in the bottom-right corner. This port follows
 `q2re-map-trainer` instead and centres it, because speed is the one number you
@@ -201,10 +204,10 @@ capturing everything on offer and capturing none of it, and nothing else on
 screen shows that.
 
 **Everyone gets it, including players on a stock client** — it is drawn by the
-server, as a short row of characters under a `strafe` label:
+server as a short row of characters, just under the speedometer:
 
 ```
-        strafe
+         320
     [########----]
 ```
 

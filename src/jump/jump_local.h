@@ -80,6 +80,7 @@ struct jump_client_t
 	// the mod's own client turn it off and use the finer overlay instead; the
 	// client sends the command itself when its cvar changes.
 	bool        server_strafebar = true;
+	bool        server_speedo = true;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 
 	// Which scoreboard page the next send should build. Only meaningful while

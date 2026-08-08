@@ -1014,6 +1014,36 @@ static void TestStrafeBarLevel()
 	CHECK_EQ(jump::StrafeBarString(99, 12), "[############]");
 }
 
+static void TestSpeedDigits()
+{
+	int d[jump::SPEED_DIGITS];
+
+	// Leading zeros are blanked (-1), so 320 draws as three digits rather than
+	// 0320 - but the units digit always draws, so a standstill reads "0".
+	jump::SpeedDigits(0, d);
+	CHECK(d[0] == -1 && d[1] == -1 && d[2] == -1 && d[3] == 0);
+
+	jump::SpeedDigits(7, d);
+	CHECK(d[0] == -1 && d[1] == -1 && d[2] == -1 && d[3] == 7);
+
+	jump::SpeedDigits(320, d);
+	CHECK(d[0] == -1 && d[1] == 3 && d[2] == 2 && d[3] == 0);
+
+	jump::SpeedDigits(1234, d);
+	CHECK(d[0] == 1 && d[1] == 2 && d[2] == 3 && d[3] == 4);
+
+	// An interior zero is a real digit, not a leading one.
+	jump::SpeedDigits(408, d);
+	CHECK(d[0] == -1 && d[1] == 4 && d[2] == 0 && d[3] == 8);
+
+	// Clamped to what four cells can show, and never negative.
+	jump::SpeedDigits(99999, d);
+	CHECK(d[0] == 9 && d[1] == 9 && d[2] == 9 && d[3] == 9);
+
+	jump::SpeedDigits(-50, d);
+	CHECK(d[0] == -1 && d[1] == -1 && d[2] == -1 && d[3] == 0);
+}
+
 int main()
 {
 	TestFormatTime();
@@ -1036,6 +1066,7 @@ int main()
 	TestClassifyStrafeFrame();
 	TestStrafeState();
 	TestStrafeBarLevel();
+	TestSpeedDigits();
 	TestRecords();
 	TestJumpersPolicy();
 	TestSortPlayerRows();

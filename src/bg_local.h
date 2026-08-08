@@ -86,6 +86,12 @@ enum
 	CONFIG_JUMP_STRAFE_BAR,
 	CONFIG_JUMP_STRAFE_BAR_END = CONFIG_JUMP_STRAFE_BAR + 32 - 1,
 
+	// [Jump] "0" through "9", plus a blank. The speedometer points one stat per
+	// digit at these, which is how a live number is drawn in ordinary text
+	// rather than in the HUD's 16x24 number pics.
+	CONFIG_JUMP_DIGIT,
+	CONFIG_JUMP_DIGIT_BLANK = CONFIG_JUMP_DIGIT + 10,
+
 	// [Jump] The HUD banner for a new personal best or a new map record. One
 	// slot, not one per client like the PB string above: the text is the same
 	// for everyone who sees it.

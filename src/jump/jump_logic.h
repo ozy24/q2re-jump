@@ -533,6 +533,22 @@ int StrafeBarLevel(const strafe_readout_t &readout, int segments = STRAFE_BAR_SE
 std::string StrafeBarString(int level, int segments = STRAFE_BAR_SEGMENTS);
 
 // ---------------------------------------------------------------------------
+// Speedometer digits
+// ---------------------------------------------------------------------------
+//
+// The same trick as the strafe bar, one place further: a live NUMBER in small
+// text. There is no layout token that formats a stat into a string, and
+// pre-rendering every speed would need a configstring per value - so the number
+// is composed from one stat per digit, each pointing at one of ten pre-rendered
+// digit strings. Ten strings and four stats cover 0-9999 exactly.
+//
+// out[0] is thousands and out[3] units. Leading zeros come back as -1, meaning
+// "draw nothing", so 320 renders as three digits rather than 0320.
+constexpr int SPEED_DIGITS = 4;
+
+void SpeedDigits(int speed, int out[SPEED_DIGITS]);
+
+// ---------------------------------------------------------------------------
 // jumpers visibility / audio policy (engine-free)
 // ---------------------------------------------------------------------------
 

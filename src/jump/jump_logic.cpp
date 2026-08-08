@@ -826,6 +826,29 @@ strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms
 	return Add(frame, usable, dt_ms, tau_ms);
 }
 
+void SpeedDigits(int speed, int out[SPEED_DIGITS])
+{
+	if (speed < 0)
+		speed = 0;
+	if (speed > SPEED_STAT_MAX)
+		speed = SPEED_STAT_MAX;
+
+	int place = 1000;
+
+	for (int i = 0; i < SPEED_DIGITS; i++, place /= 10)
+		out[i] = (speed / place) % 10;
+
+	// Blank the leading zeros. The units digit always draws, so a genuine zero
+	// still reads as "0" rather than as nothing at all.
+	for (int i = 0; i < SPEED_DIGITS - 1; i++)
+	{
+		if (out[i] != 0)
+			break;
+
+		out[i] = -1;
+	}
+}
+
 int StrafeBarLevel(const strafe_readout_t &readout, int segments)
 {
 	if (!readout.valid || segments < 1)

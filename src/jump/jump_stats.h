@@ -73,12 +73,27 @@ constexpr player_stat_t JUMP_STAT_STRAFE_BAR = (player_stat_t) 54;
 static_assert((int) JUMP_STAT_STRAFE_BAR >= (int) STAT_LAST, "jump stat overlaps an engine stat");
 static_assert((int) JUMP_STAT_STRAFE_BAR < (int) MAX_STATS, "jump stat out of range");
 
+// The speedometer, one stat per digit. Each points at one of the pre-rendered
+// digit strings in CONFIG_JUMP_DIGIT, or at the blank one for a leading zero.
+//
+// Four stats for one number looks extravagant until you try the alternatives.
+// No token formats a stat into text, so the choices are the `num` pic font -
+// which is 16x24 per digit and dominates the screen - or pre-rendering, and
+// pre-rendering whole speeds would cost a configstring per value. Per-digit
+// costs ten strings, total, for every number from 0 to 9999.
+constexpr player_stat_t JUMP_STAT_SPEED_D1000 = (player_stat_t) 55;
+constexpr player_stat_t JUMP_STAT_SPEED_D100 = (player_stat_t) 56;
+constexpr player_stat_t JUMP_STAT_SPEED_D10 = (player_stat_t) 57;
+constexpr player_stat_t JUMP_STAT_SPEED_D1 = (player_stat_t) 58;
+
+static_assert((int) JUMP_STAT_SPEED_D1 < (int) MAX_STATS, "jump stat out of range");
+
 // All 13 usable CTF slots (18-31 less 27) are taken, so the CTF block is closed.
 // New stats go in 54-63, which are genuinely free: STAT_LAST is 54
 // (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
 // nothing reads it either, which makes it safer ground than the CTF block,
-// where 27's problem is precisely that the stock statusbar reads it. 54 is
-// taken by the strafe bar above; 55-63 remain.
+// where 27's problem is precisely that the stock statusbar reads it. 54 is the
+// strafe bar and 55-58 the speedometer's digits; 59-63 remain.
 //
 // Ten, not eleven: bg_local.h's own static_assert allows
 // STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past

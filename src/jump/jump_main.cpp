@@ -113,6 +113,18 @@ void Jump_InitLevel(const char *entities)
 
 		for (int i = 0; i <= jump::STRAFE_BAR_SEGMENTS; i++)
 			gi.configstring(CONFIG_JUMP_STRAFE_BAR + i, jump::StrafeBarString(i).c_str());
+
+		// The speedometer's digits, same idea: ten strings written once cover
+		// every number it can show. The blank is a space rather than an empty
+		// string, so a leading zero draws nothing without relying on how the
+		// client treats an unset configstring.
+		for (int i = 0; i < 10; i++)
+		{
+			const char digit[2] = { (char) ('0' + i), '\0' };
+			gi.configstring(CONFIG_JUMP_DIGIT + i, digit);
+		}
+
+		gi.configstring(CONFIG_JUMP_DIGIT_BLANK, " ");
 	}
 
 	Jump_InvalidateCheckpointTotal();

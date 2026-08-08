@@ -12,6 +12,10 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **The speedometer is drawn by the server too**, in ordinary small text rather than the HUD's
+  chunky number pics — so every player has one, including anyone on a stock client, and it is a
+  fraction of the size the pic font would be. `speedo` turns it off.
+
 - **The strafe meter is now drawn by the server, so every player gets one** — including anyone on
   a stock, unmodified client, which is the whole point: it is the readout that teaches a new
   player what strafe jumping actually is, and hiding it behind a download served nobody.

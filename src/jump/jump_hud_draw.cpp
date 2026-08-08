@@ -69,6 +69,7 @@ static cvar_t *jump_hud_strafe_tau;
 // per-connection - if this survived and that did not, the player would silently
 // get both bars.
 static int32_t jump_strafe_told = -1;
+static int32_t jump_speed_told = -1;
 
 void Jump_InitClientCvars()
 {
@@ -111,6 +112,7 @@ void Jump_InitClientCvars()
 	// and where we forget having told the server about the bar, since its flag
 	// does not survive a reconnect either.
 	jump_strafe_told = -1;
+	jump_speed_told = -1;
 	Jump_CG_ResetSamples();
 }
 
@@ -313,10 +315,10 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	const bool want_speed = enabled && jump_hud_speed && jump_hud_speed->integer;
 	const bool want_strafe = enabled && jump_hud_strafe && jump_hud_strafe->integer;
 
-	// The server draws its own strafe bar for everyone, including stock clients
-	// - it is the whole reason a new player has anything to learn from. When
-	// this overlay takes over, tell the server to stop drawing its version, or
-	// the same reading appears twice in two different shapes.
+	// The server draws both readouts for everyone, including stock clients -
+	// that is the whole reason a new player has anything to learn from. When
+	// this overlay takes one over, tell the server to stop drawing its version,
+	// or the same reading appears twice in two different shapes.
 	//
 	// Tracked by modified_count rather than by value, so it fires the first time
 	// the overlay runs as well as on every change. The command is idempotent, so
@@ -325,6 +327,12 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	{
 		jump_strafe_told = jump_hud_strafe->modified_count;
 		cgi.AddCommandString(want_strafe ? "cmd strafebar 0\n" : "cmd strafebar 1\n");
+	}
+
+	if (jump_hud_speed && jump_hud_speed->modified_count != jump_speed_told)
+	{
+		jump_speed_told = jump_hud_speed->modified_count;
+		cgi.AddCommandString(want_speed ? "cmd speedo 0\n" : "cmd speedo 1\n");
 	}
 
 	// Clamped rather than trusted: a typo here would otherwise either freeze

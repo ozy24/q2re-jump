@@ -76,6 +76,31 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_STRAFE_BAR] =
 		strafe_level >= 0 ? (int16_t) (CONFIG_JUMP_STRAFE_BAR + strafe_level) : 0;
 
+	// The speedometer, one stat per digit, each pointing at a pre-rendered digit
+	// string. Same reasoning as the bar above: the alternative is the HUD's
+	// number pics, which are 16x24 apiece.
+	//
+	// Hidden at rest and for a free spectator, as both upstream mods hide
+	// theirs - a flying camera's speed is not speed in any jumping sense. The
+	// `speedo` command turns it off for players using the overlay's version.
+	const int speed =
+		(jc->server_speedo && jc->team != jump_team_t::spectator)
+			? jump::SpeedStat(ent->velocity[0], ent->velocity[1])
+			: 0;
+
+	int digits[jump::SPEED_DIGITS];
+	jump::SpeedDigits(speed, digits);
+
+	for (int i = 0; i < jump::SPEED_DIGITS; i++)
+	{
+		// A blank leading zero still points at a real configstring - the row is
+		// gated on the units digit, so the whole block appears or vanishes as
+		// one rather than a digit at a time.
+		const int slot = digits[i] >= 0 ? CONFIG_JUMP_DIGIT + digits[i] : CONFIG_JUMP_DIGIT_BLANK;
+
+		ent->client->ps.stats[JUMP_STAT_SPEED_D1000 + i] = speed > 0 ? (int16_t) slot : 0;
+	}
+
 	// The banner is the same for everyone, which is what makes setting it here
 	// enough. G_CheckChaseStats bulk-copies the stats array from the player
 	// being chased, so a viewer-specific value would be clobbered - this one
@@ -234,25 +259,43 @@ static void Jump_EmitStatusbar()
 		.num(2, JUMP_STAT_STORES)
 		.endifstat();
 
-	// The strafe meter: a caption and a row of characters, both centred, above
-	// where the client overlay draws speed.
+	// The speedometer and the strafe bar, both centred, both drawn as ordinary
+	// text rather than with the HUD's number pics or the `health_bars` token.
 	//
-	// Drawn as text rather than with the `health_bars` token, which was tried
-	// first. That token is the only graphical bar the layout can produce, but
-	// it is fixed at roughly half the screen width and only ever red - so it
-	// came out enormous, and red forced the fill to mean "waste" rather than
-	// "captured", which reads backwards from every other bar anyone has seen.
-	// Characters cost a stat and a few configstrings, and hand back the width,
-	// the colour and the direction.
+	// Both work the same way: pre-render every state the element can be in into
+	// configstrings once at level load, then point a stat at whichever one
+	// applies. That is the only route to an arbitrary live element a stock
+	// client can see - see AGENTS.md - and it costs no text traffic during play.
 	//
-	// The centred variants measure the string themselves, so the bar stays
-	// centred under either HUD font - which a hand-computed left edge would
-	// not. cstring2 has no statusbar_t method, so it is emitted raw.
-	constexpr int strafe_yb = -124;
+	// The centring is worth understanding before moving any of this. The
+	// centred string tokens centre within a 320-wide window that STARTS at the
+	// cursor, so `xv(N)` puts the middle of the string N px right of screen
+	// centre. That is what makes a per-digit cell possible: each digit centres
+	// in its own slot, so uneven digit widths in the proportional font cannot
+	// push the number out of shape.
+	constexpr int speed_yb = -128;
+	constexpr int strafe_yb = -114;
 
-	sb.ifstat(JUMP_STAT_STRAFE_BAR).yb(strafe_yb).xv(0);
-	sb.sb << "cstring2 \"strafe\" ";
-	sb.yb(strafe_yb + 10).xv(0).loc_stat_cstring2(JUMP_STAT_STRAFE_BAR).endifstat();
+	// Cells 10 apart, biased left so the three-digit case - which is what a run
+	// actually reads - lands centred, and a four-digit boost grows leftwards.
+	constexpr int speed_cell = 10;
+	constexpr int speed_x0 = -2 * speed_cell;
+
+	// Gated on the units digit, which is the one that is never blank, so the
+	// whole number appears and vanishes as a block.
+	sb.ifstat(JUMP_STAT_SPEED_D1);
+
+	for (int i = 0; i < jump::SPEED_DIGITS; i++)
+		sb.yb(speed_yb).xv(speed_x0 + i * speed_cell).loc_stat_cstring2(
+			(player_stat_t) (JUMP_STAT_SPEED_D1000 + i));
+
+	sb.endifstat();
+
+	sb.ifstat(JUMP_STAT_STRAFE_BAR)
+		.yb(strafe_yb)
+		.xv(0)
+		.loc_stat_cstring2(JUMP_STAT_STRAFE_BAR)
+		.endifstat();
 
 	// Personal best is a stat_string (arbitrary text), not digit stats, so it
 	// can't use the big chunky num font the timer/checkpoints use - see

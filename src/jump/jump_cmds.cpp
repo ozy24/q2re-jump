@@ -23,6 +23,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  maplist        maps in the rotation\n"
 					"  msets          settings in force on this map\n"
 					"  strafebar      show/hide the strafe meter\n"
+					"  speedo         show/hide the speedometer\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -176,13 +177,10 @@ bool Jump_ClientCommand(edict_t *ent)
 		return true;
 	}
 
-	// `mset` is the settable command both upstream mods give players; this port
-	// keeps setting on `sv jump_mset` (console/rcon), so answer the question the
-	// player was actually asking rather than letting it fall through to the
-	// engine's "invalid game command".
-	// Sent automatically by the mod's own client when its overlay cvar changes,
-	// so a player running the DLL never gets both bars at once. Typeable too,
-	// which is the fallback if that ever fails to arrive.
+	// These two are sent automatically by the mod's own client when its overlay
+	// cvars change, so a player running the DLL never gets the server's version
+	// and the overlay's at once. Typeable too, which is both the fallback if a
+	// send is ever missed and the way a stock-client player turns one off.
 	if (!Q_strcasecmp(cmd, "strafebar"))
 	{
 		jump_client_t *jc = Jump_ClientData(ent);
@@ -196,6 +194,23 @@ bool Jump_ClientCommand(edict_t *ent)
 		return true;
 	}
 
+	if (!Q_strcasecmp(cmd, "speedo"))
+	{
+		jump_client_t *jc = Jump_ClientData(ent);
+
+		if (!jc)
+			return true;
+
+		jc->server_speedo = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_speedo;
+
+		gi.Client_Print(ent, PRINT_HIGH, jc->server_speedo ? "Speedometer on.\n" : "Speedometer off.\n");
+		return true;
+	}
+
+	// `mset` is the settable command both upstream mods give players; this port
+	// keeps setting on `sv jump_mset` (console/rcon), so answer the question the
+	// player was actually asking rather than letting it fall through to the
+	// engine's "invalid game command".
 	if (!Q_strcasecmp(cmd, "msets") || !Q_strcasecmp(cmd, "mset"))
 	{
 		Jump_CmdMsets(ent, !Q_strcasecmp(cmd, "mset"));
