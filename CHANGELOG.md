@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-08
+
 ### Added
 
 - **The speedometer is drawn by the server too**, in ordinary small text rather than the HUD's
