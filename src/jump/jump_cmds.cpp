@@ -22,8 +22,8 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  ranks          points for everyone connected\n"
 					"  maplist        maps in the rotation\n"
 					"  msets          settings in force on this map\n"
-					"  strafebar      show/hide the strafe meter\n"
-					"  speedo         show/hide the speedometer\n"
+					"  strafebar      show/hide the server's strafe meter\n"
+					"  speedo         show/hide the server's speedometer\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -181,6 +181,10 @@ bool Jump_ClientCommand(edict_t *ent)
 	// cvars change, so a player running the DLL never gets the server's version
 	// and the overlay's at once. Typeable too, which is both the fallback if a
 	// send is ever missed and the way a stock-client player turns one off.
+	//
+	// Only announce an actual change. The client re-announces at every level
+	// start, and a handshake that says so out loud would put a line in the notify
+	// area on every map change for every player running the DLL.
 	if (!Q_strcasecmp(cmd, "strafebar"))
 	{
 		jump_client_t *jc = Jump_ClientData(ent);
@@ -188,9 +192,14 @@ bool Jump_ClientCommand(edict_t *ent)
 		if (!jc)
 			return true;
 
-		jc->server_strafebar = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_strafebar;
+		const bool want = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_strafebar;
 
-		gi.Client_Print(ent, PRINT_HIGH, jc->server_strafebar ? "Strafe bar on.\n" : "Strafe bar off.\n");
+		if (want != jc->server_strafebar)
+		{
+			jc->server_strafebar = want;
+			gi.Client_Print(ent, PRINT_HIGH, want ? "Strafe bar on.\n" : "Strafe bar off.\n");
+		}
+
 		return true;
 	}
 
@@ -201,9 +210,14 @@ bool Jump_ClientCommand(edict_t *ent)
 		if (!jc)
 			return true;
 
-		jc->server_speedo = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_speedo;
+		const bool want = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_speedo;
 
-		gi.Client_Print(ent, PRINT_HIGH, jc->server_speedo ? "Speedometer on.\n" : "Speedometer off.\n");
+		if (want != jc->server_speedo)
+		{
+			jc->server_speedo = want;
+			gi.Client_Print(ent, PRINT_HIGH, want ? "Speedometer on.\n" : "Speedometer off.\n");
+		}
+
 		return true;
 	}
 

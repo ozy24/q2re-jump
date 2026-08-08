@@ -124,12 +124,25 @@ So the rule is: **if the bar can draw it at all, it goes on the bar**, because t
 player. The overlay is for what the bar genuinely cannot render well — a speed number in small
 text, or a finer strafe reading for players who chose to install the file.
 
-The consequence to accept, not fix: a stock client has no speedometer. That is the price of the
-line being clean, and the answer is that the DLL is a download away.
+Both readouts therefore exist twice over, and the two copies are mutually exclusive per player: the
+overlay announces itself with `cmd speedo 0` / `cmd strafebar 0` (`jump_hud_draw.cpp`) and the
+server hides its own copy for that client (`jc->server_speedo` / `server_strafebar`, gating the
+stats in `Jump_SetStats`). Nobody ever sees the same reading in two shapes.
 
-The overlay defaults **on** (`jump_hud 1`) — installing the file *is* the opt-in, since the server
-already sends everything a run needs. `jump_hud 0` gives the exact stock-client view, which is
-worth keeping for checking what players actually see.
+The overlay and both its readouts default **on** (`jump_hud 1`, `jump_hud_speed 1`,
+`jump_hud_strafe 1`) — installing the file *is* the opt-in, and since the server already draws both
+for everyone, the defaults put nothing new on screen; they only decide which half draws it.
+`jump_hud 0` gives the exact stock-client view, server copies included, which is worth keeping for
+checking what players actually see.
+
+The one asymmetry to know when touching that handshake: a readout cvar at **0 means the player
+wants no readout at all**, not "let the server draw it" — the client tells the server to keep its
+copy hidden too, and that beats `jump_hud 0`. It has to work that way, or a DLL player has no way
+to turn a readout off: "I am not drawing it" would always be read as "server, please draw yours",
+and typing `speedo 0` would be undone by the client's re-announce at the next level start. For the
+same reason the client compares what it last *told* the server, by value, rather than watching a
+cvar's `modified_count` — `jump_hud` changes what the server should draw without either readout
+cvar being touched.
 
 Two questions decide where a new element goes, in this order. **What is it about?** Something about
 a single moment is a message — the finish delta lived in the overlay for a while as "the one thing

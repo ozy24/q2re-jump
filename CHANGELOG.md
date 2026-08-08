@@ -23,9 +23,33 @@ released — see [docs/release-process.md](docs/release-process.md).
   It shows as a short row of characters under a `strafe` label, and fills as you do well — a
   full bar means you are taking everything that was on offer. `strafebar` turns it off.
 
-  Players running the mod's own DLL still get the finer client-side version by setting
-  `jump_hud_strafe` — their client tells the server to stop drawing its own, so nobody ends up
-  with two.
+  Players running the mod's own DLL get the finer client-side version instead — their client tells
+  the server to stop drawing its own, so nobody ends up with two.
+
+### Changed
+
+- **`jump_hud_speed` and `jump_hud_strafe` now default to `1`, and `0` means "no readout at all".**
+  Since the server draws both readouts for every player, these no longer decide *whether* you have
+  a speedometer and a strafe meter — only which half draws them. So the defaults put nothing new on
+  your screen, and `0` now does what you would expect it to: your client asks the server to keep
+  its copy hidden as well, so the readout is gone everywhere. That setting sticks, including across
+  a map change, and it beats `jump_hud 0`.
+
+  Previously `jump_hud_speed 0` meant only "don't draw it in the overlay" and actively told the
+  server to draw its own, so there was no way for a player with the DLL to turn a readout off and
+  have it stay off. If you had explicitly set either cvar to `0`, note that it now means off rather
+  than "let the status bar draw it".
+
+### Fixed
+
+- **`jump_hud 0` gives the stock-client view again.** It was leaving the server's speedometer and
+  strafe bar suppressed for the rest of the level, so turning the overlay off with a readout
+  enabled left you with nothing at all on screen.
+
+- **The two versions of each readout now sit in exactly the same place.** The status bar drew its
+  speedometer and strafe bar a block higher than the overlay drew its own, so the reading jumped up
+  the screen as it changed hands. Both halves now share one pair of anchors, and the overlay
+  matches the baseline nudge the layout applies to text, so switching between them moves nothing.
 
 ## [0.5.0] - 2026-08-07
 

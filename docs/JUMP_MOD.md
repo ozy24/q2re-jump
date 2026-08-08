@@ -39,8 +39,8 @@ lobby, so everything below is a console command.
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
 | `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
-| `strafebar` | Show/hide the strafe meter |
-| `speedo` | Show/hide the speedometer |
+| `strafebar` | Show/hide the server's strafe meter (with the mod's DLL, use `jump_hud_strafe`) |
+| `speedo` | Show/hide the server's speedometer (with the mod's DLL, use `jump_hud_speed`) |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -167,9 +167,10 @@ moving in units per second. It hides itself when you are standing still.
 
 **Everyone gets it, including players on a stock client** — the server draws it
 in ordinary small text. `speedo` turns it off. If you are running the mod's own
-DLL, `jump_hud_speed 1` swaps in a finer version that updates every rendered
-frame instead; your client tells the server to stop drawing its own, so you
-never see two.
+DLL you get a finer version instead, updating every rendered frame; your client
+tells the server to stop drawing its own, so you never see two.
+`jump_hud_speed 0` turns the speedometer off altogether — your client also tells
+the server to keep its copy hidden, so `0` means no speedometer anywhere.
 
 Both upstream mods put theirs in the bottom-right corner. This port follows
 `q2re-map-trainer` instead and centres it, because speed is the one number you
@@ -217,11 +218,12 @@ nothing to measure — long enough to read after a jump, and long enough that a
 hop chain's brief ground contacts do not make it blink — then clears. `strafebar`
 turns it off if you would rather not see it.
 
-If you are running the mod's own DLL you can have a finer version instead:
+If you are running the mod's own DLL you get a finer version instead:
 `jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or
 `jump_hud_strafe 2` for a centre-anchored one where the side you are on tells
 you which way to correct. Either replaces the server's bar automatically — your
 client tells the server to stop drawing it, so you never get both.
+`jump_hud_strafe 0` turns the meter off altogether, the server's copy included.
 
 Four things worth knowing:
 
@@ -311,17 +313,20 @@ subtracts — but it belongs to the run that just ended, so it now rides along i
 message and leaves when that does. Every player gets it, and nothing has to decide when to take it
 off the screen.
 
-**The readouts are off by default.** Installing the DLL opts you into the overlay existing; it does
-not decide that you want a speedometer and a strafe bar on screen. `jump_hud_speed 1` and
-`jump_hud_strafe 1` turn them on, and `jump_hud 0` switches the whole overlay off for an exact
-stock-client view.
+**The readouts are on by default, and that puts nothing new on your screen.** The server draws
+both for every player already, so all these cvars decide is which half draws what you were seeing
+anyway. `jump_hud 0` switches the whole overlay off for an exact stock-client view — the server's
+copies come back. Setting a readout to `0` is different: it means you do not want that readout at
+all, so your client tells the server to keep its copy hidden too, and that survives turning the
+overlay off and on again.
 
 | Cvar | Default | Effect |
 |---|---|---|
-| `jump_hud` | `0` | Master switch for the client overlay |
-| `jump_hud_speed` | `1` | Peak speed and the gain/loss figure (needs `jump_hud 1`) |
+| `jump_hud` | `1` | Master switch for the client overlay. `0` = exact stock-client view |
+| `jump_hud_speed` | `1` | The speedometer. `0` = no speedometer anywhere, server's copy included |
+| `jump_hud_strafe` | `1` | The strafe meter: `1` plain, `2` centre-anchored, `0` none anywhere |
 
-Both are archived, so they persist. With `jump_hud 0` nothing is sampled at all.
+All are archived, so they persist. With `jump_hud 0` nothing is sampled at all.
 
 ### Scoreboard byte budget
 
@@ -546,10 +551,10 @@ any change to the entity contract.
 | `jump_idle_time` | `300` | Seconds of inactivity before a player is moved to spectator; `0` disables |
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
-| `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view |
-| `jump_hud_speed` | `0` | **Client-side.** The speedometer |
+| `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view, bar readouts included — except for a readout whose own cvar is `0` |
+| `jump_hud_speed` | `1` | **Client-side.** Replaces the server's speedometer with a finer one; `0` means no speedometer anywhere, server's copy included |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
-| `jump_hud_strafe` | `0` | **Client-side.** Replaces the server's strafe bar with a finer one: `1` a plain 0-100% bar, `2` centre-anchored |
+| `jump_hud_strafe` | `1` | **Client-side.** Replaces the server's strafe bar with a finer one: `1` a plain 0-100% bar, `2` centre-anchored, `0` no meter anywhere |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
 
 ### Map rotation and the vote pool

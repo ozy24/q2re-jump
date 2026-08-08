@@ -103,3 +103,26 @@ static_assert((int) JUMP_STAT_SPEED_D1 < (int) MAX_STATS, "jump stat out of rang
 constexpr int16_t JUMP_RUN_IDLE = 0;
 constexpr int16_t JUMP_RUN_RUNNING = 1;
 constexpr int16_t JUMP_RUN_FINISHED = 2;
+
+// Where the two performance readouts sit, in layout units up from the bottom of
+// the screen - the statusbar's `yb` anchor, and the overlay mirrors that
+// arithmetic exactly (see jump_overlay_ctx_t).
+//
+// Shared because BOTH halves draw these two rows: the server emits them into
+// CS_STATUSBAR for every player, and the overlay redraws the same two for anyone
+// running this DLL. Only one copy is ever on screen - the overlay tells the
+// server to drop its own - so the anchors have to agree, or the readout hops
+// when `jump_hud` is toggled. They drifted 32 units apart while each half owned
+// its own copy, which is why there is only one now.
+//
+// Centred, one block up from the bottom edge, where a first-person player is
+// already looking. Both upstream mods put their speedometer in the bottom-right
+// corner, which is a glance away from the map at exactly the moment you want the
+// number; q2re-map-trainer centres it, and this follows that. -82 leaves 14
+// units of clearance above the FOLLOWING / SPECTATOR rows at -68.
+constexpr int JUMP_HUD_SPEED_YB = -96;
+constexpr int JUMP_HUD_STRAFE_YB = -82;
+
+// yb counts upwards from the bottom edge, so "below" is the larger value. Easy
+// to get backwards, and a swap would put the bar over the number.
+static_assert(JUMP_HUD_STRAFE_YB > JUMP_HUD_SPEED_YB, "the strafe bar sits below the speed number");

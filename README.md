@@ -95,9 +95,11 @@ and play with everything working — timer, checkpoints, records, scoreboard. Al
 of it is drawn using the standard Quake II protocol, so there is no client-side
 install and no version mismatch to manage.
 
-There is exactly one optional extra for the host's own client: `jump_hud 1` adds
-a coloured personal-best delta after a finish. It is **off** by default, so what
-you see is what your players see.
+Installing the DLL as a *client* is optional and adds one thing: finer versions
+of the speedometer and strafe meter, drawn every rendered frame instead of by the
+status bar. Every player gets both readouts either way — the DLL only changes
+which half draws them, and `jump_hud 0` gives you the exact stock-client view for
+checking what your players see.
 
 ## Maps
 

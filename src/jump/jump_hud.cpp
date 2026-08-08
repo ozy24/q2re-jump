@@ -273,9 +273,10 @@ static void Jump_EmitStatusbar()
 	// centre. That is what makes a per-digit cell possible: each digit centres
 	// in its own slot, so uneven digit widths in the proportional font cannot
 	// push the number out of shape.
-	constexpr int speed_yb = -128;
-	constexpr int strafe_yb = -114;
-
+	//
+	// The two `yb` anchors live in jump_stats.h rather than here, because the
+	// client overlay draws these same two rows and the pair must not drift apart.
+	//
 	// Cells 10 apart, biased left so the three-digit case - which is what a run
 	// actually reads - lands centred, and a four-digit boost grows leftwards.
 	constexpr int speed_cell = 10;
@@ -286,13 +287,13 @@ static void Jump_EmitStatusbar()
 	sb.ifstat(JUMP_STAT_SPEED_D1);
 
 	for (int i = 0; i < jump::SPEED_DIGITS; i++)
-		sb.yb(speed_yb).xv(speed_x0 + i * speed_cell).loc_stat_cstring2(
+		sb.yb(JUMP_HUD_SPEED_YB).xv(speed_x0 + i * speed_cell).loc_stat_cstring2(
 			(player_stat_t) (JUMP_STAT_SPEED_D1000 + i));
 
 	sb.endifstat();
 
 	sb.ifstat(JUMP_STAT_STRAFE_BAR)
-		.yb(strafe_yb)
+		.yb(JUMP_HUD_STRAFE_YB)
 		.xv(0)
 		.loc_stat_cstring2(JUMP_STAT_STRAFE_BAR)
 		.endifstat();

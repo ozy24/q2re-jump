@@ -38,25 +38,20 @@
 #include "jump_cg_move.h"
 #include "jump_hud_draw.h"
 
-// Centred, one block up from the bottom edge, where a first-person player is
-// already looking. Both upstream mods put their speedometer in the bottom-right
-// corner, which is a glance away from the map at exactly the moment you want the
-// number; q2re-map-trainer centres it, and this follows that.
-//
-// Layout units up from the bottom, matching the statusbar's yb anchors so this
-// sits in the same coordinate space as everything the server draws.
-static constexpr float JUMP_SPEED_YB = -96.f;
+// Both rows are anchored by JUMP_HUD_SPEED_YB / JUMP_HUD_STRAFE_YB in
+// jump_stats.h, shared with the statusbar builder: the server draws these same
+// two rows for every player, and only one copy is ever on screen, so an anchor
+// that lived here alone would make the readout hop when jump_hud is toggled.
 
 // How long a reading stays up before it is replaced, in ms. This is the
 // rerelease's server frame; without it the number would churn at the render
 // rate, which can be several hundred times a second.
 static constexpr uint64_t JUMP_SPEED_REFRESH_MS = 25;
 
-// The strafe bar, directly under the number. Same virtual units as the layout,
-// and the same 4-high bar the stock health meters use.
+// The strafe bar. Same virtual units as the layout, and the same 4-high bar the
+// stock health meters use.
 static constexpr float JUMP_STRAFE_W = 80.f;
 static constexpr float JUMP_STRAFE_H = 4.f;
-static constexpr float JUMP_STRAFE_GAP = 3.f;
 
 static cvar_t *jump_hud;
 static cvar_t *jump_hud_speed;
@@ -64,10 +59,14 @@ static cvar_t *jump_hud_speed_hz;
 static cvar_t *jump_hud_strafe;
 static cvar_t *jump_hud_strafe_tau;
 
-// The last jump_hud_strafe state we told the server about. Reset on every map
-// change and reconnect (Jump_InitClientCvars), because the server's own flag is
-// per-connection - if this survived and that did not, the player would silently
-// get both bars.
+// Whether we last told the server to draw its own copy of each readout: 0 no,
+// 1 yes, -1 not told yet. Compared by value rather than by cvar revision, so
+// every input to the decision is covered - jump_hud flipping changes what the
+// server should draw without either readout cvar being touched.
+//
+// Reset on every map change and reconnect (Jump_InitClientCvars), because the
+// server's own flag is per-connection - if this survived and that did not, the
+// player would silently get both bars.
 static int32_t jump_strafe_told = -1;
 static int32_t jump_speed_told = -1;
 
@@ -76,13 +75,20 @@ void Jump_InitClientCvars()
 	// On by default. Installing this DLL is itself the opt-in: the server's
 	// statusbar already carries everything a run needs, so the only reason to
 	// have the file is the tooling in here. `jump_hud 0` gives the exact
-	// stock-client view, which is worth having for checking what players see.
+	// stock-client view - the server draws both readouts again - which is worth
+	// having for checking what players see. The one exception is a readout set
+	// to 0 below, which stays off either way.
 	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
 
-	// Both readouts default OFF. Installing the DLL opts you into the overlay
-	// existing; it does not decide that you want a speedometer and a strafe bar
-	// on screen. Turn on what you actually want to look at.
-	jump_hud_speed = cgi.cvar("jump_hud_speed", "0", CVAR_ARCHIVE);
+	// Both readouts default ON, which is not a decision to put anything new on
+	// your screen: the server draws both for every player already, so all this
+	// chooses is which half draws what you were seeing anyway.
+	//
+	// 0 therefore means no speedometer *anywhere* - the client tells the server
+	// to hide its copy too, which is the only way a player who wants neither can
+	// say so and have it stick. It beats jump_hud 0 as well: an explicit "I do
+	// not want this" should survive turning the overlay off and on again.
+	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
 
 	// How often the speed reading is replaced, in Hz. 40 is the rerelease's
 	// server frame rate. Both upstream mods ran on a 10 Hz server and so
@@ -92,7 +98,8 @@ void Jump_InitClientCvars()
 	// exact instantaneous speed, only sampled less often.
 	jump_hud_speed_hz = cgi.cvar("jump_hud_speed_hz", "40", CVAR_ARCHIVE);
 
-	// The strafe meter: 0 off, 1 a plain 0-100% bar, 2 centre-anchored.
+	// The strafe meter: 0 no meter at all, 1 a plain 0-100% bar, 2
+	// centre-anchored. Any non-zero value means the overlay draws it.
 	//
 	// 1 is the calmer of the two - one thing moving, always in the same
 	// direction, next to a number you are already reading. 2 adds which WAY you
@@ -100,7 +107,7 @@ void Jump_InitClientCvars()
 	// since a shallow strafe still captures most of what was available while a
 	// fractionally steep one captures none of it. It also swaps sides, and a bar
 	// that changes direction is a second thing to track.
-	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "0", CVAR_ARCHIVE);
+	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "1", CVAR_ARCHIVE);
 
 	// How long the reading remembers, in ms. Roughly one airtime. The raw
 	// per-frame value is unreadable; this is what makes it a meter rather than
@@ -114,6 +121,18 @@ void Jump_InitClientCvars()
 	jump_strafe_told = -1;
 	jump_speed_told = -1;
 	Jump_CG_ResetSamples();
+}
+
+// A `yb`-anchored text row does not draw at the y the layout is given:
+// CG_ExecuteLayoutString lifts it by (SCR_FontLineHeight(1) - 8) / 2, keeping the
+// taller rerelease font centred on the 8-unit row the original conchars filled.
+// Mirror that, or the same anchor lands a couple of units apart on the two halves
+// and the readout twitches as it changes hands.
+static int32_t Jump_FontYOffset(int32_t scale)
+{
+	constexpr int32_t conchar_h = 8;
+
+	return ((cgi.SCR_FontLineHeight(1) - conchar_h) / 2) * scale;
 }
 
 // Shared by every overlay element. The anchor helpers mirror the arithmetic
@@ -142,6 +161,14 @@ struct jump_overlay_ctx_t
 	int32_t BottomY(float virt) const
 	{
 		return (int32_t) ((hud_vrect.y + hud_vrect.height + virt) * scale) - hud_safe.y;
+	}
+
+	// Where a text row anchored at `yb virt` actually lands - see
+	// Jump_FontYOffset. Use this for anything that has to line up with a row the
+	// statusbar draws.
+	int32_t TextY(float virt) const
+	{
+		return BottomY(virt) - Jump_FontYOffset(scale);
 	}
 };
 
@@ -197,8 +224,9 @@ static void Jump_DrawSpeedometer(const jump_overlay_ctx_t &ctx)
 	// No caption. A four-digit number that climbs as you move is not something
 	// anyone needs told, and the word would be one more thing on a screen you
 	// are reading a map through.
-	cgi.SCR_DrawFontString(jump::FormatSpeed((float) shown).c_str(), ctx.VirtX(160.f), ctx.BottomY(JUMP_SPEED_YB),
-						   ctx.scale, rgba_white, true, text_align_t::CENTER);
+	cgi.SCR_DrawFontString(jump::FormatSpeed((float) shown).c_str(), ctx.VirtX(160.f),
+						   ctx.TextY((float) JUMP_HUD_SPEED_YB), ctx.scale, rgba_white, true,
+						   text_align_t::CENTER);
 }
 
 // Green through amber to red as `loss` (0..1) grows. Interpolated rather than
@@ -246,8 +274,12 @@ static void Jump_DrawStrafeMeter(const jump_overlay_ctx_t &ctx)
 	const float bw = JUMP_STRAFE_W * ctx.scale;
 	const float bh = JUMP_STRAFE_H * ctx.scale;
 	const float bx = (float) ctx.VirtX(160.f) - bw * 0.5f;
-	const float by = (float) ctx.BottomY(JUMP_SPEED_YB) + cgi.SCR_FontLineHeight(ctx.scale) +
-					 JUMP_STRAFE_GAP * ctx.scale;
+
+	// The server draws this row as characters; this is a 4-unit bar, so centre it
+	// in the line that text would have filled rather than aligning their tops -
+	// otherwise the two versions sit at visibly different heights.
+	const float by = (float) ctx.TextY((float) JUMP_HUD_STRAFE_YB) +
+					 ((float) cgi.SCR_FontLineHeight(ctx.scale) - bh) * 0.5f;
 
 	const int px = ctx.scale < 1 ? 1 : ctx.scale;
 	const int ix = (int) bx, iy = (int) by, iw = (int) bw, ih = (int) bh;
@@ -312,27 +344,38 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	}
 
 	const bool enabled = jump_hud && jump_hud->integer;
-	const bool want_speed = enabled && jump_hud_speed && jump_hud_speed->integer;
-	const bool want_strafe = enabled && jump_hud_strafe && jump_hud_strafe->integer;
+
+	// A readout cvar at 0 means the player wants that readout gone, not that the
+	// server should draw it - so it mutes both halves. Anything else means the
+	// overlay draws it, whenever the overlay is running at all.
+	const bool mute_speed = !jump_hud_speed || !jump_hud_speed->integer;
+	const bool mute_strafe = !jump_hud_strafe || !jump_hud_strafe->integer;
+	const bool want_speed = enabled && !mute_speed;
+	const bool want_strafe = enabled && !mute_strafe;
 
 	// The server draws both readouts for everyone, including stock clients -
-	// that is the whole reason a new player has anything to learn from. When
-	// this overlay takes one over, tell the server to stop drawing its version,
-	// or the same reading appears twice in two different shapes.
+	// that is the whole reason a new player has anything to learn from. So it
+	// keeps drawing unless this overlay has taken the readout over (or the same
+	// reading would appear twice in two different shapes) or the player has
+	// muted it outright. Those are the only two reasons to ask it to stop.
 	//
-	// Tracked by modified_count rather than by value, so it fires the first time
-	// the overlay runs as well as on every change. The command is idempotent, so
-	// a redundant send costs nothing.
-	if (jump_hud_strafe && jump_hud_strafe->modified_count != jump_strafe_told)
+	// Compared against what we last told it rather than against a cvar's
+	// revision count, so `jump_hud 0` restores the server's copies without
+	// either readout cvar being touched. The command is idempotent anyway, so a
+	// redundant send would cost nothing - the comparison is only to stay quiet.
+	const int32_t tell_strafe = (!mute_strafe && !want_strafe) ? 1 : 0;
+	const int32_t tell_speed = (!mute_speed && !want_speed) ? 1 : 0;
+
+	if (tell_strafe != jump_strafe_told)
 	{
-		jump_strafe_told = jump_hud_strafe->modified_count;
-		cgi.AddCommandString(want_strafe ? "cmd strafebar 0\n" : "cmd strafebar 1\n");
+		jump_strafe_told = tell_strafe;
+		cgi.AddCommandString(tell_strafe ? "cmd strafebar 1\n" : "cmd strafebar 0\n");
 	}
 
-	if (jump_hud_speed && jump_hud_speed->modified_count != jump_speed_told)
+	if (tell_speed != jump_speed_told)
 	{
-		jump_speed_told = jump_hud_speed->modified_count;
-		cgi.AddCommandString(want_speed ? "cmd speedo 0\n" : "cmd speedo 1\n");
+		jump_speed_told = tell_speed;
+		cgi.AddCommandString(tell_speed ? "cmd speedo 1\n" : "cmd speedo 0\n");
 	}
 
 	// Clamped rather than trusted: a typo here would otherwise either freeze
