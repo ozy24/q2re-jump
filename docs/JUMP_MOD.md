@@ -212,7 +212,10 @@ server as a short row of characters, just under the speedometer:
 ```
 
 It fills as you do well, so a full bar means you are taking everything that was
-on offer. `strafebar` turns it off if you would rather not see it.
+on offer. It holds its last reading for about half a second when there is
+nothing to measure — long enough to read after a jump, and long enough that a
+hop chain's brief ground contacts do not make it blink — then clears. `strafebar`
+turns it off if you would rather not see it.
 
 If you are running the mod's own DLL you can have a finer version instead:
 `jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or

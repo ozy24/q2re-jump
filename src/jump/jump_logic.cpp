@@ -734,6 +734,7 @@ void strafe_state_t::Reset()
 	weight = 0.f;
 	taken = 0.f;
 	signed_loss = 0.f;
+	idle_ms = 0;
 	last_time_ms = 0;
 	have_last = false;
 }
@@ -768,9 +769,14 @@ strafe_readout_t strafe_state_t::Add(const strafe_frame_t &frame, bool usable, u
 
 		out.frame = got / frame.gain_max;
 		out.opportunity = true;
+		idle_ms = 0;
+	}
+	else
+	{
+		idle_ms += dt_ms;
 	}
 
-	if (weight > STRAFE_MIN_WEIGHT)
+	if (weight > STRAFE_MIN_WEIGHT && idle_ms < STRAFE_HOLD_MS)
 	{
 		out.valid = true;
 		out.efficiency = taken / weight;

@@ -893,11 +893,12 @@ static void TestStrafeState()
 	CHECK(out.efficiency < 0.15f);
 	CHECK(out.offset < -0.5f); // aiming along the velocity: turning too little
 
-	// Ground frames are excluded, so the accumulator decays rather than being
-	// cleared. A brief touch of ground must NOT blank the bar: a bunny-hop
+	// Ground frames offer nothing to measure, so the reading is held rather than
+	// recomputed. A brief touch of ground must NOT blank the bar: a bunny-hop
 	// chain crosses the ground twice a second, and an element that vanishes at
 	// 2 Hz is worse than one that holds its last reading.
-	int i = 40;
+	const float held = out.efficiency;
+	int			i = 40;
 
 	for (int hop = 0; hop < 4; hop++, i++)
 	{
@@ -909,15 +910,38 @@ static void TestStrafeState()
 	}
 
 	CHECK(out.valid);
+	CHECK(Near(out.efficiency, held, 1e-4f)); // held, not recomputed
 
-	// Standing on the ground does eventually blank it - a couple of seconds,
-	// not instantly - and it must decay there rather than snapping to 0 or 1.
-	for (; i < 200; i++)
+	// Standing still does blank it, and on a timer rather than by decay. Decay
+	// alone never could: it scales numerator and denominator alike, so the ratio
+	// would sit at its last value indefinitely instead of going away.
+	for (; i < 80; i++)
 	{
 		jump::move_sample_t ground = MakeAirSample((uint64_t) i * 25, 300.f, 0.f, 0.f, 400.f, 0.f, 25);
 		ground.on_ground_entry = true;
 		ground.on_ground = true;
 		ring.Push(ground);
+		out = state.Update(ring);
+	}
+
+	CHECK(!out.valid);
+
+	// Airborne with no keys held is the same case: nothing on offer, so the
+	// reading goes rather than freezing.
+	ring.Clear();
+	state.Reset();
+
+	for (int j = 0; j < 10; j++)
+	{
+		ring.Push(MakeAirSample((uint64_t) j * 25, 100.f, 0.f, 0.f, 400.f, 0.f, 25));
+		out = state.Update(ring);
+	}
+
+	CHECK(out.valid);
+
+	for (int j = 10; j < 50; j++)
+	{
+		ring.Push(MakeAirSample((uint64_t) j * 25, 100.f, 0.f, 0.f, 0.f, 0.f, 25));
 		out = state.Update(ring);
 	}
 

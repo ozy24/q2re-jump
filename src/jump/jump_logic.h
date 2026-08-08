@@ -474,6 +474,16 @@ constexpr uint64_t STRAFE_TAU_MS = 300;
 // Below this there is nothing to be a fraction of.
 constexpr float STRAFE_MIN_WEIGHT = 0.05f;
 
+// How long the reading survives with nothing new to measure.
+//
+// This is what stops it hanging around after you land. The decay alone cannot:
+// it scales the numerator and the denominator equally, so with no new frames
+// the ratio holds its last value exactly and the bar freezes rather than
+// falling. Hiding it on that timer is honest - standing still is not bad
+// strafing, it is no strafing - and it is long enough to survive the ground
+// contact in a hop chain, which is why the bar does not blink twice a second.
+constexpr uint64_t STRAFE_HOLD_MS = 500;
+
 struct strafe_readout_t
 {
 	float efficiency = 0.f; // 0..1: of what was on offer, how much you took
@@ -497,6 +507,7 @@ struct strafe_state_t
 	float	 weight = 0.f; // decayed sum of gain_max
 	float	 taken = 0.f;  // decayed sum of max(gain, 0)
 	float	 signed_loss = 0.f;
+	uint64_t idle_ms = 0; // since the last frame that offered anything
 	uint64_t last_time_ms = 0;
 	bool	 have_last = false;
 
