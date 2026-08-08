@@ -7,6 +7,34 @@
 #include "jump_local.h"
 #include "jump_version.h"
 
+// Who owns each readout. For a client running the mod's own half the reported
+// cvars are authoritative and read live, so there is no stored flag to fall out
+// of step with them; for a stock client the `speedo` / `strafebar` flags are all
+// there is. The rule for the reported case is the one the client used to apply
+// itself: a readout the overlay is drawing, or one muted outright, is one the
+// server must not draw.
+bool Jump_ServerDrawsSpeedo(const jump_client_t *jc)
+{
+	if (!jc)
+		return false;
+
+	if (jc->client_hud)
+		return jc->client_speed != JUMP_READOUT_OFF && jc->client_hud_master == 0;
+
+	return jc->server_speedo;
+}
+
+bool Jump_ServerDrawsStrafeBar(const jump_client_t *jc)
+{
+	if (!jc)
+		return false;
+
+	if (jc->client_hud)
+		return jc->client_strafe != JUMP_READOUT_OFF && jc->client_hud_master == 0;
+
+	return jc->server_strafebar;
+}
+
 static void Jump_CmdHelp(edict_t *ent)
 {
 	gi.Client_Print(ent, PRINT_HIGH,
@@ -177,20 +205,64 @@ bool Jump_ClientCommand(edict_t *ent)
 		return true;
 	}
 
-	// These two are sent automatically by the mod's own client when its overlay
-	// cvars change, so a player running the DLL never gets the server's version
-	// and the overlay's at once. Typeable too, which is both the fallback if a
-	// send is ever missed and the way a stock-client player turns one off.
+	// Sent by the mod's own client whenever its overlay cvars change, carrying
+	// jump_hud, jump_hud_speed and jump_hud_strafe verbatim. That tells the server
+	// which readouts the client has taken over - so it stops drawing its own and
+	// nobody sees the same reading twice - and also what the options menu should
+	// say, which a plain on/off could not: "my overlay draws it" and "I want none
+	// of it" both mean "do not draw yours".
 	//
-	// Only announce an actual change. The client re-announces at every level
-	// start, and a handshake that says so out loud would put a line in the notify
-	// area on every map change for every player running the DLL.
+	// A stock client never sends this, so receiving it is also how the server
+	// knows it is talking to one of ours. No print and no jumphelp entry: this is
+	// machine-to-machine, and it fires on every map change.
+	if (!Q_strcasecmp(cmd, "jumphud"))
+	{
+		jump_client_t *jc = Jump_ClientData(ent);
+
+		// Ignore a hand-typed one. gi.argv() past argc returns "", which atoi
+		// reads as 0, so a bare `jumphud` would otherwise register as one of our
+		// clients with every readout muted - and take the readouts away from the
+		// `speedo` command that player still needs.
+		if (!jc || gi.argc() < 4)
+		{
+			Jump_Log("jumphud <- ignored, argc=%d", gi.argc());
+			return true;
+		}
+
+		jc->client_hud = true;
+		jc->client_hud_master = atoi(gi.argv(1));
+		jc->client_speed = atoi(gi.argv(2));
+		jc->client_strafe = atoi(gi.argv(3));
+
+		// Whatever the menu last asked for, the client has now told us where it
+		// actually stands, so the request has done its job. Clearing it here is
+		// what keeps it one-shot: a request left standing would be re-applied at
+		// the next level start and quietly undo a cvar the player set by hand.
+		jc->hud_request = 0;
+
+		Jump_Log("jumphud <- %s: hud=%d speed=%d strafe=%d", Jump_DisplayName(ent), jc->client_hud_master,
+				 jc->client_speed, jc->client_strafe);
+		return true;
+	}
+
+	// How a player on a stock client turns a readout off. For one of ours the
+	// cvars are authoritative (Jump_ServerDrawsSpeedo), so rather than set a flag
+	// that would have no effect, say where the setting actually lives.
+	//
+	// Only announce an actual change, or `speedo 0` twice would say so twice.
 	if (!Q_strcasecmp(cmd, "strafebar"))
 	{
 		jump_client_t *jc = Jump_ClientData(ent);
 
 		if (!jc)
 			return true;
+
+		if (jc->client_hud)
+		{
+			gi.Client_Print(ent, PRINT_HIGH,
+							"Your client draws the strafe meter. Use the menu (Options) or jump_hud_strafe.\n");
+			return true;
+		}
 
 		const bool want = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_strafebar;
 
@@ -209,6 +281,13 @@ bool Jump_ClientCommand(edict_t *ent)
 
 		if (!jc)
 			return true;
+
+		if (jc->client_hud)
+		{
+			gi.Client_Print(ent, PRINT_HIGH,
+							"Your client draws the speedometer. Use the menu (Options) or jump_hud_speed.\n");
+			return true;
+		}
 
 		const bool want = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_speedo;
 

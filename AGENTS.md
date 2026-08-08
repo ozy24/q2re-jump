@@ -124,10 +124,32 @@ So the rule is: **if the bar can draw it at all, it goes on the bar**, because t
 player. The overlay is for what the bar genuinely cannot render well — a speed number in small
 text, or a finer strafe reading for players who chose to install the file.
 
-Both readouts therefore exist twice over, and the two copies are mutually exclusive per player: the
-overlay announces itself with `cmd speedo 0` / `cmd strafebar 0` (`jump_hud_draw.cpp`) and the
-server hides its own copy for that client (`jc->server_speedo` / `server_strafebar`, gating the
-stats in `Jump_SetStats`). Nobody ever sees the same reading in two shapes.
+Both readouts therefore exist twice over, and the two copies are mutually exclusive per player. The
+overlay reports its cvars with `cmd jumphud <jump_hud> <jump_hud_speed> <jump_hud_strafe>`
+(`jump_hud_draw.cpp`), and the server decides from that which copies to draw — `Jump_ServerDrawsSpeedo`
+/ `Jump_ServerDrawsStrafeBar` (`jump_cmds.cpp`), read live in `Jump_SetStats`. Nobody ever sees the
+same reading in two shapes.
+
+It reports the raw cvars rather than a yes/no per readout for two reasons, and the second is the one
+that is easy to miss. A conclusion loses information the options menu needs: "my overlay draws it" and
+"I want none of it" both mean *don't draw yours*, and a menu row has to tell them apart. And receiving
+the command at all is how the server knows it is talking to one of our clients, which decides both who
+owns the readouts and whether stuffing a cvar at that player would mean anything:
+
+| Client | Authority for the bar copy |
+|---|---|
+| Ours (`jc->client_hud`) | the reported cvars, live — so nothing can fall out of step with them |
+| Stock | `jc->server_speedo` / `server_strafebar`, set by the `speedo` / `strafebar` commands |
+
+**The server changes a client-side setting by asking, not by writing.** It publishes the state it
+wants in `JUMP_STAT_HUD_REQUEST` and the overlay applies it to its own cvars with `cgi.cvar_set`
+(`jump_hud_draw.cpp`), then reports back through `jumphud`, which clears the request. Both readouts
+plus a sequence number ride in the one stat, because the values alone cannot distinguish a fresh
+request from the one already applied — asking twice for the same state is ordinary. Two things to
+keep: the request is **one-shot**, cleared on the report, or one left standing would re-apply at the
+next level start and undo a cvar the player set by hand; and the client **ignores it while
+chasing**, because `G_CheckChaseStats` copies the whole stats array from the player being followed,
+so a spectator would otherwise have their settings changed by someone else opening a menu.
 
 The overlay and both its readouts default **on** (`jump_hud 1`, `jump_hud_speed 1`,
 `jump_hud_strafe 1`) — installing the file *is* the opt-in, and since the server already draws both
@@ -136,13 +158,17 @@ for everyone, the defaults put nothing new on screen; they only decide which hal
 checking what players actually see.
 
 The one asymmetry to know when touching that handshake: a readout cvar at **0 means the player
-wants no readout at all**, not "let the server draw it" — the client tells the server to keep its
-copy hidden too, and that beats `jump_hud 0`. It has to work that way, or a DLL player has no way
-to turn a readout off: "I am not drawing it" would always be read as "server, please draw yours",
-and typing `speedo 0` would be undone by the client's re-announce at the next level start. For the
-same reason the client compares what it last *told* the server, by value, rather than watching a
-cvar's `modified_count` — `jump_hud` changes what the server should draw without either readout
-cvar being touched.
+wants no readout at all**, not "let the server draw it" — the server keeps its copy hidden too, and
+that beats `jump_hud 0`. It has to work that way, or a DLL player has no way to turn a readout off:
+"I am not drawing it" would always be read as "server, please draw yours". The report is compared by
+value against the last one sent rather than by `modified_count`, because `jump_hud` changes what the
+server should draw without either readout cvar being touched.
+
+The player-facing way to change any of this is **Options** in the menu (`jump_menu.cpp`), which
+writes to whichever half owns the readout — stuffing the cvar for one of our clients, setting the
+flag for a stock one. A row there means *the readout*, not one of its two copies, which is why there
+is no menu route to "the bar's version while I have the DLL": that is `jump_hud 0`, a switch for the
+whole overlay rather than one readout, and it stays a cvar.
 
 Two questions decide where a new element goes, in this order. **What is it about?** Something about
 a single moment is a message — the finish delta lived in the overlay for a while as "the one thing
@@ -230,6 +256,14 @@ string, or one starting with `$` is read as a localization key.
   (`##P0`), meaningful only as an argument to the `Loc*` print imports. For anything written to a
   file or baked into a plain string, use `Jump_DisplayName()`, which reads the real name from
   `pers.userinfo`.
+- **`svc_stufftext` does not get you a cgame cvar.** It is in the enum (`game.h`), the stock code
+  uses it (`p_client.cpp` sends `spectator 0`), and it looks like the obvious way for the server to
+  change a client-side setting. It was tried for the options menu and abandoned: with the message
+  demonstrably sent (reliable unicast, one client, on a listen server), `set jump_hud_speed 0` left
+  the cvar the overlay polls untouched — the overlay kept drawing and never re-reported, for both
+  the bare `name value` form and the `set` form. Whether the console never ran it or ran it against
+  a different cvar table was not worth establishing, because the fix is the same either way: send a
+  **stat** and let the cgame set its own cvar with `cgi.cvar_set`. See `JUMP_STAT_HUD_REQUEST`.
 - **Layout strings can crash clients.** A malformed token stream makes the client's parser raise a
   fatal error. Always pass untrusted text through `jump::SanitizeLayoutText()`, keep a byte
   reserve, and drop rows rather than risk truncation. Map names go through

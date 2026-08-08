@@ -68,10 +68,14 @@ void Jump_SetStats(edict_t *ent)
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINTS] = (int16_t) jc->checkpoints;
 	ent->client->ps.stats[JUMP_STAT_CHECKPOINT_TOTAL] = (int16_t) Jump_CheckpointTotal();
 
+	// A readout change made in the options menu, on its way to the client's own
+	// cvars. Zero unless one is outstanding, which is all but always.
+	ent->client->ps.stats[JUMP_STAT_HUD_REQUEST] = jc->hud_request;
+
 	// The strafe meter: the stat points at whichever pre-rendered bar string
-	// matches the reading. Players running this DLL turn it off (`strafebar`,
-	// sent automatically by their client) and use the overlay's finer version.
-	const int strafe_level = jc->server_strafebar ? jump::StrafeBarLevel(jc->strafe_readout) : -1;
+	// matches the reading. Players running this DLL get the overlay's finer
+	// version instead - see Jump_ServerDrawsStrafeBar for who decides.
+	const int strafe_level = Jump_ServerDrawsStrafeBar(jc) ? jump::StrafeBarLevel(jc->strafe_readout) : -1;
 
 	ent->client->ps.stats[JUMP_STAT_STRAFE_BAR] =
 		strafe_level >= 0 ? (int16_t) (CONFIG_JUMP_STRAFE_BAR + strafe_level) : 0;
@@ -81,10 +85,9 @@ void Jump_SetStats(edict_t *ent)
 	// number pics, which are 16x24 apiece.
 	//
 	// Hidden at rest and for a free spectator, as both upstream mods hide
-	// theirs - a flying camera's speed is not speed in any jumping sense. The
-	// `speedo` command turns it off for players using the overlay's version.
+	// theirs - a flying camera's speed is not speed in any jumping sense.
 	const int speed =
-		(jc->server_speedo && jc->team != jump_team_t::spectator)
+		(Jump_ServerDrawsSpeedo(jc) && jc->team != jump_team_t::spectator)
 			? jump::SpeedStat(ent->velocity[0], ent->velocity[1])
 			: 0;
 

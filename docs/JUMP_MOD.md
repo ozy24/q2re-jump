@@ -39,8 +39,8 @@ lobby, so everything below is a console command.
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
 | `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
-| `strafebar` | Show/hide the server's strafe meter (with the mod's DLL, use `jump_hud_strafe`) |
-| `speedo` | Show/hide the server's speedometer (with the mod's DLL, use `jump_hud_speed`) |
+| `strafebar` | Show/hide the strafe meter (or the menu's Options row) |
+| `speedo` | Show/hide the speedometer (or the menu's Options row) |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -76,6 +76,7 @@ side of the line. It swaps as soon as you change team, even if it is open:
 | Follow View: First- / Third-Person | Spectate |
 | Vote Map, Extend Time | Vote Map, Extend Time |
 | How to Play | How to Play |
+| Options | Options |
 | Close | Close |
 
 The mod version sits along the bottom of both, under Close — the same string
@@ -89,6 +90,27 @@ them, and is a one-page summary — what you are racing, what separates the two
 teams, how a map ends, and the two binds worth setting. It is the answer to a
 player joining with no idea what a jump server is, without them having to read
 this document.
+
+**Options**, directly under it, holds the settings that change what *you* see and
+nothing anyone else does:
+
+| Row | Cycles |
+|---|---|
+| Speedometer | Off, On |
+| Strafe Meter | Off, On, Centred |
+| Hide Players | Off, On |
+
+Each row stays open and relabels as you pick it, so you can see what you changed.
+A row means *the readout*, not one of the two copies of it: **On** gives you the
+best version you can get — the finer overlay one if you are running the mod's own
+DLL, the status bar one if you are not — and **Off** means gone everywhere. If you
+have the DLL these rows are setting `jump_hud_speed` and `jump_hud_strafe` for
+you, so a change made here persists the same way as typing the cvar, and
+**Centred** is DLL-only since the status bar cannot anchor a bar in the middle.
+
+The one thing Options cannot do is give you the status bar's version while you
+have the DLL installed — that is `jump_hud 0`, a switch for the whole overlay
+rather than one readout. See [the performance HUD](#the-performance-hud).
 
 **Save Position** and **Load Position** are the `store` and `recall` commands.
 On Ranked they stay listed but read `(Locked)` and cannot be picked — Ranked
@@ -166,11 +188,14 @@ A readout sits centred, above the bottom of the screen, showing how fast you are
 moving in units per second. It hides itself when you are standing still.
 
 **Everyone gets it, including players on a stock client** — the server draws it
-in ordinary small text. `speedo` turns it off. If you are running the mod's own
-DLL you get a finer version instead, updating every rendered frame; your client
-tells the server to stop drawing its own, so you never see two.
-`jump_hud_speed 0` turns the speedometer off altogether — your client also tells
-the server to keep its copy hidden, so `0` means no speedometer anywhere.
+in ordinary small text. If you are running the mod's own DLL you get a finer
+version instead, updating every rendered frame; your client tells the server to
+stop drawing its own, so you never see two.
+
+**Options in the menu** is the easy way to turn it off, whichever version you are
+getting. The equivalents are `jump_hud_speed 0` with the DLL — which means no
+speedometer anywhere, since your client also tells the server to keep its copy
+hidden — and `speedo` without it.
 
 Both upstream mods put theirs in the bottom-right corner. This port follows
 `q2re-map-trainer` instead and centres it, because speed is the one number you
@@ -215,15 +240,18 @@ server as a short row of characters, just under the speedometer:
 It fills as you do well, so a full bar means you are taking everything that was
 on offer. It holds its last reading for about half a second when there is
 nothing to measure — long enough to read after a jump, and long enough that a
-hop chain's brief ground contacts do not make it blink — then clears. `strafebar`
-turns it off if you would rather not see it.
+hop chain's brief ground contacts do not make it blink — then clears.
 
 If you are running the mod's own DLL you get a finer version instead:
 `jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or
 `jump_hud_strafe 2` for a centre-anchored one where the side you are on tells
 you which way to correct. Either replaces the server's bar automatically — your
 client tells the server to stop drawing it, so you never get both.
-`jump_hud_strafe 0` turns the meter off altogether, the server's copy included.
+
+**Options in the menu** cycles all of it — Off, On, and Centred for DLL players —
+and is easier than remembering which setting you have. The equivalents are
+`jump_hud_strafe 0`, which turns the meter off everywhere including the server's
+copy, and `strafebar` without the DLL.
 
 Four things worth knowing:
 

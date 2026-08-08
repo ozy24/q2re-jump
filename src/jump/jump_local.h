@@ -5,6 +5,7 @@
 #pragma once
 
 #include "jump_logic.h"
+#include "jump_stats.h" // JUMP_READOUT_*, and the HUD anchors the menu talks about
 
 #include <filesystem>
 #include <string>
@@ -76,11 +77,26 @@ struct jump_client_t
 	bool        eyecam       = true; // MuffMode default: first-person spectator follow
 	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
 	bool        menu_hint_shown = false; // %bind:inven% hint printed once
-	// Whether the SERVER draws the strafe bar for this player. Players running
-	// the mod's own client turn it off and use the finer overlay instead; the
-	// client sends the command itself when its cvar changes.
+	// Whether the SERVER draws each readout for this player, for a client that
+	// is NOT running the mod's own. `speedo` / `strafebar` set these.
 	bool        server_strafebar = true;
 	bool        server_speedo = true;
+
+	// What the mod's own client reports about its overlay cvars, via `jumphud`.
+	// A stock client never sends it, so client_hud is also how the server knows
+	// whether it is talking to one - which decides both who owns the readouts
+	// (these values, live, rather than the two flags above) and whether stuffing
+	// a cvar at this player would mean anything.
+	bool        client_hud = false;
+	int         client_hud_master = 1; // jump_hud
+	int         client_speed = JUMP_READOUT_ON;
+	int         client_strafe = JUMP_READOUT_ON;
+
+	// A readout state the options menu wants this client's overlay to adopt,
+	// encoded by Jump_EncodeHudRequest and published in JUMP_STAT_HUD_REQUEST.
+	// One-shot: cleared as soon as the client reports back, so a request can
+	// never outlive the pick that made it and re-apply itself a map later.
+	int16_t     hud_request = 0;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
 
 	// Which scoreboard page the next send should build. Only meaningful while
@@ -219,6 +235,14 @@ void Jump_AnnounceFrame();
 // Re-issues CS_STATUSBAR when the timelimit moves - the map countdown bakes an
 // absolute server frame into the layout. No-op on every other frame.
 void Jump_StatusbarFrame();
+
+// jump_cmds.cpp
+//
+// Whether the SERVER should draw its own copy of each readout for this client.
+// For a client running the mod's own half this is derived live from the cvars it
+// reported; for a stock client it is the `speedo` / `strafebar` flag.
+bool Jump_ServerDrawsSpeedo(const jump_client_t *jc);
+bool Jump_ServerDrawsStrafeBar(const jump_client_t *jc);
 
 // jump_mset.cpp
 enum class jump_mset_result_t

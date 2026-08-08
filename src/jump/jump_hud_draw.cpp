@@ -59,16 +59,30 @@ static cvar_t *jump_hud_speed_hz;
 static cvar_t *jump_hud_strafe;
 static cvar_t *jump_hud_strafe_tau;
 
-// Whether we last told the server to draw its own copy of each readout: 0 no,
-// 1 yes, -1 not told yet. Compared by value rather than by cvar revision, so
-// every input to the decision is covered - jump_hud flipping changes what the
+// The last (jump_hud, jump_hud_speed, jump_hud_strafe) we reported to the
+// server, or all -1 for "not reported yet".
+//
+// We send the cvars themselves rather than a conclusion drawn from them. The
+// server needs to know which readouts this player has taken over - otherwise it
+// draws its own copy on top - but it also has to tell "my overlay draws it"
+// apart from "I want none of it", because the options menu shows the difference
+// and the two look identical from a single yes/no. Reporting the raw values
+// gives it both, and keeps one copy of the rule instead of two.
+//
+// Compared by value, so every input is covered: jump_hud changes what the
 // server should draw without either readout cvar being touched.
 //
 // Reset on every map change and reconnect (Jump_InitClientCvars), because the
-// server's own flag is per-connection - if this survived and that did not, the
+// server's own state is per-connection - if this survived and that did not, the
 // player would silently get both bars.
-static int32_t jump_strafe_told = -1;
-static int32_t jump_speed_told = -1;
+static int32_t jump_told_master = -1;
+static int32_t jump_told_speed = -1;
+static int32_t jump_told_strafe = -1;
+
+// The sequence number of the last options-menu request we applied; 0 = none.
+// Tracked because the values alone cannot say whether a request is new - being
+// asked twice for the same state is perfectly ordinary.
+static int32_t jump_applied_request = 0;
 
 void Jump_InitClientCvars()
 {
@@ -118,8 +132,10 @@ void Jump_InitClientCvars()
 	// vanilla HUD clears its notify state - so this is where stale samples go,
 	// and where we forget having told the server about the bar, since its flag
 	// does not survive a reconnect either.
-	jump_strafe_told = -1;
-	jump_speed_told = -1;
+	jump_told_master = -1;
+	jump_told_speed = -1;
+	jump_told_strafe = -1;
+	jump_applied_request = 0;
 	Jump_CG_ResetSamples();
 }
 
@@ -343,39 +359,53 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 		return;
 	}
 
-	const bool enabled = jump_hud && jump_hud->integer;
-
-	// A readout cvar at 0 means the player wants that readout gone, not that the
-	// server should draw it - so it mutes both halves. Anything else means the
-	// overlay draws it, whenever the overlay is running at all.
-	const bool mute_speed = !jump_hud_speed || !jump_hud_speed->integer;
-	const bool mute_strafe = !jump_hud_strafe || !jump_hud_strafe->integer;
-	const bool want_speed = enabled && !mute_speed;
-	const bool want_strafe = enabled && !mute_strafe;
-
-	// The server draws both readouts for everyone, including stock clients -
-	// that is the whole reason a new player has anything to learn from. So it
-	// keeps drawing unless this overlay has taken the readout over (or the same
-	// reading would appear twice in two different shapes) or the player has
-	// muted it outright. Those are the only two reasons to ask it to stop.
+	// A readout change made in the server's options menu. It arrives as a stat
+	// because the server has no way to write a cgame cvar itself, so it asks and
+	// we do it - see the svc_stufftext trap in AGENTS.md.
 	//
-	// Compared against what we last told it rather than against a cvar's
-	// revision count, so `jump_hud 0` restores the server's copies without
-	// either readout cvar being touched. The command is idempotent anyway, so a
-	// redundant send would cost nothing - the comparison is only to stay quiet.
-	const int32_t tell_strafe = (!mute_strafe && !want_strafe) ? 1 : 0;
-	const int32_t tell_speed = (!mute_speed && !want_speed) ? 1 : 0;
+	// Skipped while following someone: G_CheckChaseStats copies the whole stats
+	// array from the player being chased, so their pending request lands in our
+	// player_state too, and applying it would change a spectator's settings
+	// because somebody else opened a menu.
+	const int16_t request = (int16_t) ps->stats[JUMP_STAT_HUD_REQUEST];
+	const int32_t request_seq = Jump_HudRequestSeq(request);
 
-	if (tell_strafe != jump_strafe_told)
+	if (request_seq != 0 && request_seq != jump_applied_request && !ps->stats[STAT_CHASE])
 	{
-		jump_strafe_told = tell_strafe;
-		cgi.AddCommandString(tell_strafe ? "cmd strafebar 1\n" : "cmd strafebar 0\n");
+		jump_applied_request = request_seq;
+
+		cgi.cvar_set("jump_hud_speed", G_Fmt("{}", Jump_HudRequestSpeed(request)).data());
+		cgi.cvar_set("jump_hud_strafe", G_Fmt("{}", Jump_HudRequestStrafe(request)).data());
 	}
 
-	if (tell_speed != jump_speed_told)
+	const int32_t master = jump_hud ? jump_hud->integer : 1;
+	const int32_t speed_set = jump_hud_speed ? jump_hud_speed->integer : JUMP_READOUT_OFF;
+	const int32_t strafe_set = jump_hud_strafe ? jump_hud_strafe->integer : JUMP_READOUT_OFF;
+
+	const bool enabled = master != 0;
+
+	// A readout cvar at 0 means the player wants that readout gone, not that the
+	// server should draw it. Anything else means the overlay draws it, whenever
+	// the overlay is running at all.
+	const bool want_speed = enabled && speed_set != JUMP_READOUT_OFF;
+	const bool want_strafe = enabled && strafe_set != JUMP_READOUT_OFF;
+
+	// Tell the server what we are set to, so it knows which copies to draw and
+	// what the options menu should say. See jump_told_* above for why this is the
+	// raw cvars rather than a yes/no per readout.
+	//
+	// This has to stay ABOVE the `!enabled` early-out below, and that ordering is
+	// load-bearing twice over: with `jump_hud 0` the server must still hear that
+	// its own copies are wanted back, and the options menu sets these cvars by
+	// stuffing them, so a pick made while the overlay is off has to be reported
+	// too or the menu shows a change the server never saw.
+	if (master != jump_told_master || speed_set != jump_told_speed || strafe_set != jump_told_strafe)
 	{
-		jump_speed_told = tell_speed;
-		cgi.AddCommandString(tell_speed ? "cmd speedo 1\n" : "cmd speedo 0\n");
+		jump_told_master = master;
+		jump_told_speed = speed_set;
+		jump_told_strafe = strafe_set;
+
+		cgi.AddCommandString(G_Fmt("cmd jumphud {} {} {}\n", master, speed_set, strafe_set).data());
 	}
 
 	// Clamped rather than trusted: a typo here would otherwise either freeze

@@ -65,10 +65,17 @@ static void Jump_MenuFollowView(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuOpenOptions(edict_t *ent, pmenuhnd_t *hnd);
+
+static void Jump_MenuCycleSpeedo(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuUpdateOptions(edict_t *ent);
 
 static void Jump_OpenCastMenu(edict_t *ent);
 static void Jump_OpenMapMenu(edict_t *ent);
 static void Jump_OpenHelpMenu(edict_t *ent);
+static void Jump_OpenOptionsMenu(edict_t *ent);
 
 // Two main menus, because half the rows only mean something on one side of the
 // line: a spectator has no run to restart, and a player in the map has nothing
@@ -105,6 +112,12 @@ constexpr int JUMP_SPEC_VOTE = 9;
 constexpr int JUMP_SPEC_EXTEND = 10;
 constexpr int JUMP_SPEC_HELP = 12;
 
+// Jump_MenuClearTail writes Options immediately below How to Play, so both help
+// rows need a row spare before Close. The tail is indexed by hand, and writing
+// over Close would cost a player the way out of the menu.
+static_assert(JUMP_GAME_HELP + 1 < JUMP_MAIN_CLOSE, "no room for Options on the in-game menu");
+static_assert(JUMP_SPEC_HELP + 1 < JUMP_MAIN_CLOSE, "no room for Options on the spectator menu");
+
 static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 0  title
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 1  current team
@@ -120,7 +133,7 @@ static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 11 extend
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12 blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 13 how to play
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenOptions },		  // 14 options
 	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 17 version
@@ -140,7 +153,7 @@ static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11 blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 12 how to play
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 13
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenOptions },		  // 13 options
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14 blank
 	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 15
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 16 blank
@@ -219,6 +232,39 @@ static const pmenu_t jump_help_menu[JUMP_MENU_ENTRIES] = {
 	{ "Return", PMENU_ALIGN_CENTER, Jump_MenuReturnToMain },   // 17
 };
 
+// Per-player display settings. Every row here changes something the player sees
+// and nothing anyone else does, which is what separates it from the main menu.
+//
+// The two readouts each exist twice over - the server draws them on the status
+// bar for everyone, this DLL's overlay redraws them finer for whoever installed
+// it - and a row here means the readout, not one of the two copies. So "On" is
+// the best version that player can get, and the handler works out which half to
+// speak to. See Jump_MenuUpdateOptions.
+constexpr int JUMP_OPT_SPEEDO = 2;
+constexpr int JUMP_OPT_STRAFE = 3;
+constexpr int JUMP_OPT_JUMPERS = 5;
+
+static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
+	{ "Options", PMENU_ALIGN_CENTER, nullptr },				 // 0
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 1  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleSpeedo },			 // 2  speedometer
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe },			 // 3  strafe meter
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 4  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleJumpers },		 // 5  hide players
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 6
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 7
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 8
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 9
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 10
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 11
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 12
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 13
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 14
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 15
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 16
+	{ "Return", PMENU_ALIGN_CENTER, Jump_MenuReturnToMain }, // 17
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -247,9 +293,9 @@ static void Jump_MenuJoinRow(pmenu_t &entry, jump_team_t team, SelectFunc_t sele
 // ---------------------------------------------------------------------------
 
 // Blanks everything from `first` up to the foot of the menu, then writes the
-// three rows both main menus end with: How to Play, which trails the gameplay
-// rows a blank line below them, then Close, then the mod version along the
-// bottom. `help` is a parameter rather than a shared constant because the two
+// four rows both main menus end with: How to Play and Options, which trail the
+// gameplay rows a blank line below them, then Close, then the mod version along
+// the bottom. `help` is a parameter rather than a shared constant because the two
 // menus have different numbers of gameplay rows above it; the other two are
 // pinned to the foot of the panel and are the same either way.
 //
@@ -263,6 +309,7 @@ static void Jump_MenuClearTail(pmenuhnd_t *hnd, int first, int help)
 		Jump_MenuSetRow(hnd->entries[i], "", PMENU_ALIGN_CENTER, nullptr);
 
 	Jump_MenuSetRow(hnd->entries[help], "How to Play", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp);
+	Jump_MenuSetRow(hnd->entries[help + 1], "Options", PMENU_ALIGN_LEFT, Jump_MenuOpenOptions);
 	Jump_MenuSetRow(hnd->entries[JUMP_MAIN_CLOSE], "Close", PMENU_ALIGN_LEFT, Jump_MenuClose);
 	Jump_MenuSetRow(hnd->entries[JUMP_MAIN_VERSION], "Q2RE-Jump v" JUMP_VERSION_STRING, PMENU_ALIGN_CENTER,
 					nullptr);
@@ -446,6 +493,168 @@ static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd)
 static void Jump_OpenHelpMenu(edict_t *ent)
 {
 	PMenu_Open(ent, jump_help_menu, -1, JUMP_MENU_ENTRIES, nullptr, nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// Options
+// ---------------------------------------------------------------------------
+
+// What a readout is currently set to, as one of JUMP_READOUT_*. For a client
+// running the mod's own half that is the cvar it reported; for a stock client
+// there is only the server's copy, so on/off is all it can be.
+static int Jump_MenuReadoutState(const jump_client_t *jc, bool speedo)
+{
+	if (!jc)
+		return JUMP_READOUT_OFF;
+
+	if (jc->client_hud)
+		return speedo ? jc->client_speed : jc->client_strafe;
+
+	const bool on = speedo ? jc->server_speedo : jc->server_strafebar;
+
+	return on ? JUMP_READOUT_ON : JUMP_READOUT_OFF;
+}
+
+static const char *Jump_MenuReadoutLabel(int state)
+{
+	if (state == JUMP_READOUT_OFF)
+		return "Off";
+
+	return state == JUMP_READOUT_CENTRED ? "Centred" : "On";
+}
+
+// Applies a readout state to whichever half owns it for this player.
+//
+// For one of our clients the cvar is the setting, and the server cannot write it
+// directly - it publishes the state it wants in JUMP_STAT_HUD_REQUEST and the
+// overlay applies it to its own cvars. The local copy is written straight away
+// too, so the row relabels this frame rather than waiting for the round trip; the
+// client's report then confirms it and clears the request.
+//
+// For a stock client there is no cvar and no overlay to carry the request, so the
+// server's own flag is both the setting and the whole story.
+static void Jump_MenuSetReadout(edict_t *ent, jump_client_t *jc, bool speedo, int state)
+{
+	if (jc->client_hud)
+	{
+		if (speedo)
+			jc->client_speed = state;
+		else
+			jc->client_strafe = state;
+
+		// Both readouts ride in the one stat, so a request always carries the
+		// pair - the one just picked and whatever the other is already set to.
+		int seq = Jump_HudRequestSeq(jc->hud_request) + 1;
+
+		if (seq > JUMP_HUD_REQUEST_SEQ_MAX)
+			seq = 1; // 0 means "nothing pending", so it is never a live sequence
+
+		jc->hud_request = Jump_EncodeHudRequest(seq, jc->client_speed, jc->client_strafe);
+
+		Jump_Log("options -> %s: request %d, speed=%d strafe=%d", Jump_DisplayName(ent), seq, jc->client_speed,
+				 jc->client_strafe);
+		return;
+	}
+
+	Jump_Log("options: no client hud reported, setting the server's %s to %d", speedo ? "speedo" : "strafebar", state);
+
+	if (speedo)
+		jc->server_speedo = (state != JUMP_READOUT_OFF);
+	else
+		jc->server_strafebar = (state != JUMP_READOUT_OFF);
+}
+
+// The same click the eyecam and jumpers toggles make. PMenu has no select sound
+// of its own, and the row's label does not change until the next frame, so
+// without this a pick on a readout row feels like it missed.
+static void Jump_MenuClick(edict_t *ent)
+{
+	gi.local_sound(ent, CHAN_AUTO, gi.soundindex("misc/menu3.wav"), 1, ATTN_NONE, 0);
+}
+
+static void Jump_MenuUpdateOptions(edict_t *ent)
+{
+	pmenuhnd_t *hnd = ent->client->menu;
+
+	if (!hnd)
+		return;
+
+	const jump_client_t *jc = Jump_ClientData(ent);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_SPEEDO],
+					G_Fmt("Speedometer: {}", Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, true))).data(),
+					PMENU_ALIGN_LEFT, Jump_MenuCycleSpeedo);
+
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_STRAFE],
+					G_Fmt("Strafe Meter: {}", Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, false))).data(),
+					PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe);
+
+	// Named for what picking it does, not for the state it is in, because the
+	// state is on the same row - "Hide Players: On" is unambiguous in a way that
+	// "Show Players: Off" is not.
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_JUMPERS],
+					G_Fmt("Hide Players: {}", (jc && !jc->show_jumpers) ? "On" : "Off").data(), PMENU_ALIGN_LEFT,
+					Jump_MenuToggleJumpers);
+}
+
+// The three handlers below leave the menu open and let it relabel in place,
+// which is what makes a settings screen usable - the map pager does the same.
+// PMenu_Update marks the menu dirty and the next client frame re-sends it.
+static void Jump_MenuCycleSpeedo(edict_t *ent, pmenuhnd_t *hnd)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	const bool on = Jump_MenuReadoutState(jc, true) != JUMP_READOUT_OFF;
+
+	Jump_MenuSetReadout(ent, jc, true, on ? JUMP_READOUT_OFF : JUMP_READOUT_ON);
+	Jump_MenuClick(ent);
+	PMenu_Update(ent);
+}
+
+static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	// Off - On - Centred, but only for a client that can draw the centred one.
+	// The status bar has no way to anchor a bar in the middle, so for a stock
+	// client the third state would be indistinguishable from the second and the
+	// cycle would look broken.
+	const int state = Jump_MenuReadoutState(jc, false);
+	int		  next;
+
+	if (state == JUMP_READOUT_OFF)
+		next = JUMP_READOUT_ON;
+	else if (state == JUMP_READOUT_ON && jc->client_hud)
+		next = JUMP_READOUT_CENTRED;
+	else
+		next = JUMP_READOUT_OFF;
+
+	Jump_MenuSetReadout(ent, jc, false, next);
+	Jump_MenuClick(ent);
+	PMenu_Update(ent);
+}
+
+static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd)
+{
+	Jump_CmdJumpers(ent);
+	PMenu_Update(ent);
+}
+
+static void Jump_MenuOpenOptions(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	Jump_OpenOptionsMenu(ent);
+}
+
+static void Jump_OpenOptionsMenu(edict_t *ent)
+{
+	PMenu_Open(ent, jump_options_menu, JUMP_OPT_SPEEDO, JUMP_MENU_ENTRIES, nullptr, Jump_MenuUpdateOptions);
 }
 
 void Jump_OpenMainMenu(edict_t *ent)

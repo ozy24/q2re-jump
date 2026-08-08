@@ -26,6 +26,16 @@ released — see [docs/release-process.md](docs/release-process.md).
   Players running the mod's own DLL get the finer client-side version instead — their client tells
   the server to stop drawing its own, so nobody ends up with two.
 
+- **An Options screen in the menu**, directly under How to Play, for the settings that change what
+  you see and nothing anyone else does: **Speedometer**, **Strafe Meter** and **Hide Players**. Rows
+  stay open and relabel as you pick them.
+
+  A row means the readout, not one of the two copies of it — **On** gives you the best version you
+  can get, the finer overlay one if you are running the mod's own DLL and the status bar one if you
+  are not, and **Off** means gone everywhere. So there is finally one place to change this that does
+  not depend on knowing whether you installed anything. **Centred** on the strafe row is DLL-only,
+  since the status bar cannot anchor a bar in the middle.
+
 ### Changed
 
 - **`jump_hud_speed` and `jump_hud_strafe` now default to `1`, and `0` means "no readout at all".**
@@ -39,6 +49,10 @@ released — see [docs/release-process.md](docs/release-process.md).
   server to draw its own, so there was no way for a player with the DLL to turn a readout off and
   have it stay off. If you had explicitly set either cvar to `0`, note that it now means off rather
   than "let the status bar draw it".
+
+- **`speedo` and `strafebar` now say where the setting lives** if you are running the mod's own DLL,
+  rather than setting a flag your client would immediately overrule. Without the DLL they work
+  exactly as before. Either way, Options in the menu changes the right thing.
 
 ### Fixed
 

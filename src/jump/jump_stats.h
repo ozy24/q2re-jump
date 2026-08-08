@@ -93,7 +93,8 @@ static_assert((int) JUMP_STAT_SPEED_D1 < (int) MAX_STATS, "jump stat out of rang
 // (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
 // nothing reads it either, which makes it safer ground than the CTF block,
 // where 27's problem is precisely that the stock statusbar reads it. 54 is the
-// strafe bar and 55-58 the speedometer's digits; 59-63 remain.
+// strafe bar, 55-58 the speedometer's digits and 59 the HUD request; 60-63
+// remain.
 //
 // Ten, not eleven: bg_local.h's own static_assert allows
 // STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past
@@ -126,3 +127,49 @@ constexpr int JUMP_HUD_STRAFE_YB = -82;
 // yb counts upwards from the bottom edge, so "below" is the larger value. Easy
 // to get backwards, and a swap would put the bar over the number.
 static_assert(JUMP_HUD_STRAFE_YB > JUMP_HUD_SPEED_YB, "the strafe bar sits below the speed number");
+
+// What a readout is set to. These ARE the values of the jump_hud_speed and
+// jump_hud_strafe cvars - named because the options menu and the server both
+// reason about them, and `2` meaning "centred" is not guessable from a literal.
+//
+// Only the strafe meter has a use for CENTRED; the speedometer is off or on.
+// Both halves treat any non-zero value as on, so a stray 3 degrades to plain
+// rather than to nothing.
+constexpr int JUMP_READOUT_OFF = 0;
+constexpr int JUMP_READOUT_ON = 1;
+constexpr int JUMP_READOUT_CENTRED = 2;
+
+// How the options menu changes a client-side setting: the server publishes the
+// state it wants here, and the cgame applies it to its own cvars with
+// cgi.cvar_set. See the svc_stufftext trap in AGENTS.md for why this is a stat
+// rather than a stuffed console command.
+//
+// Both readouts ride in one stat, plus a sequence number so the client can tell
+// a fresh request from the one it already ran - the values alone cannot, since
+// asking twice for the same thing is legitimate. Sequence 0 means nothing is
+// pending, which is why it counts 1..15 and skips 0 on wrap.
+constexpr player_stat_t JUMP_STAT_HUD_REQUEST = (player_stat_t) 59;
+
+static_assert((int) JUMP_STAT_HUD_REQUEST < (int) MAX_STATS, "jump stat out of range");
+
+constexpr int JUMP_HUD_REQUEST_SEQ_MAX = 15;
+
+constexpr int16_t Jump_EncodeHudRequest(int seq, int speed, int strafe)
+{
+	return (int16_t) (((seq & 15) << 4) | ((strafe & 3) << 2) | (speed & 3));
+}
+
+constexpr int Jump_HudRequestSeq(int16_t request)
+{
+	return (request >> 4) & 15;
+}
+
+constexpr int Jump_HudRequestSpeed(int16_t request)
+{
+	return request & 3;
+}
+
+constexpr int Jump_HudRequestStrafe(int16_t request)
+{
+	return (request >> 2) & 3;
+}
