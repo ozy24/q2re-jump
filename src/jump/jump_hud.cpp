@@ -77,8 +77,15 @@ void Jump_SetStats(edict_t *ent)
 	// version instead - see Jump_ServerDrawsStrafeBar for who decides.
 	const int strafe_level = Jump_ServerDrawsStrafeBar(jc) ? jump::StrafeBarLevel(jc->strafe_readout) : -1;
 
+	// Two families of pre-rendered strings, and the dead-side one is picked by
+	// pointing the stat at the far half. A low bar means "you are wasting most
+	// of it" either way; the marker is what says the waste is the kind that
+	// pays nothing at all until you turn further.
+	const int strafe_family =
+		jump::StrafeBarDeadSide(jc->strafe_readout) ? jump::STRAFE_BAR_DEAD_OFFSET : 0;
+
 	ent->client->ps.stats[JUMP_STAT_STRAFE_BAR] =
-		strafe_level >= 0 ? (int16_t) (CONFIG_JUMP_STRAFE_BAR + strafe_level) : 0;
+		strafe_level >= 0 ? (int16_t) (CONFIG_JUMP_STRAFE_BAR + strafe_family + strafe_level) : 0;
 
 	// The speedometer, one stat per digit, each pointing at a pre-rendered digit
 	// string. Same reasoning as the bar above: the alternative is the HUD's

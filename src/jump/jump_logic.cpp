@@ -877,7 +877,12 @@ int StrafeBarLevel(const strafe_readout_t &readout, int segments)
 	return level;
 }
 
-std::string StrafeBarString(int level, int segments)
+bool StrafeBarDeadSide(const strafe_readout_t &readout)
+{
+	return readout.valid && readout.offset <= STRAFE_DEAD_OFFSET;
+}
+
+std::string StrafeBarString(int level, int segments, bool dead_side)
 {
 	if (segments < 1)
 		return {};
@@ -890,10 +895,19 @@ std::string StrafeBarString(int level, int segments)
 	// Plain ASCII on purpose. The bar has to render in both HUD fonts - the
 	// 1997 character set and the rerelease's own - and anything outside ASCII
 	// is only guaranteed in one of them.
+	// The dead side is marked by what the bar is NOT filled with, so both
+	// families are the same number of glyphs. A cstring2 centres the whole
+	// string, so a marker appended on the end would slide the bar sideways every
+	// time it appeared - and it appears exactly when the player is crossing the
+	// line repeatedly, which is the shimmy this readout is meant to cure.
+	//
+	// The fill still means what it always did. Only the remainder changes, from
+	// neutral dashes to arrows saying the missing part is on the side that pays
+	// nothing at all.
 	std::string out = "[";
 
 	out.append((size_t) level, '#');
-	out.append((size_t) (segments - level), '-');
+	out.append((size_t) (segments - level), dead_side ? '<' : '-');
 	out += ']';
 
 	return out;

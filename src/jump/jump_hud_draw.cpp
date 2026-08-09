@@ -300,13 +300,24 @@ static void Jump_DrawStrafeMeter(const jump_overlay_ctx_t &ctx)
 	const int px = ctx.scale < 1 ? 1 : ctx.scale;
 	const int ix = (int) bx, iy = (int) by, iw = (int) bw, ih = (int) bh;
 
+	const bool centred = jump_hud_strafe->integer >= 2;
+
+	// The dead side, shown the same way the status bar shows it: in the part of
+	// the track that is NOT filled. The bar's own version turns its remaining
+	// dashes into arrows; this turns the empty track red. Same statement, same
+	// footprint, nothing new appearing beside a readout you are trying to read -
+	// which is what got the last two overlay additions cut.
+	//
+	// The centred form already says which way you erred by which side it fills,
+	// so it does not need telling twice.
+	const bool dead = !centred && jump::StrafeBarDeadSide(strafe);
+
 	// Border, then the empty track over it - the same two-rectangle idiom the
 	// stock health bars use. "_white" is the engine's solid-fill primitive; it
 	// needs no asset and nothing to precache.
 	cgi.SCR_DrawColorPic(ix - px, iy - px, iw + 2 * px, ih + 2 * px, "_white", rgba_black);
-	cgi.SCR_DrawColorPic(ix, iy, iw, ih, "_white", { 40, 40, 40, 200 });
-
-	const bool centred = jump_hud_strafe->integer >= 2;
+	cgi.SCR_DrawColorPic(ix, iy, iw, ih, "_white",
+						 dead ? rgba_t { 90, 26, 26, 220 } : rgba_t { 40, 40, 40, 200 });
 
 	// The reference mark: the centre when the bar is signed, the 90% target
 	// when it is not. Static either way - a moving marker beside a moving bar

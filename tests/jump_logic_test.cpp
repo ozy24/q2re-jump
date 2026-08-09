@@ -1306,6 +1306,85 @@ static void TestStrafeBarLevel()
 	// Out-of-range levels clamp rather than running off the end.
 	CHECK_EQ(jump::StrafeBarString(-3, 12), "[------------]");
 	CHECK_EQ(jump::StrafeBarString(99, 12), "[############]");
+
+	// The dead-side family: same fill, same glyph count, and the remainder says
+	// which side the missing part is on. Equal length is not cosmetic - the row
+	// is drawn with a centred token, so a longer string would shift the bar
+	// sideways every time the marker appeared, which is precisely when the
+	// player is crossing the line and least wants the thing moving.
+	CHECK_EQ(jump::StrafeBarString(4, 12, true), "[####<<<<<<<<]");
+	CHECK_EQ(jump::StrafeBarString(0, 12, true), "[<<<<<<<<<<<<]");
+	CHECK_EQ(jump::StrafeBarString(12, 12, true), "[############]");
+
+	for (int i = 0; i <= 12; i++)
+		CHECK(jump::StrafeBarString(i, 12, true).size() == width);
+
+	// Nothing measured is never the dead side - there is no error to have a
+	// direction, and the row is gated off anyway.
+	jump::strafe_readout_t blank;
+	CHECK(!jump::StrafeBarDeadSide(blank));
+
+	// Wide of the line is the safe error and stays unmarked, however much is
+	// being wasted. Narrow of it is the wall, and gets the marker.
+	out.efficiency = 0.3f;
+	out.offset = 0.7f; // over-turning: wide
+	CHECK(!jump::StrafeBarDeadSide(out));
+
+	out.offset = -0.7f; // under-turning: inside the line
+	CHECK(jump::StrafeBarDeadSide(out));
+
+	// A deadband, not a sign test. A reading hovering either side of perfect
+	// must not strobe the marker - which would land hardest on the players
+	// riding the optimum, who are the ones it is meant to help.
+	out.offset = -0.05f;
+	CHECK(!jump::StrafeBarDeadSide(out));
+
+	out.offset = jump::STRAFE_DEAD_OFFSET;
+	CHECK(jump::StrafeBarDeadSide(out));
+
+	// The two families have to fit the configstring block they share.
+	CHECK(2 * (jump::STRAFE_BAR_SEGMENTS + 1) <= 32);
+	CHECK(jump::STRAFE_BAR_DEAD_OFFSET == jump::STRAFE_BAR_SEGMENTS + 1);
+
+	// The fill and the marker are chosen by two different smoothed numbers, so
+	// it is worth knowing they cannot contradict each other. |offset| can never
+	// exceed 1 - efficiency, because the signed loss is built from the same
+	// per-frame shortfalls the efficiency is missing - so a bar cannot be nearly
+	// full AND marked dead. At the -0.25 threshold the fullest it can be is 75%.
+	{
+		jump::move_ring_t	 ring;
+		jump::strafe_state_t state;
+		int					 worst_dead_level = -1;
+
+		// Alternate perfect frames with dead ones - the mixed case that produces
+		// a mid bar and a dead lean at the same time.
+		for (int i = 0; i < 80; i++)
+		{
+			const bool dead_frame = (i % 2) == 0;
+			// 400 fwd at 100 ups is optimal; the same input at 400 ups is inside
+			// the line and pays nothing.
+			ring.Push(MakeAirSample((uint64_t) i * 25, dead_frame ? 400.f : 100.f, 0.f, 0.f, 400.f, 0.f, 25));
+
+			const jump::strafe_readout_t r = state.Update(ring);
+
+			if (!r.valid)
+				continue;
+
+			CHECK(std::fabs(r.offset) <= 1.f - r.efficiency + 1e-3f);
+
+			if (jump::StrafeBarDeadSide(r))
+			{
+				const int level = jump::StrafeBarLevel(r);
+
+				if (level > worst_dead_level)
+					worst_dead_level = level;
+			}
+		}
+
+		// The mix does reach the marker, and never with a bar that looks healthy.
+		CHECK(worst_dead_level >= 0);
+		CHECK(worst_dead_level <= 9); // 0.75 * 12, rounded
+	}
 }
 
 static void TestSpeedDigits()

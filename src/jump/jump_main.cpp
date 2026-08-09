@@ -107,12 +107,19 @@ void Jump_InitLevel(const char *entities)
 		// it during play is a stat pointing at one of these rather than a text
 		// write per frame - a configstring write broadcasts to everyone, which
 		// would be unaffordable at frame rate and is free at map load.
-		static_assert(jump::STRAFE_BAR_SEGMENTS + 1 <=
+		// Two families: the ordinary bar, then the same fills again carrying the
+		// dead-side marker. Which one a client sees is a stat pointing at a
+		// different slot, so the marker costs no extra traffic during play.
+		static_assert(2 * (jump::STRAFE_BAR_SEGMENTS + 1) <=
 						  CONFIG_JUMP_STRAFE_BAR_END - CONFIG_JUMP_STRAFE_BAR + 1,
 					  "strafe bar needs more configstring slots");
 
 		for (int i = 0; i <= jump::STRAFE_BAR_SEGMENTS; i++)
+		{
 			gi.configstring(CONFIG_JUMP_STRAFE_BAR + i, jump::StrafeBarString(i).c_str());
+			gi.configstring(CONFIG_JUMP_STRAFE_BAR + jump::STRAFE_BAR_DEAD_OFFSET + i,
+							jump::StrafeBarString(i, jump::STRAFE_BAR_SEGMENTS, true).c_str());
+		}
 
 		// The speedometer's digits, same idea: ten strings written once cover
 		// every number it can show. The blank is a space rather than an empty

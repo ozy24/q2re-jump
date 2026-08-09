@@ -253,7 +253,34 @@ and is easier than remembering which setting you have. The equivalents are
 `jump_hud_strafe 0`, which turns the meter off everywhere including the server's
 copy, and `strafebar` without the DLL.
 
-Four things worth knowing:
+**Arrows mean you are inside the line.** When the empty part of the bar turns
+from dashes into arrows — `[####<<<<<<<<]` — you are turning *too little*, and
+that is a different problem from being a bit wide:
+
+```
+[########----]   wide of the best angle — you are taking most of what is there
+[####<<<<<<<<]   inside it — you are taking nothing, turn further
+```
+
+Being wide is gentle. The gain tapers off over about forty degrees, so a wide
+strafe still collects most of what was on offer and the bar reads honestly as
+part-full. Inside the line there is no taper at all: the engine stops
+accelerating you entirely, so the frame is worth exactly zero however slightly
+you crossed. At 125 fps that boundary is **half a degree** from the best angle,
+against forty-eight degrees of room on the other side.
+
+That asymmetry is why the arrows exist. Both mistakes shorten the bar, and from
+the length alone you cannot tell which one you are making — but only one of them
+is the kind where turning further is free and turning back costs you the lot.
+The arrows appear when enough of what you are missing is on that side; the bar
+can still be part-full while they show, because you are only crossing the line
+some of the time.
+
+If you are good enough to sit right on the best angle you will see them come and
+go as you cross it. That is real, not a glitch, and it is why most players are
+better off riding a degree or two wide on purpose.
+
+Four more things worth knowing:
 
 - **It is an air meter.** It empties on the ground, because on the ground the
   answer is always "all of it" — and because the arithmetic stops being exact

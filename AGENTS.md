@@ -274,6 +274,11 @@ string, or one starting with `$` is read as a localization key.
   digit.
 - **The client font is proportional** by default (`scr_usekfont`), so space-padded columns never
   line up. Use one cursor token per cell.
+- **A centred pre-rendered element must keep the same glyph count in every state.** `cstring2`
+  centres the whole string, so a state one character longer draws shifted by half a glyph. The
+  strafe bar's dead-side family marks itself by changing the *unfilled* character (`-` to `<`)
+  rather than appending a marker, precisely so the bar cannot slide sideways as the marker comes
+  and goes — and it comes and goes exactly when the player is crossing the optimal angle.
 - **`Jump_InitLevel` runs while every client is flagged disconnected** — `SpawnEntities` clears
   `pers.connected` ten lines above the hook. Per-client work belongs in `Jump_ClientSpawn`.
 - **Knockback is independent of damage.** Zero the damage value and let `T_Damage` continue;

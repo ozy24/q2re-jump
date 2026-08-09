@@ -10,6 +10,23 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **The strafe meter now says when you are turning too little**, by filling the empty part of the
+  bar with arrows — `[####<<<<<<<<]` — instead of dashes. Players running the mod's own DLL get a
+  red block on the left of the bar for the same thing.
+
+  This is the one distinction the bar was missing, and it matters more than it sounds. Being *wide*
+  of the best angle is gentle: the gain tapers off over about forty degrees, so you still collect
+  most of what was on offer. Being *inside* it is a wall — the engine stops accelerating you
+  altogether, so the frame is worth exactly nothing however slightly you crossed. At 125 fps that
+  boundary sits half a degree from the best angle, against forty-eight degrees of room on the other
+  side. Both mistakes used to draw the same short bar.
+
+  Thanks to Sata for the report that turned this up: "I'm doing perfect strafes and sometimes bar
+  is empty and sometimes full." The meter was right — that is what riding a half-degree edge looks
+  like — but it had no way to say so.
+
 ## [0.7.0] - 2026-08-08
 
 ### Added

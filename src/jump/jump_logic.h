@@ -532,16 +532,48 @@ struct strafe_state_t
 // strings there are, plus one for empty.
 constexpr int STRAFE_BAR_SEGMENTS = 12;
 
+// The strings come in two families of STRAFE_BAR_SEGMENTS + 1: the ordinary
+// fills, then the same fills again carrying the dead-side marker. This is the
+// distance from a fill to its marked twin, in configstring slots.
+constexpr int STRAFE_BAR_DEAD_OFFSET = STRAFE_BAR_SEGMENTS + 1;
+
 // Which of those strings to show: 0..STRAFE_BAR_SEGMENTS filled cells, or -1
 // when there is nothing to show. Fill is EFFICIENCY - full means you are
 // taking everything on offer, which is the direction every other bar in every
 // other game already trained people to expect.
 int StrafeBarLevel(const strafe_readout_t &readout, int segments = STRAFE_BAR_SEGMENTS);
 
-// One of those pre-rendered strings, e.g. "[####--------]". Built once per level
-// and parked in configstrings, so showing the bar costs a stat pointing at one
-// of them rather than a text write per frame.
-std::string StrafeBarString(int level, int segments = STRAFE_BAR_SEGMENTS);
+// How far the error has to lean narrow before the bar says so. A fraction of
+// the gain that was available, so -0.25 means a quarter of everything on offer
+// went specifically to being inside the line.
+//
+// A deadband rather than a sign test, because sign alone flips on noise and the
+// marker would strobe on exactly the players it is meant to help.
+constexpr float STRAFE_DEAD_OFFSET = -0.25f;
+
+// Whether the player is losing to the DEAD side - narrow of the optimal angle,
+// where vanilla Q2 air acceleration gives exactly nothing rather than less.
+//
+// This is the asymmetry that makes the plain fill misleading on its own. Wide of
+// the line the gain tapers away over some forty degrees, so a wide error is
+// gentle, self-correcting and reads honestly as a part-full bar. Narrow of it
+// `addspeed` goes negative, the engine early-outs, and the frame is worth zero
+// however slightly you crossed - and the crossing point is under a degree away
+// at 125 fps. Both show as a low bar; only one of them means "you are getting
+// nothing and must turn further".
+bool StrafeBarDeadSide(const strafe_readout_t &readout);
+
+// One of those pre-rendered strings, e.g. "[####--------]", or "[####<<<<<<<<]"
+// on the dead side. Built once per level and parked in configstrings, so showing
+// the bar costs a stat pointing at one of them rather than a text write per
+// frame.
+//
+// Both families are the same glyph count: a centred string whose length changed
+// would slide the bar sideways whenever the marker came and went.
+//
+// `segments` stays ahead of `dead_side` so that an existing two-argument call
+// cannot silently bind its segment count to the bool.
+std::string StrafeBarString(int level, int segments = STRAFE_BAR_SEGMENTS, bool dead_side = false);
 
 // ---------------------------------------------------------------------------
 // Speedometer digits
