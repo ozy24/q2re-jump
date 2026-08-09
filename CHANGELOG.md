@@ -12,6 +12,26 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **A CGaz strip**, `jump_hud_cgaz 1`, for players running the mod's own DLL. Translucent bands just
+  below the crosshair showing which view angles would accelerate you and which is best, drawn
+  relative to your view so you steer the centre mark into the green. Off by default: unlike the
+  speedometer and the strafe meter it is genuinely new on screen, it sits where you are aiming, and
+  it needs explaining before it helps.
+
+  It carries a red wedge in the middle that plain CGaz does not have, and that wedge is the reason
+  it is worth drawing in Quake II rather than being a straight port. In the Q3-style physics CGaz
+  was built for, the best angle sits comfortably inside its zone; here it is pinned to the wedge's
+  edge, where turning a fraction less stops the acceleration entirely. At 400 ups and 125 fps that
+  edge is half a degree away.
+
+  It is live and follows whatever the game is doing, ground included — on the ground the
+  acceleration is stronger and the best angle sits wider, and the strip says so rather than going
+  blank every time you touch the floor. It goes quiet only on ladders and in water, where the game
+  overrides your input and any angle it drew would be pointing somewhere else.
+
+  It pairs with the strafe meter rather than replacing it — one shows where to look, the other how
+  well you looked. Credit to Sata for that framing.
+
 - **The strafe meter now says when you are turning too little**, by filling the empty part of the
   bar with arrows — `[####<<<<<<<<]` — instead of dashes. Players running the mod's own DLL get a
   red block on the left of the bar for the same thing.

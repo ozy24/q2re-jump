@@ -1260,6 +1260,218 @@ static void TestStrafeCliffAsymmetry()
 	}
 }
 
+static void TestCgaz()
+{
+	// No keys held: nothing to steer, so nothing to draw. A strip built from an
+	// assumed key combination would be a guess dressed up as guidance.
+	jump::move_sample_t idle = MakeAirSample(0, 400.f, 0.f, 0.f, 0.f, 0.f, 8);
+	CHECK(!jump::CgazFromSample(idle).valid);
+
+	// Standing still has no heading to be an angle from.
+	jump::move_sample_t still = MakeAirSample(0, 0.f, 0.f, 0.f, 400.f, 0.f, 8);
+	CHECK(!jump::CgazFromSample(still).valid);
+
+	// The headline geometry, at 400 ups on vanilla air. Velocity along +x, pure
+	// forward input, so the wish already points along the velocity and `base` is
+	// zero - the strip is centred on the angle that earns nothing.
+	jump::move_sample_t s = MakeAirSample(0, 400.f, 0.f, 0.f, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c = jump::CgazFromSample(s);
+
+	CHECK(c.valid);
+	CHECK(Near(c.base, 0.f, 1e-3f));
+
+	// acos(300/400) = 41.41, acos(292.5/400) = 43.01, acos(-7.5/800) = 90.54.
+	CHECK(Near(c.zone_inner, 41.41f, 0.05f));
+	CHECK(Near(c.optimal, 43.01f, 0.05f));
+	CHECK(Near(c.zone_outer, 90.54f, 0.05f));
+
+	// The optimum lives just outside the near edge, not in the middle of the
+	// zone - which is the whole reason a Q2 strip reads differently from a Q3
+	// one, and why the useful thing to draw is the inner edge.
+	CHECK(c.optimal > c.zone_inner);
+	CHECK(c.optimal - c.zone_inner < 2.f);
+	CHECK(c.zone_outer - c.optimal > 40.f);
+
+	// Pointing straight down the velocity is inside the dead wedge.
+	CHECK(!c.inside);
+
+	// Only one of the two optima is drawn: the one on the side the wish is
+	// already on, which is what every other CGaz shows and what stops two bright
+	// lines competing for the same meaning.
+	//
+	// Velocity 90 degrees LEFT of the view (base +90) means the wish sits 90
+	// degrees clockwise of the velocity, so the solution to point at is 43
+	// degrees back off the velocity on that same side: 90 - 43 = 47 degrees left.
+	jump::cgaz_readout_t c_side_left = jump::CgazFromSample(MakeAirSample(0, 0.f, 400.f, 0.f, 400.f, 0.f, 25));
+
+	CHECK(c_side_left.valid);
+	CHECK(Near(c_side_left.base, 90.f, 0.05f));
+	CHECK(Near(c_side_left.optimal_view, 90.f - c_side_left.optimal, 0.05f));
+	CHECK(c_side_left.optimal_view > 0.f); // still on the left, where the velocity is
+
+	// Mirrored, and the tick swaps sides with it.
+	jump::cgaz_readout_t c_side_right =
+		jump::CgazFromSample(MakeAirSample(0, 0.f, -400.f, 0.f, 400.f, 0.f, 25));
+
+	CHECK(Near(c_side_right.base, -90.f, 0.05f));
+	CHECK(Near(c_side_right.optimal_view, -90.f + c_side_right.optimal, 0.05f));
+	CHECK(c_side_right.optimal_view < 0.f);
+
+	// It is always one of the two solutions, never something in between.
+	for (const jump::cgaz_readout_t &r : { c, c_side_left, c_side_right })
+	{
+		const bool plus = Near(r.optimal_view, r.base + r.optimal, 0.05f);
+		const bool minus = Near(r.optimal_view, r.base - r.optimal, 0.05f);
+
+		CHECK(plus != minus || r.optimal == 0.f);
+	}
+
+	// Turn to the optimum and the strip says so. Yaw and `base` move together:
+	// the wish turns with the view.
+	jump::move_sample_t on = MakeAirSample(0, 400.f, 0.f, c.optimal, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c_on = jump::CgazFromSample(on);
+
+	CHECK(c_on.valid);
+	CHECK(c_on.inside);
+	CHECK(Near(std::fabs(c_on.base), c_on.optimal, 0.05f));
+
+	// Half a degree inside the near edge is outside the zone, at 125 fps. This
+	// is the wall the strafe meter can only report after the fact.
+	jump::move_sample_t fast_in = MakeAirSample(0, 400.f, 0.f, 41.f, 400.f, 0.f, 8);
+	CHECK(!jump::CgazFromSample(fast_in).valid == false); // valid, just not inside
+	CHECK(!jump::CgazFromSample(fast_in).inside);
+
+	// The zone is symmetric about the velocity: mirroring the view mirrors it.
+	jump::move_sample_t left = MakeAirSample(0, 400.f, 0.f, -c.optimal, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c_left = jump::CgazFromSample(left);
+
+	CHECK(c_left.inside);
+	CHECK(Near(c_left.zone_inner, c.zone_inner, 1e-3f));
+	CHECK(Near(c_left.optimal, c.optimal, 1e-3f));
+
+	// Which keys produced the wish cannot matter, exactly as for the meter. Pure
+	// side input at yaw+90 puts the wish where pure forward at yaw does.
+	jump::move_sample_t side = MakeAirSample(0, 400.f, 0.f, c.optimal + 90.f, 0.f, 400.f, 25);
+	jump::cgaz_readout_t c_side = jump::CgazFromSample(side);
+
+	CHECK(c_side.inside);
+	CHECK(Near(std::fabs(c_side.base), c.optimal, 0.05f));
+
+	// Slow enough and there is no dead wedge at all - the target is above your
+	// speed, so every angle from dead ahead outwards earns something. Beginners
+	// genuinely cannot strafe wrong, which is worth the strip showing honestly.
+	jump::move_sample_t slow = MakeAirSample(0, 100.f, 0.f, 0.f, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c_slow = jump::CgazFromSample(slow);
+
+	CHECK(c_slow.valid);
+	CHECK(Near(c_slow.zone_inner, 0.f, 1e-3f));
+	CHECK(c_slow.inside);
+
+	// The 30-clamp model puts the optimum near perpendicular instead, which is
+	// the different technique the strip has to keep up with.
+	jump::move_sample_t clamped = MakeAirSample(0, 400.f, 0.f, 0.f, 400.f, 0.f, 25, 10);
+	jump::cgaz_readout_t c_clamped = jump::CgazFromSample(clamped);
+
+	CHECK(c_clamped.valid);
+	CHECK(c_clamped.optimal > 80.f);
+
+	// And its far edge is set by the TARGET, not half the budget. Here budget is
+	// 75 against a target of 30, so the bound is -30 and the edge is
+	// acos(-30/400) = 94.30 degrees. Using -budget/2 would claim 95.38 and paint
+	// a degree of braking green; halving the smaller of the two instead - the
+	// obvious wrong fix - claims 92.15 and hides three degrees of real zone.
+	// With a larger sv_airaccelerate the first mistake greens the whole strip.
+	CHECK(Near(c_clamped.zone_outer, 94.30f, 0.1f));
+
+	{
+		const float			 outer_deg = c_clamped.zone_outer;
+		const float			 rad = outer_deg * 3.14159265358979323846f / 180.f;
+		const float			 along = 400.f * std::cos(rad);
+		jump::strafe_frame_t probe =
+			jump::StrafeFrame(clamped.vel_before, 0.f, 0.f, 0.f, 400.f, 0.f, 0.025f, false, 10);
+
+		// The reported edge is where the gain crosses zero: just inside it pays,
+		// just outside it costs.
+		CHECK(jump::AccelGain(400.f, along + 1.f, probe.target, probe.budget) > 0.f);
+		CHECK(jump::AccelGain(400.f, along - 1.f, probe.target, probe.budget) < 0.f);
+	}
+
+	// Refused only where the wish itself would not be what the keys said:
+	// PM_AddCurrents rewrites it on ladders and in water, so the drawn angles
+	// would point somewhere else entirely rather than merely be imprecise.
+	for (int which = 0; which < 5; which++)
+	{
+		jump::move_sample_t bad = MakeAirSample(0, 400.f, 0.f, 0.f, 400.f, 0.f, 25);
+
+		switch (which)
+		{
+		case 0: bad.on_ladder = true; break;
+		case 1: bad.water_level = 2; break;
+		case 2: bad.discontinuity = true; break;
+		case 3: bad.pm_normal = false; break;
+		// Chasing: the ground flag belongs to the viewer, so the branch cannot
+		// be chosen and the strip would model the wrong one.
+		case 4: bad.on_ground_valid = false; break;
+		}
+
+		CHECK(!jump::CgazFromSample(bad).valid);
+	}
+
+	// The GROUND is a branch, not a refusal. CGaz follows whatever pmove is
+	// doing - a strip that blanked on every ground contact would be useless on a
+	// hop chain, and pointing at the angles that speed you up is forgiving in a
+	// way that grading a frame after the fact is not.
+	//
+	// The ground branch is PM_Accelerate with pm_accelerate and NO target clamp,
+	// so at 400 ups the target is the full wishspeed of 300 and the budget is
+	// 10 * 300 * 0.025 = 75 - a far bigger budget than the air model's 7.5, which
+	// pulls the optimum in towards the velocity.
+	jump::move_sample_t ground = MakeAirSample(0, 400.f, 0.f, 0.f, 400.f, 0.f, 25);
+	ground.on_ground = true;
+	ground.on_ground_entry = true;
+
+	jump::cgaz_readout_t c_ground = jump::CgazFromSample(ground);
+
+	CHECK(c_ground.valid);
+	CHECK(Near(c_ground.zone_inner, 41.41f, 0.05f)); // acos(300/400), same target
+	CHECK(Near(c_ground.optimal, 55.77f, 0.1f));	 // acos((300-75)/400)
+	CHECK(c_ground.optimal > c.optimal);			 // a bigger budget opens the angle
+
+	// And the air model is untouched by the new parameter.
+	CHECK(Near(c.optimal, 43.01f, 0.05f));
+
+	// The sign of `base`, which the drawing depends on and which nothing else
+	// here can pin: every other field is a magnitude. Quake yaw counts
+	// counter-clockwise, so a velocity at heading 90 with the view at 0 is off to
+	// the player's LEFT, and base must come out POSITIVE. A drawing that maps
+	// positive degrees rightwards mirrors the instrument and steering by it takes
+	// you away from the zone.
+	jump::move_sample_t vel_left = MakeAirSample(0, 0.f, 400.f, 0.f, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c_left_vel = jump::CgazFromSample(vel_left);
+
+	CHECK(c_left_vel.valid);
+	CHECK(Near(c_left_vel.base, 90.f, 0.05f));
+
+	jump::move_sample_t vel_right = MakeAirSample(0, 0.f, -400.f, 0.f, 400.f, 0.f, 25);
+	jump::cgaz_readout_t c_right_vel = jump::CgazFromSample(vel_right);
+
+	CHECK(c_right_vel.valid);
+	CHECK(Near(c_right_vel.base, -90.f, 0.05f));
+
+	// base agrees with the meter's own projection: cos(base) * speed is `along`.
+	const jump::strafe_frame_t f = jump::StrafeFrame(s.vel_before, 0.f, 20.f, 0.f, 400.f, 0.f, 0.025f, false, 0);
+	jump::move_sample_t		   at20 = MakeAirSample(0, 400.f, 0.f, 20.f, 400.f, 0.f, 25);
+	jump::cgaz_readout_t	   c20 = jump::CgazFromSample(at20);
+
+	CHECK(Near(400.f * std::cos(c20.base * 3.14159265358979323846f / 180.f), f.along, 0.5f));
+
+	// Wrapping, which the drawing leans on to clip the zones to the strip.
+	CHECK(Near(jump::WrapDegrees(190.f), -170.f, 1e-3f));
+	CHECK(Near(jump::WrapDegrees(-190.f), 170.f, 1e-3f));
+	CHECK(Near(jump::WrapDegrees(540.f), 180.f, 1e-3f));
+	CHECK(Near(jump::WrapDegrees(0.f), 0.f, 1e-3f));
+}
+
 static void TestStrafeBarLevel()
 {
 	jump::strafe_readout_t out;
@@ -1440,6 +1652,7 @@ int main()
 	TestStrafeState();
 	TestStrafeKeysDoNotMatter();
 	TestStrafeCliffAsymmetry();
+	TestCgaz();
 	TestStrafeBarLevel();
 	TestSpeedDigits();
 	TestRecords();

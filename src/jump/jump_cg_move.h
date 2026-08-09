@@ -25,5 +25,10 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 // second return value, so the speedometer's call site does not change.
 const jump::strafe_readout_t &Jump_CG_StrafeReadout();
 
+// The CGaz geometry as of that same call - which view angles would accelerate
+// you right now. Built from the newest sample alone, with no smoothing: it
+// describes the choice in front of you, not how the last few frames went.
+const jump::cgaz_readout_t &Jump_CG_CgazReadout();
+
 // Smoothing memory for the strafe reading, in ms. Set from the cvar each frame.
 void Jump_CG_SetStrafeTau(uint64_t tau_ms);

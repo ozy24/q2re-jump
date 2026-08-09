@@ -73,6 +73,7 @@ static jump::speed_state_t	  jump_speed;
 static jump::speed_readout_t  jump_readout;
 static jump::strafe_state_t	  jump_strafe;
 static jump::strafe_readout_t jump_strafe_readout;
+static jump::cgaz_readout_t	  jump_cgaz_readout;
 static uint64_t				  jump_strafe_tau_ms = jump::STRAFE_TAU_MS;
 
 // The previous committed frame's pmove flags, which move_sample_t does not
@@ -321,12 +322,22 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 	jump_readout = jump_speed.Update(jump_ring);
 	jump_strafe_readout = jump_strafe.Update(jump_ring, jump_strafe_tau_ms);
 
+	// CGaz is the one readout with no memory: it describes the choice in front
+	// of you on this frame, not how the last few went, so it is built from the
+	// sample rather than smoothed. Nothing to accumulate and nothing to decay.
+	jump_cgaz_readout = jump::CgazFromSample(sample);
+
 	return jump_readout;
 }
 
 const jump::strafe_readout_t &Jump_CG_StrafeReadout()
 {
 	return jump_strafe_readout;
+}
+
+const jump::cgaz_readout_t &Jump_CG_CgazReadout()
+{
+	return jump_cgaz_readout;
 }
 
 void Jump_CG_SetStrafeTau(uint64_t tau_ms)

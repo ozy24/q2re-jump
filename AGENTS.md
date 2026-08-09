@@ -177,6 +177,14 @@ where it costs nothing and leaves with the message it belongs to. Something abou
 is a bar element. **Then: can the bar draw it?** If yes it goes there, because every player sees it,
 and the reason for the mod existing is not served by hiding the teaching tools behind a download.
 
+The CGaz strip (`jump_hud_cgaz`) is the second element to pass it, and it passed on a different
+clause. It is not about your ongoing state at all — it is about the *choice in front of you*, which
+is why it has no smoothing, no bar-side twin and no place in the readout handshake. The bar could
+not draw it at any price: a moving zone of varying width needs a pre-rendered string per combination
+of position and width, which is combinatorial. That makes it the first teaching tool that is
+genuinely DLL-only, so it is **off by default** — the others default on precisely because the server
+already draws them and the cvar only picks a renderer.
+
 The strafe meter is the element that *passed* the test the next two failed. It answers a question
 the number cannot — *was that the best angle available?* — rather than restating one it already
 shows. That is the bar a new overlay element has to clear.

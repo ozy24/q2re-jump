@@ -383,6 +383,11 @@ constexpr float PM_MAXSPEED = 300.f;
 constexpr float PM_DUCKSPEED = 100.f;
 constexpr float PM_AIR_TARGET = 30.f;
 
+// PM_WalkMove's accel (p_move.cpp:184, 879). Only CGaz needs it - the strafe
+// meter is air-only on purpose - but the ground branch is still PM_Accelerate,
+// so the same maths describes it with a different accel and no target clamp.
+constexpr float PM_GROUND_ACCEL = 10.f;
+
 // forward.xy and right.xy as PM_AirMove sees them - which is NOT what the view
 // angles say. Before building the move axes, pmove wraps pitch into (-180,180]
 // and divides it by three (p_move.cpp:1684-1692), so looking down changes your
@@ -448,9 +453,14 @@ struct strafe_frame_t
 // (p_move.cpp:612-629). That asymmetry is the whole of strafe jumping.
 //
 // `dt` is cmd.msec / 1000. Air frames only - see ClassifyStrafeFrame.
+// `on_ground` selects PM_WalkMove's branch instead: PM_Accelerate with
+// pm_accelerate and no target clamp, which is what CGaz needs to keep drawing
+// while you are stood on something. The strafe meter never passes it - see
+// ClassifyStrafeFrame for why grading a ground frame is a different question
+// from showing which way to look on one.
 strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float yaw_deg,
 						   float roll_deg, float forwardmove, float sidemove, float dt, bool ducked,
-						   int air_accel);
+						   int air_accel, bool on_ground = false);
 
 enum class strafe_frame_kind_t
 {
@@ -526,6 +536,71 @@ struct strafe_state_t
 	// The client path: build the frame from the newest sample in the ring.
 	strafe_readout_t Update(const move_ring_t &ring, uint64_t tau_ms = STRAFE_TAU_MS);
 };
+
+// ---------------------------------------------------------------------------
+// CGaz
+// ---------------------------------------------------------------------------
+//
+// Where to look, rather than how well you looked. The strafe meter grades the
+// input you already made; this shows the set of view angles that would gain you
+// speed right now, and which one is best. Same acceleration maths, read forwards
+// instead of backwards - see docs/JUMP_MOD.md.
+//
+// Everything is expressed RELATIVE TO THE CURRENT VIEW, so 0 is where you are
+// pointing and the drawing needs no notion of absolute yaw. `base` is where the
+// wish would line up with your velocity; the zone and the optimum are distances
+// either side of it, because the maths is symmetric about the velocity and both
+// solutions are real.
+//
+// The zone is derived rather than sampled. A frame accelerates when the
+// projection of the velocity onto the wish lies in (-budget/2, target): above
+// `target` PM_Accelerate early-outs and pays nothing, and below -budget/2 you
+// are pushing hard enough against your own velocity to lose. Turning those two
+// bounds into angles is one acos each.
+struct cgaz_readout_t
+{
+	bool valid = false;
+
+	// View-relative angle at which the wish would point straight along the
+	// velocity. Everything below is measured out from here, both ways.
+	//
+	// POSITIVE IS LEFT, because Quake yaw counts counter-clockwise. A drawing
+	// that maps positive degrees rightwards mirrors the whole instrument, and no
+	// test of this struct can catch that - every field below is a magnitude.
+	float base = 0.f;
+
+	float zone_inner = 0.f; // near edge: inside this you get nothing at all
+	float zone_outer = 0.f; // far edge: beyond this you are losing speed
+	float optimal = 0.f;	// the best angle, always just outside zone_inner
+
+	// The best angle as a view-relative angle ready to draw, on the side your
+	// wish is CURRENTLY on.
+	//
+	// There are always two solutions, because the maths is symmetric about your
+	// velocity - turn left or turn right, both work. Drawing both puts two bright
+	// lines on screen and invites the question of which one is meant; every other
+	// CGaz shows one, the one you are already strafing toward, and swaps sides
+	// when you swap strafe keys. This is that one.
+	float optimal_view = 0.f;
+
+	// Whether the view is currently within one of the two accelerating zones.
+	bool inside = false;
+};
+
+// Builds the above from one command's worth of movement. Invalid when there is
+// no directional input - with no keys held there is no wish to steer, and a
+// strip drawn from an assumed key combination would be a guess - and on any
+// frame ClassifyStrafeFrame excludes, since outside air movement this model is
+// not the one pmove is running.
+//
+// Callers should HOLD the last valid reading rather than hide on an invalid one.
+// A hop chain touches the ground twice a second.
+cgaz_readout_t CgazFromSample(const move_sample_t &sample);
+
+// Wraps to (-180, 180]. Exposed because the drawing needs it: the strip is a
+// window onto a circle, so a band running off one end has to be re-entered at
+// the other rather than clipped away.
+float WrapDegrees(float degrees);
 
 // How many cells the statusbar's strafe bar has. The bar is drawn as text
 // picked from a set of pre-rendered strings, so this is also how many of those

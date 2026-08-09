@@ -567,6 +567,11 @@ static double Radians(double degrees)
 	return degrees * (JUMP_PI / 180.0);
 }
 
+static double Degrees(double radians)
+{
+	return radians * (180.0 / JUMP_PI);
+}
+
 void MoveAxes(float pitch_deg, float yaw_deg, float roll_deg, float out_forward_xy[2],
 			  float out_right_xy[2])
 {
@@ -653,13 +658,14 @@ float BestAlong(float speed, float target, float budget)
 
 strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float yaw_deg,
 						   float roll_deg, float forwardmove, float sidemove, float dt, bool ducked,
-						   int air_accel)
+						   int air_accel, bool on_ground)
 {
 	strafe_frame_t out;
 
 	// A negative sv_airaccelerate is reachable - the cvar has no lower bound -
 	// and would make the whole model degenerate.
-	const float accel = air_accel > 0 ? (float) air_accel : (air_accel == 0 ? 1.f : 0.f);
+	const float accel =
+		on_ground ? PM_GROUND_ACCEL : (air_accel > 0 ? (float) air_accel : (air_accel == 0 ? 1.f : 0.f));
 
 	if (accel <= 0.f || dt <= 0.f)
 		return out;
@@ -682,7 +688,10 @@ strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float 
 		wishspeed = maxspeed;
 
 	out.wishspeed = wishspeed;
-	out.target = air_accel != 0 ? (wishspeed < PM_AIR_TARGET ? wishspeed : PM_AIR_TARGET) : wishspeed;
+	// The 30-clamp is an AIR rule. PM_WalkMove hands the full wishspeed straight
+	// to PM_Accelerate, so on the ground the target is never clamped.
+	out.target = (!on_ground && air_accel != 0) ? (wishspeed < PM_AIR_TARGET ? wishspeed : PM_AIR_TARGET)
+												: wishspeed;
 	out.budget = accel * wishspeed * dt;
 
 	const float speed = HorizontalSpeed(vel_before_xy[0], vel_before_xy[1]);
@@ -695,6 +704,146 @@ strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float 
 
 	out.over_turning = out.along < out.along_best;
 	out.opportunity = out.gain_max > STRAFE_MIN_GAIN;
+
+	return out;
+}
+
+float WrapDegrees(float degrees)
+{
+	while (degrees > 180.f)
+		degrees -= 360.f;
+	while (degrees <= -180.f)
+		degrees += 360.f;
+
+	return degrees;
+}
+
+// acos in degrees, with the argument clamped. Every use below divides by a
+// speed, and a speed one float-epsilon under the numerator would otherwise hand
+// acos a value outside its domain and return a NaN into the drawing.
+static float AcosDegrees(float value)
+{
+	if (value > 1.f)
+		value = 1.f;
+	if (value < -1.f)
+		value = -1.f;
+
+	return (float) Degrees(std::acos(value));
+}
+
+cgaz_readout_t CgazFromSample(const move_sample_t &sample)
+{
+	cgaz_readout_t out;
+
+	// CGaz is live, the way every other CGaz is: it follows whatever branch pmove
+	// is actually taking, and the GROUND is a branch rather than a reason to stop
+	// drawing. This is where it parts company with the strafe meter, which
+	// excludes ground frames outright - and the two are asking different
+	// questions. Grading a ground frame needs the reconstruction to be exact,
+	// and it is not: friction has already run by the time PM_Accelerate sees the
+	// velocity, and SURF_SLICK never reaches pmove_t. Pointing at the angles
+	// that would speed you up is far more forgiving, and a strip that blanked
+	// every time you touched the floor would be useless on a hop chain.
+	//
+	// What is still refused is anything where the wish itself is not what the
+	// keys said. PM_AddCurrents rewrites it on ladders and in water, so the
+	// drawn angles would not merely be imprecise, they would point somewhere
+	// else entirely.
+	if (!sample.predicted || !sample.inputs_valid || sample.msec == 0)
+		return out;
+
+	if (sample.discontinuity || !sample.pm_normal || sample.on_ladder || sample.water_level > 0)
+		return out;
+
+	// Ground state is the viewer's while chasing (see move_sample_t), so the
+	// branch cannot be chosen and the strip would be modelling the wrong one.
+	if (!sample.on_ground_valid)
+		return out;
+
+	const float vx = sample.vel_before[0];
+	const float vy = sample.vel_before[1];
+	const float speed = HorizontalSpeed(vx, vy);
+
+	// Below walking pace the velocity has no meaningful heading to be an angle
+	// from, and the strip would spin on noise.
+	if (speed < 10.f)
+		return out;
+
+	// on_ground_entry rather than on_ground: the branch is chosen from the state
+	// pmove STARTED the command in, and on_ground after the move is where the
+	// player landed.
+	const strafe_frame_t frame =
+		StrafeFrame(sample.vel_before, sample.view_pitch, sample.view_yaw, sample.view_roll,
+					sample.forwardmove, sample.sidemove, (float) sample.msec / 1000.f, sample.ducked,
+					sample.air_accel, sample.on_ground_entry);
+
+	if (!frame.opportunity)
+		return out;
+
+	// Where the wish points now. StrafeFrame worked this out too, but from the
+	// projection alone the heading cannot be recovered, so it comes back out of
+	// the same function rather than being reconstructed a second way - one place
+	// that knows what the keys mean, pitch/3 included.
+	float wishvel[2];
+	WishVelocity(sample.view_pitch, sample.view_yaw, sample.view_roll, sample.forwardmove, sample.sidemove,
+				 wishvel);
+
+	const float wish_heading = (float) Degrees(std::atan2(wishvel[1], wishvel[0]));
+	const float vel_heading = (float) Degrees(std::atan2(vy, vx));
+
+	// Turning the view by r turns the wish by r, so the strip is just the angles
+	// either side of where the wish would line up with the velocity.
+	//
+	// SIGN, and it is the one thing here worth reading twice. Quake yaw counts
+	// counter-clockwise, so a world heading further anticlockwise than your view
+	// appears on the LEFT of the screen. `base` is therefore positive-left, and
+	// the drawing has to map positive degrees leftwards to match. Getting this
+	// backwards mirrors the whole instrument, and no test of this function can
+	// catch it, because everything below is symmetric in |base|.
+	out.base = WrapDegrees(vel_heading - wish_heading);
+
+	// The near edge is where the projection reaches `target` and PM_Accelerate
+	// stops paying out. When the target is above your speed there is no near
+	// edge at all - every angle from dead ahead outwards earns something, which
+	// is why slow players cannot strafe wrong. AcosDegrees clamps, so a ratio
+	// over 1 already lands on zero without a test here.
+	out.zone_inner = AcosDegrees(frame.target / speed);
+
+	// The far edge is where you start pushing hard enough against your own
+	// velocity to lose. Gain is positive when 2*along + a > 0, with
+	// a = clamp(target - along, 0, budget), and that splits:
+	//
+	//   along <= target - budget : a is the budget      -> along > -budget/2
+	//   along >  target - budget : a is target - along  -> along > -target
+	//
+	// The first branch is empty once the budget reaches twice the target, which
+	// is the 30-clamp model's normal state, so the bound there is the target and
+	// not half of it. Note the halving applies to ONLY the budget - taking half
+	// of whichever is smaller is a different and wrong answer.
+	const float half_budget = frame.budget * 0.5f;
+	const float far_along = -(half_budget < frame.target ? half_budget : frame.target);
+
+	out.zone_outer = AcosDegrees(far_along / speed);
+	out.optimal = AcosDegrees(frame.along_best / speed);
+
+	// Which of the two optima to draw. A view-relative angle r puts the wish at
+	// (r - base) from the velocity, so the current wish sits at -base - and the
+	// solution on that same side is the one worth pointing at:
+	//
+	//   wish side = sign(-base)  ->  r = base + sign(-base) * optimal
+	//
+	// At base == 0 the wish is straight down the velocity and the two are equally
+	// good; it picks one, and swaps the instant you rotate off. That swap is a
+	// real jump across the dead wedge, and it is what every CGaz does when you
+	// change strafe direction.
+	out.optimal_view = out.base + (out.base >= 0.f ? -out.optimal : out.optimal);
+
+	// The view sits `base` degrees off the wish-along-velocity angle, so that is
+	// also how far the current wish is from the velocity.
+	const float here = std::fabs(out.base);
+
+	out.inside = here >= out.zone_inner && here <= out.zone_outer;
+	out.valid = true;
 
 	return out;
 }

@@ -58,6 +58,9 @@ static cvar_t *jump_hud_speed;
 static cvar_t *jump_hud_speed_hz;
 static cvar_t *jump_hud_strafe;
 static cvar_t *jump_hud_strafe_tau;
+static cvar_t *jump_hud_cgaz;
+static cvar_t *jump_hud_cgaz_fov;
+static cvar_t *jump_hud_cgaz_y;
 
 // The last (jump_hud, jump_hud_speed, jump_hud_strafe) we reported to the
 // server, or all -1 for "not reported yet".
@@ -128,6 +131,30 @@ void Jump_InitClientCvars()
 	// a flicker.
 	jump_hud_strafe_tau = cgi.cvar("jump_hud_strafe_tau", "300", CVAR_ARCHIVE);
 
+	// The CGaz strip: where to look, as opposed to how well you looked.
+	//
+	// Off by default, and that is not the reasoning used for the other two. Those
+	// default on because the server already draws them, so the cvar only picks
+	// which half renders something the player has anyway. This is genuinely new
+	// on screen, it sits near the crosshair rather than out of the way, and it is
+	// the element a player has to be told how to read. Opt in.
+	jump_hud_cgaz = cgi.cvar("jump_hud_cgaz", "0", CVAR_ARCHIVE);
+
+	// How many degrees the strip spans end to end.
+	//
+	// 240, matching q2pro-speed's default (its `scale 1.5` works out as 240
+	// degrees across the full screen width). The reach matters more than it
+	// looks: the zone's near edge is acos(target / speed) and walks outwards as
+	// you speed up, reaching 85.7 degrees at 4000 ups. A 180-degree strip puts
+	// that hard against the end, and anything tighter loses it off the edge
+	// entirely - at exactly the speeds this exists for.
+	jump_hud_cgaz_fov = cgi.cvar("jump_hud_cgaz_fov", "240", CVAR_ARCHIVE);
+
+	// Virtual units below the middle of the screen, so it sits just under the
+	// crosshair - you steer by this one, and a readout you steer by belongs where
+	// you are already looking rather than down with the others.
+	jump_hud_cgaz_y = cgi.cvar("jump_hud_cgaz_y", "16", CVAR_ARCHIVE);
+
 	// CG_InitScreen runs between levels and on reconnect - the same place the
 	// vanilla HUD clears its notify state - so this is where stale samples go,
 	// and where we forget having told the server about the bar, since its flag
@@ -163,6 +190,7 @@ struct jump_overlay_ctx_t
 	int32_t						  scale;
 	const jump::speed_readout_t	 *speed;
 	const jump::strafe_readout_t *strafe;
+	const jump::cgaz_readout_t	 *cgaz;
 
 	int32_t VirtX(float virt) const
 	{
@@ -185,6 +213,14 @@ struct jump_overlay_ctx_t
 	int32_t TextY(float virt) const
 	{
 		return BottomY(virt) - Jump_FontYOffset(scale);
+	}
+
+	// Offset from the middle of the screen. The layout has no anchor for this,
+	// because nothing the statusbar draws belongs next to the crosshair - which
+	// is exactly where an element you steer by has to be.
+	int32_t MiddleY(float virt) const
+	{
+		return (int32_t) ((hud_vrect.y + hud_vrect.height / 2.f + virt) * scale);
 	}
 };
 
@@ -338,9 +374,19 @@ static void Jump_DrawStrafeMeter(const jump_overlay_ctx_t &ctx)
 
 	if (centred)
 	{
-		// Fills outward from the centre. Which side says which way to correct;
-		// how far says how much is being lost, since |offset| is 1 - efficiency
-		// by construction.
+		// Fills outward from the centre. How far says how much is being lost,
+		// since |offset| is 1 - efficiency by construction; which side says
+		// whether you turned too much or too little - right for over, left for
+		// under, whichever way you are strafing.
+		//
+		// That is a statement about your input, NOT a direction to move the
+		// mouse, and the distinction matters when CGaz is also on. "Turn less"
+		// is a left correction when your velocity is off to your left and a
+		// right one when it is off to your right, so the CGaz tick sits on the
+		// same side as this bar for one strafe direction and the opposite side
+		// for the other. Deliberate: a consistent meaning was judged worth more
+		// than a consistent screen side. Do not "fix" it into matching the tick
+		// without deciding that trade again.
 		const int half = iw / 2;
 		const int len = (int) (strafe.offset * half);
 
@@ -353,6 +399,145 @@ static void Jump_DrawStrafeMeter(const jump_overlay_ctx_t &ctx)
 	{
 		cgi.SCR_DrawColorPic(ix, iy, (int) (bw * strafe.efficiency), ih, "_white", colour);
 	}
+}
+
+// The CGaz strip: which way to look, drawn as the angles either side of you.
+//
+// The strafe meter answers "how well did that go"; this answers "where should I
+// be pointing", and the two are complementary rather than alternatives. It earns
+// its place because of the shape of Q2 air acceleration: the best angle sits
+// hard against the edge of a wedge that pays nothing at all, half a degree wide
+// at 125 fps, and no readout of your own performance can show you where that
+// edge IS before you cross it.
+//
+// Everything is drawn relative to the view, so the strip is fixed and the world
+// moves through it. The alternative - fixing the zones and moving a marker - is
+// harder to steer by, because the thing you are aiming at will not hold still.
+static void Jump_DrawCgaz(const jump_overlay_ctx_t &ctx)
+{
+	const pmtype_t pm_type = ctx.ps->pmove.pm_type;
+
+	if (pm_type == PM_NOCLIP || pm_type == PM_SPECTATOR)
+		return;
+
+	const jump::cgaz_readout_t &cgaz = *ctx.cgaz;
+
+	float span = jump_hud_cgaz_fov ? jump_hud_cgaz_fov->value : 180.f;
+
+	if (span < 20.f)
+		span = 20.f;
+	if (span > 360.f)
+		span = 360.f;
+
+	const float y_virt = jump_hud_cgaz_y ? jump_hud_cgaz_y->value : 16.f;
+
+	// Nearly the full virtual width, leaving a margin at each end. Wide is the
+	// point: the strip is an angular ruler, and spreading the same 240 degrees
+	// over more pixels is what makes a degree near the optimum visible at all.
+	constexpr float CGAZ_W = 280.f;
+	constexpr float CGAZ_H = 8.f;
+
+	// Scale is clamped before anything divides by it: `per_deg` below would
+	// otherwise be zero, and the optimum tick's `line / per_deg` would push an
+	// infinity through the band clipping and into an undefined cast.
+	const int px = ctx.scale < 1 ? 1 : ctx.scale;
+
+	const float bw = CGAZ_W * (float) px;
+	const float bh = CGAZ_H * (float) px;
+	const float bx = (float) ctx.VirtX(160.f) - bw * 0.5f;
+	const float by = (float) ctx.MiddleY(y_virt);
+
+	const int ix = (int) bx, iy = (int) by, iw = (int) bw, ih = (int) bh;
+
+	// No border and no track behind it - only the coloured bands, translucent
+	// over the world, the way q2pro-speed draws its own. An opaque instrument
+	// this wide and this close to the crosshair would be a window frame across
+	// the middle of the screen; a tint is something you read through.
+	//
+	// The cost is that nothing at all shows when there is nothing to say, so the
+	// element does come and go. That was worth a frame back when ground contact
+	// blanked it twice a second, and is not now the ground is a branch rather
+	// than a refusal: what remains is holding no movement keys, which on a jump
+	// map is rare and is honestly nothing to report.
+	if (!cgaz.valid)
+		return;
+
+	const float per_deg = bw / span;
+
+	// Degrees to pixels. The strip is a window onto a circle, so an angle is
+	// wrapped into (-180, 180] first and then a band that runs off one end is
+	// re-entered at the other - at a 360 degree span every angle is on screen and
+	// a zone straddling the back would otherwise vanish rather than appear at
+	// both edges.
+	//
+	// Positive degrees go LEFT, because that is the direction Quake yaw counts
+	// and `base` is measured in the same frame. Mirroring this inverts the whole
+	// instrument, and nothing in jump_logic's tests can see it.
+	auto span_pixels = [&](float deg) { return (float) ix + bw * 0.5f - deg * per_deg; };
+
+	auto solid = [&](float lo, float hi, rgba_t colour) {
+		if (hi <= (float) ix || lo >= (float) (ix + iw))
+			return;
+
+		if (lo < (float) ix)
+			lo = (float) ix;
+		if (hi > (float) (ix + iw))
+			hi = (float) (ix + iw);
+
+		const int w = (int) (hi - lo);
+
+		if (w > 0)
+			cgi.SCR_DrawColorPic((int) lo, iy, w, ih, "_white", colour);
+	};
+
+	auto band = [&](float from_deg, float to_deg, rgba_t colour) {
+		const float mid = jump::WrapDegrees((from_deg + to_deg) * 0.5f);
+		const float half = (to_deg - from_deg) * 0.5f;
+
+		if (half <= 0.f)
+			return;
+
+		// Centre the band on its wrapped midpoint, then draw the copy either side
+		// as well. Off-strip copies clip away for free, and at spans under 360 at
+		// most one of the three can land.
+		for (int copy = -1; copy <= 1; copy++)
+		{
+			const float centre = mid + (float) copy * 360.f;
+			const float a = span_pixels(centre + half);
+			const float b = span_pixels(centre - half);
+
+			solid(a < b ? a : b, a < b ? b : a, colour);
+		}
+	};
+
+	// The dead wedge first, then the accelerating zones over it. Drawn in that
+	// order so a zone edge is never hidden by the wedge it borders.
+	//
+	// Plain CGaz has no wedge - in the Q3 model the optimum sits inside its zone
+	// with room either side. Here it is pinned to the wedge's edge, so leaving
+	// the wedge out would draw a zone whose most important boundary was invisible.
+	// Alphas follow q2pro-speed's own (strafe_helper_customization.c): the zone
+	// at 96 is a tint you see the world through, the optimum at 192 is the only
+	// thing meant to catch your eye. The wedge is a shade under the zone's alpha
+	// so that "nothing here" recedes rather than advertising itself.
+	band(cgaz.base - cgaz.zone_inner, cgaz.base + cgaz.zone_inner, { 150, 30, 30, 80 });
+
+	band(cgaz.base + cgaz.zone_inner, cgaz.base + cgaz.zone_outer, { 0, 128, 32, 96 });
+	band(cgaz.base - cgaz.zone_outer, cgaz.base - cgaz.zone_inner, { 0, 128, 32, 96 });
+
+	// One best angle, not two. There are two solutions - the zone either side of
+	// the wedge says so - but the tick marks the one on the side you are already
+	// strafing toward, and jumps to the other when you swap strafe keys. Drawing
+	// both was two bright lines with nothing to say which was meant.
+	const float line = (float) px / per_deg;
+
+	band(cgaz.optimal_view - line, cgaz.optimal_view + line, { 0, 255, 64, 192 });
+
+	// Where you are actually pointing, standing proud of the strip top and bottom
+	// so it is never lost against a zone edge. With no frame to anchor the eye
+	// this is the only fixed thing on screen, so it stays fully opaque.
+	cgi.SCR_DrawColorPic(ix + iw / 2 - px / 2, iy - px * 2, px, ih + px * 4, "_white",
+						 cgaz.inside ? rgba_t { 255, 255, 255, 220 } : rgba_t { 255, 160, 160, 220 });
 }
 
 void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, vrect_t hud_safe, int32_t scale)
@@ -401,6 +586,11 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	const bool want_speed = enabled && speed_set != JUMP_READOUT_OFF;
 	const bool want_strafe = enabled && strafe_set != JUMP_READOUT_OFF;
 
+	// CGaz is not reported to the server and has no bar-side twin: there is no
+	// second copy for the server to stop drawing, so it stays out of the
+	// handshake entirely.
+	const bool want_cgaz = enabled && jump_hud_cgaz && jump_hud_cgaz->integer;
+
 	// Tell the server what we are set to, so it knows which copies to draw and
 	// what the options menu should say. See jump_told_* above for why this is the
 	// raw cvars rather than a yes/no per readout.
@@ -438,7 +628,7 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	// collecting samples nobody is going to draw. It must be the OR of every
 	// element that reads the ring, or a new element silently reads an empty one
 	// the moment somebody turns the speedometer off.
-	const jump::speed_readout_t &speed = Jump_CG_SampleFrame(ps, want_speed || want_strafe);
+	const jump::speed_readout_t &speed = Jump_CG_SampleFrame(ps, want_speed || want_strafe || want_cgaz);
 
 	if (!enabled)
 		return;
@@ -446,11 +636,16 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	if (ps->stats[STAT_LAYOUTS] & (LAYOUTS_HIDE_HUD | LAYOUTS_INTERMISSION))
 		return;
 
-	const jump_overlay_ctx_t ctx { ps, hud_vrect, hud_safe, scale, &speed, &Jump_CG_StrafeReadout() };
+	const jump_overlay_ctx_t ctx { ps,	   hud_vrect, hud_safe, scale, &speed, &Jump_CG_StrafeReadout(),
+								   &Jump_CG_CgazReadout() };
 
 	if (want_speed)
 		Jump_DrawSpeedometer(ctx);
 
 	if (want_strafe)
 		Jump_DrawStrafeMeter(ctx);
+
+	// Last, so the strip sits over the others if a player moves them together.
+	if (want_cgaz)
+		Jump_DrawCgaz(ctx);
 }

@@ -244,9 +244,17 @@ hop chain's brief ground contacts do not make it blink — then clears.
 
 If you are running the mod's own DLL you get a finer version instead:
 `jump_hud_strafe 1` for a plain 0-100% bar that fills as you do *well*, or
-`jump_hud_strafe 2` for a centre-anchored one where the side you are on tells
-you which way to correct. Either replaces the server's bar automatically — your
-client tells the server to stop drawing it, so you never get both.
+`jump_hud_strafe 2` for a centre-anchored one where the side tells you whether
+you turned **too much** (right of centre) or **too little** (left), and how far
+tells you how much it cost. Either replaces the server's bar automatically —
+your client tells the server to stop drawing it, so you never get both.
+
+That side is a statement about your input, not a direction to move the mouse,
+and it means the same thing whichever way you are strafing. Worth knowing if you
+also run CGaz: "turn less" is a *left* correction when your velocity is off to
+your left and a *right* one when it is off to your right, so the CGaz tick will
+sit on the same side as this bar in one direction and the opposite side in the
+other. The two are not disagreeing — they are answering different questions.
 
 **Options in the menu** cycles all of it — Off, On, and Centred for DLL players —
 and is easier than remembering which setting you have. The equivalents are
@@ -297,6 +305,61 @@ Four more things worth knowing:
 
 The reading is smoothed over about a second, because the raw frame-by-frame
 value is unreadable. `jump_hud_strafe_tau` is that memory in milliseconds.
+
+### CGaz
+
+`jump_hud_cgaz 1` adds a strip just below the crosshair showing **where to look**,
+as opposed to how well you looked. It needs the mod's own DLL, and it is off by
+default — unlike the other two readouts it is genuinely new on screen, it sits
+where you are aiming rather than out of the way, and it has to be explained
+before it helps.
+
+```
+        ▒▒▒▒▒▒▒▒▓▓▓▓│▓▓▓▓▒▒▒▒▐▒▒▒
+        ▒ green — these angles accelerate you
+        ▓ red — turning this little earns nothing
+        ▐ the best angle
+        │ where you are pointing
+```
+
+There are always two best angles — turn left or turn right, the maths is
+symmetric — but only the one on the side you are already strafing toward is
+marked. Swap strafe keys and the mark jumps to the other side, which is the
+same thing every other CGaz does.
+
+Everything is drawn relative to your view, so the strip holds still and the
+world moves through it: steer the centre mark into the green.
+
+**The red wedge in the middle is the part plain CGaz does not have**, and it is
+the reason this is worth drawing in Quake II. In the Q3-style physics CGaz was
+built for, the best angle sits comfortably inside its zone. Here it is pinned to
+the wedge's edge — turn a fraction less and the game stops accelerating you
+completely. At 400 ups and 125 fps that edge is **half a degree** from the best
+angle, with about forty-eight degrees of usable room on the other side, so the
+safe place to sit is a little way into the green rather than right on the line.
+
+It is drawn as translucent bands with no frame behind them, nearly the full width
+of the screen and just under the crosshair — you steer by it, so it sits where
+you are already looking and you read the map through it.
+
+It is live, and it follows whatever the game is actually doing — **including on
+the ground**, where the acceleration is stronger and the best angle sits wider.
+It never shows you a stale reading. It goes quiet only when there is genuinely
+nothing to say: no movement keys held, or on a ladder or in water, where the
+game overrides your input and any angle it drew would be pointing elsewhere.
+
+Two settings: `jump_hud_cgaz_fov` is how many degrees the strip spans end to end
+(240 by default, the same spread q2pro-speed uses) and `jump_hud_cgaz_y` is how
+far below the middle of the screen it sits. The reach matters more than it looks
+— the near edge of the zone walks outwards as you speed up, reaching about 86°
+at 4000 ups, so a narrow span loses the whole thing off the ends at exactly the
+speeds you wanted it for.
+
+It pairs with the strafe meter rather than replacing it — CGaz shows you where to
+look, the meter shows how well you did it. The meter also reaches players on a
+stock client, and CGaz cannot: a strip with a moving zone of varying width needs
+a pre-rendered string per combination of position and width, which is not
+affordable, so this one is DLL-only.
 
 ### Finishing
 
@@ -611,6 +674,9 @@ any change to the entity contract.
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
 | `jump_hud_strafe` | `1` | **Client-side.** Replaces the server's strafe bar with a finer one: `1` a plain 0-100% bar, `2` centre-anchored, `0` no meter anywhere |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
+| `jump_hud_cgaz` | `0` | **Client-side.** The CGaz strip: which view angles accelerate you, and the wedge that does not |
+| `jump_hud_cgaz_fov` | `240` | **Client-side.** Degrees the strip spans end to end |
+| `jump_hud_cgaz_y` | `16` | **Client-side.** How far below the middle of the screen the strip sits |
 
 ### Map rotation and the vote pool
 
