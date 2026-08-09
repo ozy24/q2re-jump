@@ -4,6 +4,7 @@
 
 #include "../src/jump/jump_logic.h"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -990,6 +991,275 @@ static void TestStrafeState()
 	CHECK(Near(slow_out.efficiency, fast_out.efficiency, 0.02f));
 }
 
+// The angle between your velocity and the wishdir that would gain the most, in
+// degrees. Everything the meter depends on is a function of this angle and your
+// speed - the absolute compass direction never enters the maths - so a strafing
+// technique can be expressed purely as the path this angle takes over time.
+static float OptimalWishAngle(float speed, float target, float budget)
+{
+	const float best = jump::BestAlong(speed, target, budget);
+	float		c = best / speed;
+
+	if (c > 1.f)
+		c = 1.f;
+	if (c < -1.f)
+		c = -1.f;
+
+	return acosf(c) * 180.f / 3.14159265358979323846f;
+}
+
+// A sample whose WISHDIR sits `wish_deg` off the velocity, produced by a chosen
+// set of keys. Velocity runs along +x, so the yaw needed to land the wishdir on
+// a given angle depends on which keys are held - which is exactly the point.
+enum class strafe_keys_t
+{
+	side,	  // pure +moveright: the ordinary strafe
+	forward,  // pure +forward
+	backward, // pure +back, and nothing else
+	diagonal  // +forward and +moveright together
+};
+
+static jump::move_sample_t MakeWishSample(uint64_t time_ms, float speed, float wish_deg, strafe_keys_t keys,
+										  uint8_t msec, int air_accel = 0)
+{
+	float yaw = 0.f;
+	float fmove = 0.f;
+	float smove = 0.f;
+
+	switch (keys)
+	{
+	// right.xy is (sin yaw, -cos yaw), so its heading is yaw - 90.
+	case strafe_keys_t::side:
+		yaw = wish_deg + 90.f;
+		smove = 400.f;
+		break;
+
+	// forward.xy points along yaw; pitch only scales it, never turns it.
+	case strafe_keys_t::forward:
+		yaw = wish_deg;
+		fmove = 400.f;
+		break;
+
+	// Backwards is the same heading reached from the opposite view. Sata's
+	// case: the keys cannot matter, only where the wish ends up pointing.
+	case strafe_keys_t::backward:
+		yaw = wish_deg - 180.f;
+		fmove = -400.f;
+		break;
+
+	// Equal parts of both puts the wish 45 degrees off the view.
+	case strafe_keys_t::diagonal:
+		yaw = wish_deg + 45.f;
+		fmove = 400.f;
+		smove = 400.f;
+		break;
+	}
+
+	return MakeAirSample(time_ms, speed, 0.f, yaw, fmove, smove, msec, air_accel);
+}
+
+static jump::strafe_frame_t FrameAt(float speed, float wish_deg, strafe_keys_t keys, uint8_t msec,
+									int air_accel = 0)
+{
+	const jump::move_sample_t s = MakeWishSample(0, speed, wish_deg, keys, msec, air_accel);
+	const float				  vel[2] = { s.vel_before[0], s.vel_before[1] };
+
+	return jump::StrafeFrame(vel, s.view_pitch, s.view_yaw, s.view_roll, s.forwardmove, s.sidemove,
+							 (float) s.msec / 1000.f, s.ducked, s.air_accel);
+}
+
+// Which keys produced the input must not change the reading.
+//
+// Raised by a player testing the meter: "it is possible to strafe forward with
+// only +back with same efficiency as normal strafing, if you can move mouse that
+// fast". True, and the meter has to agree - it grades where the wish pointed,
+// not how you got there.
+static void TestStrafeKeysDoNotMatter()
+{
+	const strafe_keys_t all[] = { strafe_keys_t::side, strafe_keys_t::forward, strafe_keys_t::backward,
+								  strafe_keys_t::diagonal };
+
+	for (const float speed : { 320.f, 400.f, 700.f, 1200.f })
+	{
+		for (const int accel : { 0, 10 })
+		{
+			for (const uint8_t msec : { (uint8_t) 8, (uint8_t) 25 })
+			{
+				// Read the optimum off the first frame rather than assuming it:
+				// it moves with speed, frame time and the air model.
+				const jump::strafe_frame_t probe = FrameAt(speed, 0.f, strafe_keys_t::side, msec, accel);
+				const float best_deg = OptimalWishAngle(speed, probe.target, probe.budget);
+
+				for (const strafe_keys_t keys : all)
+				{
+					// On the optimum, from every key combination.
+					const jump::strafe_frame_t on = FrameAt(speed, best_deg, keys, msec, accel);
+					CHECK(on.opportunity);
+					CHECK(Near(on.gain, on.gain_max, on.gain_max * 0.01f));
+
+					// And off it by the same amount, so a technique that reaches
+					// the angle late is marked down identically whatever the keys.
+					const jump::strafe_frame_t off = FrameAt(speed, best_deg + 15.f, keys, msec, accel);
+					const jump::strafe_frame_t ref =
+						FrameAt(speed, best_deg + 15.f, strafe_keys_t::side, msec, accel);
+					CHECK(Near(off.gain, ref.gain, 1e-2f));
+				}
+			}
+		}
+	}
+}
+
+// Walk a technique's angle path and report what the smoothed bar would show.
+//
+// `sweep_deg` is how far either side of the optimum the mouse travels, and
+// `beats` how many times it crosses in one airtime. Speed is advanced by the
+// gain each frame, so the optimum drifts underneath the player exactly as it
+// does in play.
+static float RunTechnique(float speed, float sweep_deg, int beats, int frames, uint8_t msec, int air_accel = 0)
+{
+	jump::strafe_state_t   state;
+	jump::strafe_readout_t out;
+
+	for (int i = 0; i < frames; i++)
+	{
+		const jump::strafe_frame_t probe = FrameAt(speed, 0.f, strafe_keys_t::side, msec, air_accel);
+		const float				   best_deg = OptimalWishAngle(speed, probe.target, probe.budget);
+
+		// A triangle wave through the optimum: the mouse passes it, overshoots
+		// by sweep_deg, and comes back.
+		const float phase = beats > 0 ? (float) (i * beats) / (float) frames : 0.f;
+		const float saw = phase - (float) (int) phase; // 0..1
+		const float tri = saw < 0.5f ? (saw * 4.f - 1.f) : (3.f - saw * 4.f);
+
+		const jump::strafe_frame_t f =
+			FrameAt(speed, best_deg + sweep_deg * tri, strafe_keys_t::side, msec, air_accel);
+
+		out = state.Add(f, true, msec);
+
+		if (f.gain > 0.f)
+			speed += f.gain;
+	}
+
+	return out.valid ? out.efficiency : -1.f;
+}
+
+// The finding behind "I'm doing perfect strafes and sometimes bar is empty and
+// sometimes full".
+//
+// It is not a bug in the maths - every frame above grades correctly. It is the
+// shape of vanilla Q2 air acceleration: the best projection is a budget short of
+// the target, so the optimum sits exactly ON the boundary between gaining and
+// losing, and the budget is proportional to frame time. Cross it and you do not
+// merely capture less, you capture nothing.
+//
+// The consequence is an asymmetry of roughly thirty to one, and it gets worse
+// the higher your frame rate. A player riding the optimum is riding a knife
+// edge; a player sitting a few degrees wide gets a steady, high reading. Both
+// facts below are true of the game, not of the meter - but they are why the
+// readout looks broken to the players best equipped to sit on the line.
+static void TestStrafeCliffAsymmetry()
+{
+	const float speed = 400.f;
+
+	for (const uint8_t msec : { (uint8_t) 8, (uint8_t) 25 })
+	{
+		const jump::strafe_frame_t probe = FrameAt(speed, 0.f, strafe_keys_t::side, msec);
+		const float				   best_deg = OptimalWishAngle(speed, probe.target, probe.budget);
+
+		// Full marks on the line.
+		const jump::strafe_frame_t on = FrameAt(speed, best_deg, strafe_keys_t::side, msec);
+		CHECK(Near(on.gain, on.gain_max, on.gain_max * 0.01f));
+
+		// Narrow side: find where it reaches zero.
+		float narrow_zero = 0.f;
+
+		for (float d = 0.f; d < 20.f; d += 0.05f)
+		{
+			if (FrameAt(speed, best_deg - d, strafe_keys_t::side, msec).gain <= 0.f)
+			{
+				narrow_zero = d;
+				break;
+			}
+		}
+
+		// Wide side: the same.
+		float wide_zero = 0.f;
+
+		for (float d = 0.f; d < 90.f; d += 0.05f)
+		{
+			if (FrameAt(speed, best_deg + d, strafe_keys_t::side, msec).gain <= 0.f)
+			{
+				wide_zero = d;
+				break;
+			}
+		}
+
+		// Measured: at 25 ms the optimum is 43.01 deg and the gain reaches zero
+		// 1.60 deg narrow of it against 47.55 deg wide - a ratio of 30. At 8 ms
+		// the budget is a third the size, and the narrow margin collapses to
+		// 0.55 deg against 48.25 - a ratio of 88.
+		CHECK(narrow_zero > 0.f && wide_zero > 0.f);
+		CHECK(wide_zero > narrow_zero * 10.f); // the asymmetry, conservatively
+
+		// And it tightens with frame time: the budget shrinks, so the window
+		// between "everything" and "nothing" shrinks with it.
+		if (msec == 8)
+			CHECK(narrow_zero < 1.f); // about half a degree at 125 fps
+		else
+			CHECK(narrow_zero < 2.5f); // about 1.6 degrees at 40 Hz
+	}
+
+	// The perverse consequence, stated as a test so it cannot change silently:
+	// oscillating across the optimum scores WORSE than sitting steadily wide of
+	// it. That is honest - the narrow excursions really do cost speed - but it
+	// means precision reads as noise while a safe, slightly wide line reads
+	// clean.
+	const float riding = RunTechnique(400.f, 1.f, 4, 60, 8);
+	const float wide = RunTechnique(400.f, 0.f, 0, 60, 8);
+
+	// Measured at 125 fps: a one-degree wobble across the line reads 61%, while
+	// sitting still on it reads 100%. One degree of mouse noise is nothing, and
+	// it costs almost forty points of bar.
+	CHECK(riding >= 0.f && wide >= 0.f);
+	CHECK(wide > riding);
+
+	// Whatever the beat pattern, a technique that keeps the wish on the optimal
+	// side of the line reads high. This is the check that would have caught a
+	// real half-beat or zero-beat bug: the meter must not care how many times
+	// the angle is crossed per airtime, only where it sits.
+	for (const int beats : { 0, 1, 2, 4, 8 })
+	{
+		// Sweeping entirely on the wide side of the optimum, which is what a
+		// controlled strafe of any beat count actually does.
+		jump::strafe_state_t   state;
+		jump::strafe_readout_t out;
+		float				   speed = 400.f;
+
+		for (int i = 0; i < 60; i++)
+		{
+			const jump::strafe_frame_t probe = FrameAt(speed, 0.f, strafe_keys_t::side, 8);
+			const float				   best_deg = OptimalWishAngle(speed, probe.target, probe.budget);
+			const float				   phase = beats > 0 ? (float) (i * beats) / 60.f : 0.f;
+			const float				   saw = phase - (float) (int) phase;
+			const float				   tri = saw < 0.5f ? saw * 2.f : (1.f - saw) * 2.f;
+
+			const jump::strafe_frame_t f = FrameAt(speed, best_deg + 0.5f + tri * 2.f, strafe_keys_t::side, 8);
+
+			out = state.Add(f, true, 8);
+
+			if (f.gain > 0.f)
+				speed += f.gain;
+		}
+
+		// Measured: 99% at zero beats and 97% at one, two, four and eight. The
+		// beat count does not register at all - only which side of the line the
+		// wish sits on. Whatever a half-beat or zero-beat player is seeing, it
+		// is not the meter mishandling their technique.
+		CHECK(out.valid);
+		CHECK(out.efficiency > 0.9f);
+	}
+}
+
 static void TestStrafeBarLevel()
 {
 	jump::strafe_readout_t out;
@@ -1089,6 +1359,8 @@ int main()
 	TestStrafeFrame();
 	TestClassifyStrafeFrame();
 	TestStrafeState();
+	TestStrafeKeysDoNotMatter();
+	TestStrafeCliffAsymmetry();
 	TestStrafeBarLevel();
 	TestSpeedDigits();
 	TestRecords();
