@@ -708,6 +708,14 @@ strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float 
 	return out;
 }
 
+bool TeleportSpeedAllows(float horizontal_speed, float required)
+{
+	if (!(required > 0.f))
+		return true; // no key, zero, negative or NaN: no gate
+
+	return horizontal_speed >= required;
+}
+
 float WrapDegrees(float degrees)
 {
 	while (degrees > 180.f)

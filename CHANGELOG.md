@@ -10,6 +10,21 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Speed-gated teleporters now work**, which some maps are built entirely around. A `speed` key on
+  `trigger_teleport` or `misc_teleporter` is the horizontal speed you must be carrying before it
+  fires; below that it does nothing and tells you what you need. Upstream q2jump has had this for
+  years and the port was missing it.
+
+  On `4kv3` the effect was total: its spawn point sits *inside* a teleport trigger covering the
+  whole track, gated at 4000 ups, whose destination sits inside the finish. Without the gate the
+  teleport fired on the first frame, so the map dropped you into a sealed room with a finished run
+  before you had moved. Both touch paths are hooked — they are separate functions in the rerelease,
+  the same split that once let `fasttele` work on `misc_teleporter` and not `trigger_teleport`.
+
+  Thanks to Sata for the map and the report.
+
 ### Added
 
 - **A CGaz strip**, `jump_hud_cgaz 1`, for players running the mod's own DLL. Translucent bands just

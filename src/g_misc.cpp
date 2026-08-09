@@ -2001,6 +2001,11 @@ TOUCH(teleporter_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool 
 
 	if (!other->client)
 		return;
+
+	// [Jump] `speed` on a teleporter is a minimum-speed gate
+	if (Jump_TeleportSpeedBlocked(self, other))
+		return;
+
 	dest = G_FindByString<&edict_t::targetname>(nullptr, self->target);
 	if (!dest)
 	{

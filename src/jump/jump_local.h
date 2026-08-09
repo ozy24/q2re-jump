@@ -92,6 +92,11 @@ struct jump_client_t
 	int         client_speed = JUMP_READOUT_ON;
 	int         client_strafe = JUMP_READOUT_ON;
 
+	// Rate limit for the "teleporter needs N ups" print. A gated teleport's
+	// trigger touches every frame you are inside it, and on a speed map that
+	// volume can be the whole track.
+	gtime_t     tele_speed_print_time = 0_ms;
+
 	// A readout state the options menu wants this client's overlay to adopt,
 	// encoded by Jump_EncodeHudRequest and published in JUMP_STAT_HUD_REQUEST.
 	// One-shot: cleared as soon as the client reports back, so a request can

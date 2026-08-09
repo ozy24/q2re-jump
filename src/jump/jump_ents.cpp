@@ -10,6 +10,47 @@
 void InitTrigger(edict_t *self);
 
 // ---------------------------------------------------------------------------
+// Teleporter speed gate
+// ---------------------------------------------------------------------------
+
+// `speed` on a teleporter is the horizontal speed you must be carrying for it
+// to fire. Upstream q2jump has this in teleporter_touch; without it a map that
+// gates a teleport on speed becomes unplayable rather than merely different.
+//
+// `4kv3` is the case that found this: its spawn point sits inside a teleport
+// trigger covering the whole track, gated at 4000 ups, so the ungated version
+// fires on the first frame and drops the player into the finish room - an
+// instant time, in a box, before they have moved.
+//
+// Both upstream touch paths call this: teleporter_touch (misc_teleporter) and
+// trigger_teleport_touch. They are separate functions in the rerelease, which is
+// the same split that once let fasttele work on one and not the other.
+bool Jump_TeleportSpeedBlocked(edict_t *self, edict_t *other)
+{
+	if (!Jump_Active() || !other->client)
+		return false;
+
+	const float speed = jump::HorizontalSpeed(other->velocity[0], other->velocity[1]);
+
+	if (jump::TeleportSpeedAllows(speed, self->speed))
+		return false;
+
+	// Say why, or a teleporter that ignores you is indistinguishable from one
+	// that is broken. Rate-limited per player: the trigger touches every frame
+	// you stand in it, and on this kind of map that is the whole track.
+	jump_client_t *jc = Jump_ClientData(other);
+
+	if (jc && level.time >= jc->tele_speed_print_time)
+	{
+		jc->tele_speed_print_time = level.time + 2_sec;
+		gi.LocClient_Print(other, PRINT_HIGH, "Teleporter needs {} ups; you have {}.\n", (int) self->speed,
+						   (int) speed);
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------
 // trigger_finish / weapon_finish
 // ---------------------------------------------------------------------------
 

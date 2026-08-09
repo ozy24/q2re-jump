@@ -1260,6 +1260,33 @@ static void TestStrafeCliffAsymmetry()
 	}
 }
 
+// `speed` on a teleporter is a minimum-speed gate, as in upstream q2jump. The
+// map that found this, 4kv3, spawns the player inside a track-wide teleport
+// gated at 4000 ups - so "no key means no gate" is what keeps every ordinary
+// teleporter in the corpus behaving as it always has, and the gate itself is
+// what keeps a speed map from finishing itself on frame one.
+static void TestTeleportSpeedGate()
+{
+	// No gate: an absent key parses to 0, and 0 must never block.
+	CHECK(jump::TeleportSpeedAllows(0.f, 0.f));
+	CHECK(jump::TeleportSpeedAllows(1200.f, 0.f));
+
+	// A negative speed is reachable - the key is free text - and upstream treats
+	// it as no gate rather than as a gate nobody can fail.
+	CHECK(jump::TeleportSpeedAllows(0.f, -100.f));
+
+	// The gate itself, with the boundary inclusive: exactly the required speed
+	// passes, as it does upstream, so a map asking for 4000 is satisfied by 4000.
+	CHECK(!jump::TeleportSpeedAllows(3999.f, 4000.f));
+	CHECK(jump::TeleportSpeedAllows(4000.f, 4000.f));
+	CHECK(jump::TeleportSpeedAllows(4001.f, 4000.f));
+
+	// 4kv3 in miniature: the spawn velocity is 3200 and the gate is 4000, so the
+	// teleport the player is standing in must refuse them until they have earned
+	// the other 800.
+	CHECK(!jump::TeleportSpeedAllows(3200.f, 4000.f));
+}
+
 static void TestCgaz()
 {
 	// No keys held: nothing to steer, so nothing to draw. A strip built from an
@@ -1652,6 +1679,7 @@ int main()
 	TestStrafeState();
 	TestStrafeKeysDoNotMatter();
 	TestStrafeCliffAsymmetry();
+	TestTeleportSpeedGate();
 	TestCgaz();
 	TestStrafeBarLevel();
 	TestSpeedDigits();

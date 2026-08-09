@@ -526,6 +526,7 @@ it is still correct to have; it just is not what makes these 4,252 maps work.
 | `one_way_wall` | Passable one way only; spawnflag 1 lets fast players through |
 | `jump_cpwall`, `jump_cpbrush` | Checkpoint barrier; spawnflag 1 inverts the test |
 | `trigger_weapon` | Gives the weapon named by `count` (blaster 1 … rail 9, BFG 0) |
+| `trigger_teleport`, `misc_teleporter` | Stock, plus a `speed` key: a minimum horizontal speed you must carry for it to fire |
 
 Ten legacy classnames are removed silently rather than logging an error —
 `jump_time`, `jump_score`, `jumpmod_effect`, `jump_cpeffect`,
@@ -540,6 +541,13 @@ part of a map must get a real spawn function instead of going here.
   Finish-by-weapon and key checkpoints carry almost all of them.
 - **Q2JumpRefresh-era maps** using `trigger_finish` and `cpbox_*` work, though
   none appear in the original corpus.
+- **Speed-gated teleporters.** A `speed` key on `trigger_teleport` or
+  `misc_teleporter` sets the horizontal speed you must be carrying before it
+  fires; below that it does nothing and tells you what you need. Some maps are
+  built entirely around this — `4kv3` puts its spawn point *inside* a
+  track-wide teleport gated at 4000 ups, so without the gate the map finishes
+  itself on the first frame. None of these appear in the original corpus either;
+  they come from the newer maps being made for q2pro race servers.
 - **Stock deathmatch maps** load and time correctly, but the first weapon you
   touch ends the run, so they are only useful for smoke-testing. They are
   counted as playable above; treat that as "loads and times", not "worth

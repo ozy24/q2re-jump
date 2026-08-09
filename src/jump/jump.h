@@ -108,3 +108,10 @@ bool Jump_ScoreCycle(edict_t *ent);
 // teleporter_touch: true when the map's fasttele mset is on, meaning the
 // teleport freeze should be skipped.
 bool Jump_FastTeleport();
+
+// teleporter_touch / trigger_teleport_touch: true when the teleporter's `speed`
+// key gates it and this player is too slow, in which case do not teleport them.
+// Prints why, rate-limited. Both touch functions need the call - they are
+// separate in the rerelease, which is what once let fasttele work on one and
+// not the other.
+bool Jump_TeleportSpeedBlocked(edict_t *self, edict_t *other);

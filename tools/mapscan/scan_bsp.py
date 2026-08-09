@@ -510,6 +510,28 @@ def classify(bsp: Bsp, vocab: Vocab) -> dict:
     if msets:
         flags.append("has_worldspawn_mset")
 
+    # A `speed` key on a teleporter is a minimum-speed gate
+    # (Jump_TeleportSpeedBlocked, src/jump/jump_ents.cpp). This is a jump
+    # extension to a STOCK entity, so the classname vocabularies above cannot
+    # see it -- trigger_teleport is q2_spawn either way -- yet a map built around
+    # one is unplayable without the gate rather than merely different: 4kv3 puts
+    # its spawn inside a track-wide gated teleport whose exit is the finish, so
+    # an ungated port finishes the run on frame one. Count them so the audit can
+    # say how much of the corpus depends on it.
+    speed_gated = 0
+    for b in blocks:
+        if b.get("classname") not in ("trigger_teleport", "misc_teleporter"):
+            continue
+        try:
+            if float(b.get("speed", "0")) > 0:
+                speed_gated += 1
+        except ValueError:
+            pass  # free text in a numeric key; the engine reads it as 0 too
+
+    row["speed_gated_teles"] = speed_gated
+    if speed_gated:
+        flags.append("speed_gated_teleporter")
+
     by_disposition = Counter()
     unknown: Counter = Counter()
     for cls, n in classnames.items():
@@ -731,6 +753,7 @@ CSV_FIELDS = [
     "lap_ents",
     "cp_clear_ents",
     "push_checkpoints",
+    "speed_gated_teles",
     "hurt_dmg1",
     "changelevel",
     "nextmap_key",

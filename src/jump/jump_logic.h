@@ -537,6 +537,20 @@ struct strafe_state_t
 	strafe_readout_t Update(const move_ring_t &ring, uint64_t tau_ms = STRAFE_TAU_MS);
 };
 
+// A teleporter's minimum-speed gate: `speed` on a trigger_teleport or
+// misc_teleporter is the horizontal speed a player must be carrying before it
+// will fire. Below that it does nothing at all.
+//
+// Upstream q2jump (g_misc.c, teleporter_touch) has had this for years and maps
+// are built around it - `4kv3` puts its spawn point INSIDE a 10,000-unit
+// teleport trigger gated at 4000 ups, so a port without the gate teleports the
+// player on their first frame, straight into the finish. A speed gate is not a
+// nicety on those maps, it IS the map.
+//
+// `required` <= 0 means no gate, which is what an absent key parses to, so
+// ordinary teleporters keep behaving exactly as they always did.
+bool TeleportSpeedAllows(float horizontal_speed, float required);
+
 // ---------------------------------------------------------------------------
 // CGaz
 // ---------------------------------------------------------------------------
