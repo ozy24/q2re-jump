@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-08-10
+
 ### Added
 
 - **The `singlespawn` mset**, from classic q2jump. `1` keeps the first `info_player_deathmatch` the
