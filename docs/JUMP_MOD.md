@@ -42,6 +42,7 @@ lobby, so everything below is a console command.
 | `strafebar` | Show/hide the strafe meter, off by default (or the menu's Options row) |
 | `speedo` | Show/hide the speedometer (or the menu's Options row) |
 | `takeoff` | Show/hide the takeoff mark (or the menu's Options row) |
+| `hudreset` | Turn every readout off again — the shipped default state |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -102,6 +103,7 @@ nothing anyone else does:
 | Strafe Meter | Off, On, Centred |
 | CGaz | Off, On — needs the mod's own DLL |
 | Hide Players | Off, On |
+| Turn All Readouts Off | — |
 
 They are grouped in pairs because that is how they are used: the speedometer and
 the mark above it are one instrument, and the strafe meter and CGaz are the two
@@ -120,6 +122,12 @@ to draw a moving angular zone, so on a stock client the row reads
 `CGaz: needs the DLL` and the cursor skips past it rather than offering a switch
 that would do nothing. **Takeoff Mark** is the opposite case — the bar draws it
 for everybody, so that row behaves identically whichever client you are on.
+
+**Turn All Readouts Off** at the foot of the list puts everything back to the
+state a fresh install has, and it is there for a specific reason: the rerelease
+writes these cvars to `system.cfg` whether or not you ever touched one, so if a
+later version changes a default you will never see it. This is how you catch up
+without editing that file by hand. `hudreset` does the same from the console.
 
 The one thing Options cannot do is give you the status bar's version while you
 have the DLL installed — that is `jump_hud 0`, a switch for the whole overlay
@@ -200,15 +208,15 @@ records list and `ranks` for everyone's points.
 A readout sits centred, above the bottom of the screen, showing how fast you are
 moving in units per second. It hides itself when you are standing still.
 
-**Everyone gets it, including players on a stock client** — the server draws it
-in ordinary small text. If you are running the mod's own DLL you get a finer
-version instead, updating every rendered frame; your client tells the server to
-stop drawing its own, so you never see two.
+**Off by default, and everyone can have it** including players on a stock client —
+the server draws it in ordinary small text. If you are running the mod's own DLL
+you get a finer version instead, updating every rendered frame; your client tells
+the server to stop drawing its own, so you never see two.
 
-**Options in the menu** is the easy way to turn it off, whichever version you are
-getting. The equivalents are `jump_hud_speed 0` with the DLL — which means no
-speedometer anywhere, since your client also tells the server to keep its copy
-hidden — and `speedo` without it.
+**Options in the menu** is the easy way to turn it on or off, whichever version
+you are getting. The equivalents are `jump_hud_speed 1` with the DLL and `speedo`
+without it. Setting `jump_hud_speed 0` means no speedometer *anywhere*, since your
+client also tells the server to keep its copy hidden.
 
 Both upstream mods put theirs in the bottom-right corner. This port follows
 `q2re-map-trainer` instead and centres it, because speed is the one number you
@@ -243,9 +251,9 @@ feet left the ground**:
         455      <- you are doing this now
 ```
 
-**Everyone gets it, including players on a stock client**, and it is on by
-default. It needs no explaining, which is exactly why it is the one a new player
-should watch: the top number is the mark, the bottom one is you, and bigger is
+**Everyone can have it, including players on a stock client** — turn it on with
+`takeoff` or from Options. It needs no explaining, which is why it is the one to
+reach for first: the top number is the mark, the bottom one is you, and bigger is
 better.
 
 Two things fall out of it. While you are in the air it shows what the jump has
@@ -480,10 +488,10 @@ subtracts — but it belongs to the run that just ended, so it now rides along i
 message and leaves when that does. Every player gets it, and nothing has to decide when to take it
 off the screen.
 
-**The speedometer is on by default and the other two are not**, which is a judgement about who
-each one serves rather than about how much screen they cost. A speedometer explains itself. The
-strafe meter and CGaz both have to be taught before they help, and the strafe meter in particular
-says nothing useful below 300 ups — see its section above.
+**Every performance readout is off by default.** What the status bar shows unasked is what you need
+to *play* — timer, checkpoints, stores, personal best, team, time remaining — and everything about
+playing *better* is something you turn on. A new player gets a clean screen and finds the tools when
+they go looking, which is what Options is for.
 
 Setting a readout to `0` means you do not want it at all, so your client tells the server to keep
 its copy hidden too, and that survives turning the overlay off and on again. `jump_hud 0` is
@@ -493,7 +501,7 @@ copies come back.
 | Cvar | Default | Effect |
 |---|---|---|
 | `jump_hud` | `1` | Master switch for the client overlay. `0` = exact stock-client view |
-| `jump_hud_speed` | `1` | The speedometer. `0` = no speedometer anywhere, server's copy included |
+| `jump_hud_speed` | `0` | The speedometer. `0` = no speedometer anywhere, server's copy included |
 | `jump_hud_strafe` | `0` | The strafe meter: `1` plain, `2` centre-anchored, `0` none anywhere |
 | `jump_hud_cgaz` | `0` | The CGaz strip |
 
@@ -733,7 +741,7 @@ any change to the entity contract.
 | `jump_box_models` | `1` | Draw jumpbox/cpbox models (they ship with map packs, not with Quake II) |
 | `jump_debug` | `0` | Verbose mod logging |
 | `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view, bar readouts included — except for a readout whose own cvar is `0` |
-| `jump_hud_speed` | `1` | **Client-side.** Replaces the server's speedometer with a finer one; `0` means no speedometer anywhere, server's copy included |
+| `jump_hud_speed` | `0` | **Client-side.** The speedometer, off by default; `1` replaces the server's with a finer one, `0` means none anywhere |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
 | `jump_hud_strafe` | `0` | **Client-side.** The strafe meter, off by default: `1` a plain 0-100% bar, `2` centre-anchored, `0` no meter anywhere |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |

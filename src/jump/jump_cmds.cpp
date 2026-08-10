@@ -24,6 +24,48 @@ bool Jump_ServerDrawsSpeedo(const jump_client_t *jc)
 	return jc->server_speedo;
 }
 
+// Back to a clean screen: every performance readout off, whichever half draws
+// it. This is the shipped default state, so "reset" and "what a fresh install
+// looks like" are the same thing by construction.
+//
+// It exists because a default change cannot reach anyone who has already played.
+// The rerelease writes every CVAR_ARCHIVE cvar to system.cfg whether or not the
+// player ever touched it, so an archived value pins their setting forever - and
+// the honest alternative was asking people to edit that file by hand, or shipping
+// a replacement for it, which would overwrite forty lines of settings that are
+// none of the mod's business.
+//
+// The server's own flags are set directly. The client's cvars cannot be, so they
+// go through JUMP_STAT_HUD_REQUEST exactly as an Options row does - and for a
+// stock client there is nothing to ask, because those cvars do not exist.
+void Jump_ResetReadouts(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	jc->server_speedo = false;
+	jc->server_strafebar = false;
+	jc->server_takeoff = false;
+
+	if (jc->client_hud)
+	{
+		jc->client_speed = JUMP_READOUT_OFF;
+		jc->client_strafe = JUMP_READOUT_OFF;
+		jc->client_cgaz = JUMP_READOUT_OFF;
+
+		int seq = Jump_HudRequestSeq(jc->hud_request) + 1;
+
+		if (seq > JUMP_HUD_REQUEST_SEQ_MAX)
+			seq = 1;
+
+		jc->hud_request = Jump_EncodeHudRequest(seq, JUMP_READOUT_OFF, JUMP_READOUT_OFF, JUMP_READOUT_OFF);
+	}
+
+	gi.Client_Print(ent, PRINT_HIGH, "Readouts off. Turn them back on in Options.\n");
+}
+
 // Whether this player has a speedometer at all, drawn by either half.
 //
 // The takeoff mark is a reference FOR the speedometer - the frozen number above
@@ -69,6 +111,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  strafebar      show/hide the server's strafe meter\n"
 					"  speedo         show/hide the server's speedometer\n"
 					"  takeoff        show/hide the takeoff mark\n"
+					"  hudreset       turn every readout off again\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -301,6 +344,12 @@ bool Jump_ClientCommand(edict_t *ent)
 
 	// No client copy of this one, so no redirect and no handshake: the bar is the
 	// only thing that draws the takeoff mark, for stock and DLL clients alike.
+	if (!Q_strcasecmp(cmd, "hudreset"))
+	{
+		Jump_ResetReadouts(ent);
+		return true;
+	}
+
 	if (!Q_strcasecmp(cmd, "takeoff"))
 	{
 		jump_client_t *jc = Jump_ClientData(ent);

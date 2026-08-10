@@ -72,6 +72,7 @@ static void Jump_MenuToggleTakeoff(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuCycleCgaz(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuResetReadouts(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateOptions(edict_t *ent);
 
 static void Jump_OpenCastMenu(edict_t *ent);
@@ -250,6 +251,7 @@ constexpr int JUMP_OPT_TAKEOFF = 3;
 constexpr int JUMP_OPT_STRAFE = 5;
 constexpr int JUMP_OPT_CGAZ = 6;
 constexpr int JUMP_OPT_JUMPERS = 8;
+constexpr int JUMP_OPT_RESET = 10;
 
 static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
 	{ "Options", PMENU_ALIGN_CENTER, nullptr },				 // 0
@@ -261,8 +263,8 @@ static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleCgaz },			 // 6  cgaz
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 7  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleJumpers },		 // 8  hide players
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 9
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 10
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 9  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuResetReadouts },		 // 10 reset readouts
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 11
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 12
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 13
@@ -660,6 +662,13 @@ static void Jump_MenuUpdateOptions(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[JUMP_OPT_JUMPERS],
 					G_Fmt("Hide Players: {}", (jc && !jc->show_jumpers) ? "On" : "Off").data(), PMENU_ALIGN_LEFT,
 					Jump_MenuToggleJumpers);
+
+	// The way back to a clean screen. It exists because the rerelease archives
+	// these cvars whether or not you ever touched them, so a player who has run an
+	// older build never sees a changed default - this is how they get it without
+	// editing system.cfg by hand.
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_RESET], "Turn All Readouts Off", PMENU_ALIGN_LEFT,
+					Jump_MenuResetReadouts);
 }
 
 // The handlers below leave the menu open and let it relabel in place, which is
@@ -738,6 +747,13 @@ static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd)
 static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd)
 {
 	Jump_CmdJumpers(ent);
+	PMenu_Update(ent);
+}
+
+static void Jump_MenuResetReadouts(edict_t *ent, pmenuhnd_t *hnd)
+{
+	Jump_ResetReadouts(ent);
+	Jump_MenuClick(ent);
 	PMenu_Update(ent);
 }
 

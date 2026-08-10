@@ -68,6 +68,19 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Changed
 
+- **Every performance readout is now off by default**, and there is a **Turn All Readouts Off** row in
+  Options (and a `hudreset` command) that puts you back to that state.
+
+  What the HUD shows unasked is now what you need to *play* — timer, checkpoints, stores, personal
+  best, team, time remaining. The speedometer, the takeoff mark, the strafe meter and CGaz are all
+  things you turn on. A new player arriving on a jump server gets a clean screen and finds the tools
+  when they go looking for them, which is what Options is for.
+
+  The reset row is not just a convenience. The rerelease writes these cvars to `system.cfg` whether
+  or not you have ever touched one, so a changed default can only ever reach a *fresh* install — if
+  you have played an earlier build, your old settings are pinned and no future default will reach
+  you. This is how you catch up without editing that file by hand.
+
 - **Options in the menu now covers every readout**, with rows for the **Takeoff Mark** and **CGaz**
   alongside the ones that were already there, grouped in pairs: the speedometer with the mark above
   it, the strafe meter with CGaz. Nothing on screen is now reachable only by typing a cvar.

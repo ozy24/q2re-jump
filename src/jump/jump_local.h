@@ -87,16 +87,20 @@ struct jump_client_t
 	// Whether the SERVER draws each readout for this player, for a client that
 	// is NOT running the mod's own. `speedo` / `strafebar` set these.
 	//
-	// The strafe meter is OFF by default and the speedometer on, which is a
-	// judgement about who each one serves. A speedometer explains itself: the
-	// number goes up when you do well. The strafe meter is a percentage of a
-	// total that is invisible, changes every frame and shrinks as you improve -
-	// and below 300 ups it reads full whatever you do, because there is no wrong
-	// angle to find yet. A new player is told they are perfect while doing
-	// nothing, then told they are failing once they start trying. It is a good
-	// instrument for somebody who can already strafe; it is not a teacher.
+	// EVERY performance readout is off by default, here and in the cvars the
+	// overlay registers. The status bar's job by default is what you need to
+	// PLAY - timer, checkpoints, stores, personal best, team, time remaining -
+	// and everything about playing BETTER is asked for. That line is the same one
+	// the two halves are split along (AGENTS.md), applied to the default state
+	// rather than to who draws what.
+	//
+	// This replaced a finer-grained rule that had the two self-explanatory
+	// readouts on and the two needing teaching off. It was not wrong so much as
+	// not worth the asymmetry: a new player arriving on a jump server should be
+	// shown a clean screen and given the tools when they look for them, and
+	// Options is where they look. Reset Readouts returns to exactly this state.
 	bool        server_strafebar = false;
-	bool        server_speedo = true;
+	bool        server_speedo = false;
 
 	// What the mod's own client reports about its overlay cvars, via `jumphud`.
 	// A stock client never sends it, so client_hud is also how the server knows
@@ -112,7 +116,7 @@ struct jump_client_t
 	// Whether the SERVER draws the takeoff mark for this player. Unlike the two
 	// above there is no client copy and no handshake: the bar is the only thing
 	// that draws it, so one flag governs it for everybody.
-	bool        server_takeoff = true;
+	bool        server_takeoff = false;
 
 	// Rate limit for the "teleporter needs N ups" print. A gated teleport's
 	// trigger touches every frame you are inside it, and on a speed map that
@@ -273,6 +277,12 @@ bool Jump_ServerDrawsSpeedo(const jump_client_t *jc);
 // Whether the player has a speedometer at all, from either half. The takeoff
 // mark is a reference for it and must not outlive it.
 bool Jump_PlayerHasSpeedo(const jump_client_t *jc);
+
+// Every performance readout off, whichever half draws it - the shipped default
+// state. Reachable from Options and from the `hudreset` command, and the only way
+// a player who has run an older build gets a changed default, since the
+// rerelease archives these cvars whether they were touched or not.
+void Jump_ResetReadouts(edict_t *ent);
 bool Jump_ServerDrawsStrafeBar(const jump_client_t *jc);
 
 // jump_mset.cpp

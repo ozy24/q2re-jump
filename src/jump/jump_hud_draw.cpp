@@ -98,15 +98,15 @@ void Jump_InitClientCvars()
 	// to 0 below, which stays off either way.
 	jump_hud = cgi.cvar("jump_hud", "1", CVAR_ARCHIVE);
 
-	// Both readouts default ON, which is not a decision to put anything new on
-	// your screen: the server draws both for every player already, so all this
-	// chooses is which half draws what you were seeing anyway.
+	// Every performance readout is OFF by default - see server_strafebar in
+	// jump_local.h for the whole argument. Short version: the default HUD is what
+	// you need to play, and everything about playing better is asked for.
 	//
-	// 0 therefore means no speedometer *anywhere* - the client tells the server
-	// to hide its copy too, which is the only way a player who wants neither can
-	// say so and have it stick. It beats jump_hud 0 as well: an explicit "I do
-	// not want this" should survive turning the overlay off and on again.
-	jump_hud_speed = cgi.cvar("jump_hud_speed", "1", CVAR_ARCHIVE);
+	// 0 means no speedometer *anywhere*, not "let the server draw it". That is the
+	// only way a player who wants neither can say so and have it stick, and it
+	// beats jump_hud 0: an explicit "I do not want this" should survive turning
+	// the overlay off and on again.
+	jump_hud_speed = cgi.cvar("jump_hud_speed", "0", CVAR_ARCHIVE);
 
 	// How often the speed reading is replaced, in Hz. 40 is the rerelease's
 	// server frame rate. Both upstream mods ran on a 10 Hz server and so

@@ -186,9 +186,17 @@ whatever you do, because until your speed exceeds the target there is no wrong a
 beginner is told they are perfect while doing nothing, then told they are failing the moment they
 start trying. Two experienced players read it as broken inside an hour.
 
-So it is now **off by default**, and the readouts are ranked by who they serve rather than by who
-can see them: the speedometer explains itself and is on for everyone; the strafe meter and CGaz
-both have to be taught, and are opt-in. The lesson generalises — a continuous instrument scored
+So it is now off by default - and so is everything else of its kind. What the bar shows unasked is
+what you need to **play**: timer, checkpoints, stores, personal best, team, time remaining. Every
+readout about playing **better** is opt-in, wherever it is drawn. That is the same line the two
+halves are split along, applied to the default state rather than to who renders what, and it
+replaced a finer-grained rule that kept the self-explanatory readouts on - not wrong, but not worth
+the asymmetry once there was a menu to find them in.
+
+Because a default can only ever reach a fresh install - the rerelease archives every CVAR_ARCHIVE
+cvar whether the player touched it or not - `Jump_ResetReadouts` exists to put an existing player
+back to that state, from Options or `hudreset`. Shipping a `system.cfg` was considered and rejected:
+it lives outside baseq2 and holds forty lines of settings that are none of the mod's business. The lesson generalises — a continuous instrument scored
 against an invisible reference is for somebody who already has the motor pattern. What teaches a
 beginner is discrete, per-event feedback they can attribute to a decision they remember making, and
 that shape is *also* the cheap one for the status bar, since it updates once per event rather than
