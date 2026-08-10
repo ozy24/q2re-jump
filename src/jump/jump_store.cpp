@@ -174,6 +174,33 @@ void Jump_CmdKill(edict_t *ent)
 	Jump_RestartRun(ent);
 }
 
+// Dying on Practice resumes from the last store, the way `kill` already does.
+//
+// Upstream q2jump gets this for free by overriding the spawn point inside
+// PutClientInServer for anyone on Easy (p_client.c:1180-1187), which this port
+// cannot copy: it has a restart-from-spawn action that upstream does not, and
+// Jump_RestartRun goes through the same function. So the recall hangs off the
+// death respawn specifically.
+//
+// Called after respawn(), not from the death itself: a corpse cannot recall -
+// Jump_CanStore refuses at health <= 0 - and the respawn is what restores the
+// health, the inventory and the spawn placement this then moves away from.
+//
+// No store, Ranked, or spectating means do nothing at all. The respawn has
+// already happened by this point, so there is nothing to fall back to.
+void Jump_PostDeathRespawn(edict_t *ent)
+{
+	if (!Jump_Active())
+		return;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || jc->team != jump_team_t::practice || jc->stores.Empty())
+		return;
+
+	Jump_CmdRecall(ent, 1);
+}
+
 void Jump_CmdReset(edict_t *ent)
 {
 	jump_client_t *jc = Jump_ClientData(ent);

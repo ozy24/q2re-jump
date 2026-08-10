@@ -15,6 +15,7 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
 | | Easy | Hard | Spectator |
 |---|---|---|---|
 | store / recall | yes, recall keeps elapsed timer | recall = full respawn (run restarts) | n/a |
+| death respawn | at the most recent store | at the map spawn | n/a |
 | times recorded | never | yes | n/a |
 | noclip | yes (B) | no | n/a |
 | replays recorded | no | yes | n/a |
@@ -27,6 +28,16 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
   recent store if one exists — A recalls outright (`g_ctf.c:3678`), as does B.
 - There is no separate "time invalidation" flag — Hard simply cannot recall, and Easy times are
   never saved. A's `item_timer_allow` is dead code (only ever set true).
+- Dying on Easy respawns you on your most recent store. A does it by overriding the spawn point
+  inside `PutClientInServer` itself, right after `SelectSpawnPoint` and gated on `can_store`
+  (`p_client.c:1180-1187`), so it covers every route back into the map at once.
+
+**Port decision (death respawn):** same behaviour, different seam. A's blanket override of the
+spawn point cannot be copied here, because this port has a restart-from-spawn action A does not —
+`Jump_RestartRun`, behind the menu's Restart Run and behind `recall` on Ranked — and it goes
+through the same `PutClientInServer`. So `Jump_PostDeathRespawn` hangs off the death respawn in
+`ClientBeginServerFrame` specifically, and reuses `Jump_CmdRecall`, which means dying costs
+exactly what `kill` costs: the time since the store.
 
 **Port decision (join):** Easy/Hard/Spectator as above, renamed Practice/Ranked/Spectator.
 Matching B, a connecting player arrives as a Spectator and the menu opens unprompted; nothing

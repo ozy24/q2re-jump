@@ -111,6 +111,12 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Fixed
 
+- **Dying on Practice puts you back on your last store**, rather than at the map spawn. Lava, a
+  long fall and a crusher now cost the same as pressing `kill` — the time since the store — instead
+  of the whole run. Practice exists to let you work on one jump; being sent back to the start for
+  landing in the lava next to it was the one way left to lose a session's progress by accident.
+  Unchanged without a store, on Ranked, and with `g_jump 0`.
+
 - **`fasttele` now carries your view through the teleporter as well as your speed.** It used to
   keep the velocity but still snap you to face the destination's angle, which is the worst of the
   two halves: the velocity vector survives in world space, but the direction you were steering it

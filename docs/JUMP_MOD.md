@@ -152,8 +152,11 @@ if you open the menu mid-run.
 ### Teams
 
 **Practice** is for learning a map. You can store and recall freely, and
-recalling carries your elapsed time with it. Practice runs are timed for your
-own benefit but are never broadcast and never recorded.
+recalling carries your elapsed time with it. Dying does the same thing — lava,
+a long fall or a crusher puts you back on your last store rather than at the
+map spawn, so a mistake costs you the same as `kill` does. Without a store
+you go back to the spawn as usual. Practice runs are timed for your own benefit
+but are never broadcast and never recorded.
 
 **Ranked** is for setting times. `store` is refused and `recall` restarts your
 run from the spawn, so the only way to a time is one clean run. Only ranked

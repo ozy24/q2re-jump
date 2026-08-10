@@ -3844,6 +3844,8 @@ void ClientBeginServerFrame(edict_t *ent)
 					(deathmatch->integer && g_dm_force_respawn->integer))
 				{
 					respawn(ent);
+					// [Jump] Practice resumes from the last store, not the spawn
+					Jump_PostDeathRespawn(ent);
 					client->latched_buttons = BUTTON_NONE;
 				}
 			}

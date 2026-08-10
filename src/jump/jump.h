@@ -37,6 +37,11 @@ void Jump_ClientSpawn(edict_t *ent);				  // PutClientInServer
 void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd); // ClientThink, before pmove
 void Jump_ClientDisconnect(edict_t *ent);			  // ClientDisconnect
 
+// ClientBeginServerFrame, immediately after the death respawn: on Practice a
+// stored position is where the run resumes from, so the map spawn the respawn
+// just used is only ever a fallback. Inert without a store, and on Ranked.
+void Jump_PostDeathRespawn(edict_t *ent);
+
 // Spectator follow hooks. The controls hook replaces stock spectator input;
 // the eyecam hook replaces the stock orbit camera when first-person is on.
 bool Jump_HandleSpectatorControls(edict_t *ent, usercmd_t *ucmd);
@@ -106,7 +111,8 @@ bool Jump_ScoreboardMessage(edict_t *ent);
 bool Jump_ScoreCycle(edict_t *ent);
 
 // teleporter_touch: true when the map's fasttele mset is on, meaning the
-// teleport freeze should be skipped.
+// teleport should not interrupt the player at all - no velocity clear, no
+// freeze, and no snapping the view to the destination's angle.
 bool Jump_FastTeleport();
 
 // teleporter_touch / trigger_teleport_touch: true when the teleporter's `speed`
