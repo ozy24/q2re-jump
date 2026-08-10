@@ -93,8 +93,8 @@ static_assert((int) JUMP_STAT_SPEED_D1 < (int) MAX_STATS, "jump stat out of rang
 // (bg_local.h) and MAX_STATS is 64 (game.h), so nothing owns that range - and
 // nothing reads it either, which makes it safer ground than the CTF block,
 // where 27's problem is precisely that the stock statusbar reads it. 54 is the
-// strafe bar, 55-58 the speedometer's digits and 59 the HUD request; 60-63
-// remain.
+// strafe bar, 55-58 the speedometer's digits, 59 the HUD request and 60 the
+// per-jump delta; 61-63 remain.
 //
 // Ten, not eleven: bg_local.h's own static_assert allows
 // STAT_LAST == MAX_STATS + 1, which would permit a stat at index 64, one past
@@ -124,6 +124,14 @@ constexpr int16_t JUMP_RUN_FINISHED = 2;
 constexpr int JUMP_HUD_SPEED_YB = -96;
 constexpr int JUMP_HUD_STRAFE_YB = -82;
 
+// What the last hop earned, directly ABOVE the speed it changed, so the column
+// reads delta then speed then strafe bar. Above rather than below because every
+// row under the speedometer is already spoken for: -68 is the FOLLOWING label,
+// and a chasing spectator inherits the chased player's stats, so a delta there
+// would print through it. Only the server draws this one, so it needs no
+// matching anchor in the overlay.
+constexpr int JUMP_HUD_TAKEOFF_YB = -110;
+
 // yb counts upwards from the bottom edge, so "below" is the larger value. Easy
 // to get backwards, and a swap would put the bar over the number.
 static_assert(JUMP_HUD_STRAFE_YB > JUMP_HUD_SPEED_YB, "the strafe bar sits below the speed number");
@@ -152,11 +160,26 @@ constexpr player_stat_t JUMP_STAT_HUD_REQUEST = (player_stat_t) 59;
 
 static_assert((int) JUMP_STAT_HUD_REQUEST < (int) MAX_STATS, "jump stat out of range");
 
+// What the last hop earned, as a stat_string pointing at the player's own slot
+// in CONFIG_JUMP_TAKEOFF_STRING. One stat rather than one per digit, because the
+// value changes once per jump rather than once per frame - the same trade the
+// personal best makes, and what lets a per-event readout reach a stock client.
+//
+// Zero means nothing to show, and the row must sit inside an ifstat: a
+// stat_string indexes a configstring BY VALUE, so an ungated 0 draws
+// configstring 0.
+constexpr player_stat_t JUMP_STAT_TAKEOFF_SPEED = (player_stat_t) 60;
+
+static_assert((int) JUMP_STAT_TAKEOFF_SPEED < (int) MAX_STATS, "jump stat out of range");
+
 constexpr int JUMP_HUD_REQUEST_SEQ_MAX = 15;
 
-constexpr int16_t Jump_EncodeHudRequest(int seq, int speed, int strafe)
+// Bits 0-1 speed, 2-3 strafe, 4-7 sequence, 8-9 CGaz. Ten bits of a signed
+// int16, so the value is always positive and 10-15 are spare for the next
+// client-side setting a menu row needs to reach.
+constexpr int16_t Jump_EncodeHudRequest(int seq, int speed, int strafe, int cgaz)
 {
-	return (int16_t) (((seq & 15) << 4) | ((strafe & 3) << 2) | (speed & 3));
+	return (int16_t) (((cgaz & 3) << 8) | ((seq & 15) << 4) | ((strafe & 3) << 2) | (speed & 3));
 }
 
 constexpr int Jump_HudRequestSeq(int16_t request)
@@ -172,4 +195,9 @@ constexpr int Jump_HudRequestSpeed(int16_t request)
 constexpr int Jump_HudRequestStrafe(int16_t request)
 {
 	return (request >> 2) & 3;
+}
+
+constexpr int Jump_HudRequestCgaz(int16_t request)
+{
+	return (request >> 8) & 3;
 }

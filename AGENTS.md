@@ -177,6 +177,23 @@ where it costs nothing and leaves with the message it belongs to. Something abou
 is a bar element. **Then: can the bar draw it?** If yes it goes there, because every player sees it,
 and the reason for the mod existing is not served by hiding the teaching tools behind a download.
 
+A third question was learned the hard way and belongs beside them: **who is this for, and can they
+read it without being told?** Reaching every player is worth nothing if the element does not teach
+the players it reaches. The strafe meter was defaulted on for years on the grounds that it "teaches
+a new player what strafe jumping actually is". It does not. It is a percentage of a total that is
+invisible, changes every frame, and shrinks as you improve — and below 300 ups it reads full
+whatever you do, because until your speed exceeds the target there is no wrong angle to find. A
+beginner is told they are perfect while doing nothing, then told they are failing the moment they
+start trying. Two experienced players read it as broken inside an hour.
+
+So it is now **off by default**, and the readouts are ranked by who they serve rather than by who
+can see them: the speedometer explains itself and is on for everyone; the strafe meter and CGaz
+both have to be taught, and are opt-in. The lesson generalises — a continuous instrument scored
+against an invisible reference is for somebody who already has the motor pattern. What teaches a
+beginner is discrete, per-event feedback they can attribute to a decision they remember making, and
+that shape is *also* the cheap one for the status bar, since it updates once per event rather than
+per frame. That is the direction a new teaching element should come from.
+
 The CGaz strip (`jump_hud_cgaz`) is the second element to pass it, and it passed on a different
 clause. It is not about your ongoing state at all — it is about the *choice in front of you*, which
 is why it has no smoothing, no bar-side twin and no place in the readout handshake. The bar could

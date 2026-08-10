@@ -10,22 +10,26 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
-### Fixed
-
-- **Speed-gated teleporters now work**, which some maps are built entirely around. A `speed` key on
-  `trigger_teleport` or `misc_teleporter` is the horizontal speed you must be carrying before it
-  fires; below that it does nothing and tells you what you need. Upstream q2jump has had this for
-  years and the port was missing it.
-
-  On `4kv3` the effect was total: its spawn point sits *inside* a teleport trigger covering the
-  whole track, gated at 4000 ups, whose destination sits inside the finish. Without the gate the
-  teleport fired on the first frame, so the map dropped you into a sealed room with a finished run
-  before you had moved. Both touch paths are hooked — they are separate functions in the rerelease,
-  the same split that once let `fasttele` work on `misc_teleporter` and not `trigger_teleport`.
-
-  Thanks to Sata for the map and the report.
-
 ### Added
+
+- **Takeoff speed**, above the speedometer: the same number, frozen at the moment your feet left the
+  ground. Everyone gets it, including players on a stock client, and it is on by default.
+
+  This is the readout for someone learning the movement, and the first one that is. The top number
+  is the mark, the bottom is you, bigger is better — no explaining required. In the air it shows what
+  the jump has gained so far; across takeoffs it shows whether the whole cycle gained or lost, ground
+  contact included. Freezing at takeoff rather than landing is what puts a slow ground contact inside
+  the number instead of hiding it, and it is the only stable moment to read: friction removes around
+  60 ups in a single frame at 400 ups, so anything sampled near a landing measures when you looked
+  rather than how you jumped.
+
+  Stop for about three quarters of a second and the mark clears rather than hanging above your speed
+  from a run you have already left.
+
+  It costs one stat and one configstring per player, rewritten only when the value changes — once per
+  jump. That is what makes a teaching element affordable on the status bar, where it reaches
+  everyone, rather than in the overlay behind a download.
+
 
 - **A CGaz strip**, `jump_hud_cgaz 1`, for players running the mod's own DLL. Translucent bands just
   below the crosshair showing which view angles would accelerate you and which is best, drawn
@@ -61,6 +65,50 @@ released — see [docs/release-process.md](docs/release-process.md).
   Thanks to Sata for the report that turned this up: "I'm doing perfect strafes and sometimes bar
   is empty and sometimes full." The meter was right — that is what riding a half-degree edge looks
   like — but it had no way to say so.
+
+### Changed
+
+- **Options in the menu now covers every readout**, with rows for the **Takeoff Mark** and **CGaz**
+  alongside the ones that were already there, grouped in pairs: the speedometer with the mark above
+  it, the strafe meter with CGaz. Nothing on screen is now reachable only by typing a cvar.
+
+  The two new rows work differently underneath, and the menu says so rather than hiding it. The
+  takeoff mark is drawn by the status bar for everybody, so that row is a plain switch on any client.
+  CGaz can only be drawn by the overlay, so on a stock client the row reads `CGaz: needs the DLL` and
+  the cursor skips it instead of offering a switch that would do nothing. `takeoff` is also a console
+  command now, for parity with `speedo` and `strafebar`.
+
+- **The strafe meter is now off by default.** Turn it on with `strafebar`, from Options in the menu,
+  or with `jump_hud_strafe 1`.
+
+  It was defaulted on as the thing that would teach a new player what strafe jumping is, and it does
+  not do that. It scores you against a total you cannot see, which changes every frame and shrinks
+  as you improve — and below 300 ups it reads full whatever you do, because until your speed passes
+  the target there is no wrong angle to find. So it tells a beginner they are perfect while they are
+  doing nothing, then tells them they are failing the moment they start trying. Two experienced
+  players read it as broken within an hour of picking it up.
+
+  It is a good instrument once you can already strafe, and nothing about it has changed except who
+  gets it unasked. The speedometer stays on for everybody: a number that goes up needs no explaining.
+
+  Note that the rerelease archives these cvars even when you have never touched them, so the new
+  default only reaches fresh installs — delete the `jump_hud_strafe` line from `system.cfg` to pick
+  it up.
+
+### Fixed
+
+- **Speed-gated teleporters now work**, which some maps are built entirely around. A `speed` key on
+  `trigger_teleport` or `misc_teleporter` is the horizontal speed you must be carrying before it
+  fires; below that it does nothing and tells you what you need. Upstream q2jump has had this for
+  years and the port was missing it.
+
+  On `4kv3` the effect was total: its spawn point sits *inside* a teleport trigger covering the
+  whole track, gated at 4000 ups, whose destination sits inside the finish. Without the gate the
+  teleport fired on the first frame, so the map dropped you into a sealed room with a finished run
+  before you had moved. Both touch paths are hooked — they are separate functions in the rerelease,
+  the same split that once let `fasttele` work on `misc_teleporter` and not `trigger_teleport`.
+
+  Thanks to Sata for the map and the report.
 
 ## [0.7.0] - 2026-08-08
 

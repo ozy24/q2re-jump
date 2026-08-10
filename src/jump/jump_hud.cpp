@@ -72,6 +72,30 @@ void Jump_SetStats(edict_t *ent)
 	// cvars. Zero unless one is outstanding, which is all but always.
 	ent->client->ps.stats[JUMP_STAT_HUD_REQUEST] = jc->hud_request;
 
+	// The speedometer frozen at the last takeoff, sitting above the live one as a
+	// mark to beat. Written to the player's own configstring only when the number
+	// changes - once per jump - and the stat just points at it, exactly as the
+	// personal best does. A configstring write broadcasts to everyone, so this is
+	// affordable only because a jump is a rare event next to a frame.
+	const ptrdiff_t takeoff_index = ent->client - game.clients;
+	const bool		takeoff_ok = takeoff_index >= 0 && takeoff_index < JUMP_MAX_PB_STRING_CLIENTS &&
+							 jc->team != jump_team_t::spectator && jc->server_takeoff &&
+							 Jump_PlayerHasSpeedo(jc);
+
+	if (takeoff_ok && jc->takeoff.have_speed &&
+		(!jc->takeoff_written || jc->takeoff_shown != jc->takeoff.speed))
+	{
+		jc->takeoff_shown = jc->takeoff.speed;
+		jc->takeoff_written = true;
+		gi.configstring((int) (CONFIG_JUMP_TAKEOFF_STRING + takeoff_index),
+						jump::FormatSpeed((float) jc->takeoff.speed).c_str());
+	}
+
+	ent->client->ps.stats[JUMP_STAT_TAKEOFF_SPEED] =
+		(takeoff_ok && jc->takeoff.have_speed && jc->takeoff_written)
+			? (int16_t) (CONFIG_JUMP_TAKEOFF_STRING + takeoff_index)
+			: 0;
+
 	// The strafe meter: the stat points at whichever pre-rendered bar string
 	// matches the reading. Players running this DLL get the overlay's finer
 	// version instead - see Jump_ServerDrawsStrafeBar for who decides.
@@ -287,9 +311,17 @@ static void Jump_EmitStatusbar()
 	// The two `yb` anchors live in jump_stats.h rather than here, because the
 	// client overlay draws these same two rows and the pair must not drift apart.
 	//
-	// Cells 10 apart, biased left so the three-digit case - which is what a run
+	// Cells 8 apart, biased left so the three-digit case - which is what a run
 	// actually reads - lands centred, and a four-digit boost grows leftwards.
-	constexpr int speed_cell = 10;
+	//
+	// 8 rather than the 10 this started at, because the takeoff mark one row
+	// above is a single string with the font's own kerning, and 10 left the
+	// speedometer visibly looser than the number it sits under. Cell spacing is
+	// the only lever: the mark can be a string because it changes once per jump,
+	// and the speedometer cannot because a configstring write per frame would be
+	// broadcast to every client. 8 is close to the font's own digit advance, so
+	// the two read as one column.
+	constexpr int speed_cell = 8;
 	constexpr int speed_x0 = -2 * speed_cell;
 
 	// Gated on the units digit, which is the one that is never blank, so the
@@ -301,6 +333,14 @@ static void Jump_EmitStatusbar()
 			(player_stat_t) (JUMP_STAT_SPEED_D1000 + i));
 
 	sb.endifstat();
+
+	// What the last hop earned, one row under the speed it changed. Gated, as
+	// every stat_string row must be - an ungated 0 draws configstring 0.
+	sb.ifstat(JUMP_STAT_TAKEOFF_SPEED)
+		.yb(JUMP_HUD_TAKEOFF_YB)
+		.xv(0)
+		.loc_stat_cstring2(JUMP_STAT_TAKEOFF_SPEED)
+		.endifstat();
 
 	sb.ifstat(JUMP_STAT_STRAFE_BAR)
 		.yb(JUMP_HUD_STRAFE_YB)

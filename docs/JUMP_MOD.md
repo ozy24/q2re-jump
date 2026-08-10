@@ -39,8 +39,9 @@ lobby, so everything below is a console command.
 | `ranks` | Points for everyone connected |
 | `maplist` | Maps in the rotation |
 | `msets` | Per-map settings in force (gravity, fasttele, which weapons are tools) |
-| `strafebar` | Show/hide the strafe meter (or the menu's Options row) |
+| `strafebar` | Show/hide the strafe meter, off by default (or the menu's Options row) |
 | `speedo` | Show/hide the speedometer (or the menu's Options row) |
+| `takeoff` | Show/hide the takeoff mark (or the menu's Options row) |
 | `votemap <map>` | Call a vote to change map (the menu does this too) |
 | `timeextend [minutes]` | Call a vote to add time (default 15) |
 | `yes` / `no` | Vote on the current call |
@@ -97,8 +98,14 @@ nothing anyone else does:
 | Row | Cycles |
 |---|---|
 | Speedometer | Off, On |
+| Takeoff Mark | Off, On |
 | Strafe Meter | Off, On, Centred |
+| CGaz | Off, On — needs the mod's own DLL |
 | Hide Players | Off, On |
+
+They are grouped in pairs because that is how they are used: the speedometer and
+the mark above it are one instrument, and the strafe meter and CGaz are the two
+halves of the angle question — where to point, and how well you pointed.
 
 Each row stays open and relabels as you pick it, so you can see what you changed.
 A row means *the readout*, not one of the two copies of it: **On** gives you the
@@ -107,6 +114,12 @@ DLL, the status bar one if you are not — and **Off** means gone everywhere. If
 have the DLL these rows are setting `jump_hud_speed` and `jump_hud_strafe` for
 you, so a change made here persists the same way as typing the cvar, and
 **Centred** is DLL-only since the status bar cannot anchor a bar in the middle.
+
+**CGaz** is the one row that cannot work for everyone: the status bar has no way
+to draw a moving angular zone, so on a stock client the row reads
+`CGaz: needs the DLL` and the cursor skips past it rather than offering a switch
+that would do nothing. **Takeoff Mark** is the opposite case — the bar draws it
+for everybody, so that row behaves identically whichever client you are on.
 
 The one thing Options cannot do is give you the status bar's version while you
 have the DLL installed — that is `jump_hud 0`, a switch for the whole overlay
@@ -220,6 +233,34 @@ markedly easier to read at that rate: `jump_hud_speed_hz 10` gives you it. That
 is a refresh rate, not smoothing — the number shown is always an exact
 instantaneous speed, only sampled less often.
 
+### Takeoff speed
+
+Directly above the speedometer sits **the same number, frozen at the moment your
+feet left the ground**:
+
+```
+        420      <- you left the ground at this
+        455      <- you are doing this now
+```
+
+**Everyone gets it, including players on a stock client**, and it is on by
+default. It needs no explaining, which is exactly why it is the one a new player
+should watch: the top number is the mark, the bottom one is you, and bigger is
+better.
+
+Two things fall out of it. While you are in the air it shows what the jump has
+gained you so far — 420 to 455 is +35 and still climbing. And at the next
+takeoff the top number is replaced, so comparing one takeoff to the next tells
+you whether the **whole cycle** gained or lost, ground contact included.
+
+That second part matters more than it sounds: dawdling on the ground instead of
+hopping straight back off is the most expensive beginner mistake there is, and
+freezing at takeoff rather than at landing is what puts it inside the number
+instead of hiding it.
+
+Stop for about three quarters of a second and the mark clears rather than
+hanging above your speed from a run you have already walked away from.
+
 ### The strafe meter
 
 A bar showing **how much of the acceleration that was available to you, you are
@@ -229,7 +270,15 @@ the difference between a 43° strafe and a 45° one is the difference between
 capturing everything on offer and capturing none of it, and nothing else on
 screen shows that.
 
-**Everyone gets it, including players on a stock client** — it is drawn by the
+**Off by default — turn it on with `strafebar`, or from Options in the menu.**
+It is an instrument for players who can already strafe and want to sharpen it,
+not a way to learn. It scores you against a total you cannot see, and below
+300 ups it reads full whatever you do, because at that speed there is no wrong
+angle to find: a new player is told they are perfect while doing nothing, then
+told they are failing the moment they start trying. If you are still learning
+the movement, the speedometer and CGaz will serve you far better.
+
+Everyone *can* have it, including players on a stock client — it is drawn by the
 server as a short row of characters, just under the speedometer:
 
 ```
@@ -431,20 +480,26 @@ subtracts — but it belongs to the run that just ended, so it now rides along i
 message and leaves when that does. Every player gets it, and nothing has to decide when to take it
 off the screen.
 
-**The readouts are on by default, and that puts nothing new on your screen.** The server draws
-both for every player already, so all these cvars decide is which half draws what you were seeing
-anyway. `jump_hud 0` switches the whole overlay off for an exact stock-client view — the server's
-copies come back. Setting a readout to `0` is different: it means you do not want that readout at
-all, so your client tells the server to keep its copy hidden too, and that survives turning the
-overlay off and on again.
+**The speedometer is on by default and the other two are not**, which is a judgement about who
+each one serves rather than about how much screen they cost. A speedometer explains itself. The
+strafe meter and CGaz both have to be taught before they help, and the strafe meter in particular
+says nothing useful below 300 ups — see its section above.
+
+Setting a readout to `0` means you do not want it at all, so your client tells the server to keep
+its copy hidden too, and that survives turning the overlay off and on again. `jump_hud 0` is
+different: it switches the whole overlay off for an exact stock-client view, and the server's
+copies come back.
 
 | Cvar | Default | Effect |
 |---|---|---|
 | `jump_hud` | `1` | Master switch for the client overlay. `0` = exact stock-client view |
 | `jump_hud_speed` | `1` | The speedometer. `0` = no speedometer anywhere, server's copy included |
-| `jump_hud_strafe` | `1` | The strafe meter: `1` plain, `2` centre-anchored, `0` none anywhere |
+| `jump_hud_strafe` | `0` | The strafe meter: `1` plain, `2` centre-anchored, `0` none anywhere |
+| `jump_hud_cgaz` | `0` | The CGaz strip |
 
-All are archived, so they persist. With `jump_hud 0` nothing is sampled at all.
+All are archived, so they persist — and note that the rerelease writes them out even when you have
+never touched them, so **a later change to a default will not reach you**. Delete the line from
+`system.cfg` to pick a new default up.
 
 ### Scoreboard byte budget
 
@@ -680,7 +735,7 @@ any change to the entity contract.
 | `jump_hud` | `1` | **Client-side**, unlike the others. The performance HUD. `0` gives the exact stock-client view, bar readouts included — except for a readout whose own cvar is `0` |
 | `jump_hud_speed` | `1` | **Client-side.** Replaces the server's speedometer with a finer one; `0` means no speedometer anywhere, server's copy included |
 | `jump_hud_speed_hz` | `40` | **Client-side.** How often the speed reading is replaced; `10` is the cadence both upstream mods had |
-| `jump_hud_strafe` | `1` | **Client-side.** Replaces the server's strafe bar with a finer one: `1` a plain 0-100% bar, `2` centre-anchored, `0` no meter anywhere |
+| `jump_hud_strafe` | `0` | **Client-side.** The strafe meter, off by default: `1` a plain 0-100% bar, `2` centre-anchored, `0` no meter anywhere |
 | `jump_hud_strafe_tau` | `300` | **Client-side.** How long the strafe reading remembers, in ms |
 | `jump_hud_cgaz` | `0` | **Client-side.** The CGaz strip: which view angles accelerate you, and the wedge that does not |
 | `jump_hud_cgaz_fov` | `240` | **Client-side.** Degrees the strip spans end to end |

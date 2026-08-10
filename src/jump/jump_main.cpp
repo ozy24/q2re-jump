@@ -148,6 +148,8 @@ void Jump_InitLevel(const char *entities)
 		jc.checkpoints = 0;
 		jc.stores.Clear();
 		jc.store_marker = nullptr; // freed with TAG_LEVEL
+		jc.takeoff.Reset();
+		jc.takeoff_written = false;
 
 		jc.team = jump_team_t::spectator;
 		jc.team_chosen = false;
@@ -245,6 +247,11 @@ void Jump_ResetRun(jump_client_t &jc)
 	jc.run_start_ms = 0;
 	jc.checkpoints = 0;
 
+	// The takeoff mark belongs to the run that just ended. A restart or a recall
+	// puts the player back with no speed, so carrying the old number over would
+	// leave them comparing against a jump from a run they are no longer on.
+	jc.takeoff.Reset();
+	jc.takeoff_written = false;
 }
 
 void Jump_RestartRun(edict_t *ent)

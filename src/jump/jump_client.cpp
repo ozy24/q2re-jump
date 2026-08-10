@@ -116,6 +116,29 @@ void Jump_ClientSpawn(edict_t *ent)
 // Air only, for the reason in jump_logic.h: on the ground friction has already
 // run by the time acceleration happens, and SURF_SLICK is not visible from
 // here, so a ground reading would be quietly wrong on ice.
+// What the last hop earned. Fed from the same place as the strafe meter, so it
+// sees the exact command the feet leave the ground on rather than whichever one
+// happened to fall on a rendered frame.
+//
+// This runs BEFORE pmove, so ent->groundentity is the state the previous command
+// left behind - which is what the takeoff test wants: it is looking for the
+// first command where the player is no longer stood on anything.
+static void Jump_TrackTakeoff(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
+{
+	const bool playable = !ent->client->resp.spectator && !ent->client->chase_target &&
+						  jc.team != jump_team_t::spectator;
+
+	if (!playable || ucmd->msec == 0 || ent->client->ps.pmove.pm_type != PM_NORMAL)
+	{
+		jc.takeoff.Reset();
+		return;
+	}
+
+	const float speed = jump::HorizontalSpeed(ent->velocity[0], ent->velocity[1]);
+
+	jc.takeoff.Update(ent->groundentity != nullptr, speed, ucmd->msec);
+}
+
 static void Jump_TrackStrafe(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
 {
 	const int64_t now = Jump_NowMs();
@@ -166,6 +189,7 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 		return;
 
 	Jump_TrackStrafe(ent, ucmd, *jc);
+	Jump_TrackTakeoff(ent, ucmd, *jc);
 
 	// The join menu, armed by Jump_PreSpawn. Opening from here rather than the
 	// spawn path is MuffMode's trick: ClientThink only runs once the client is

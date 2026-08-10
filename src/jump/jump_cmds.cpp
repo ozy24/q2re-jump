@@ -24,6 +24,22 @@ bool Jump_ServerDrawsSpeedo(const jump_client_t *jc)
 	return jc->server_speedo;
 }
 
+// Whether this player has a speedometer at all, drawn by either half.
+//
+// The takeoff mark is a reference FOR the speedometer - the frozen number above
+// the moving one - so it has to follow it. On its own it is a number with
+// nothing to be compared against.
+bool Jump_PlayerHasSpeedo(const jump_client_t *jc)
+{
+	if (!jc)
+		return false;
+
+	if (jc->client_hud)
+		return jc->client_speed != JUMP_READOUT_OFF;
+
+	return jc->server_speedo;
+}
+
 bool Jump_ServerDrawsStrafeBar(const jump_client_t *jc)
 {
 	if (!jc)
@@ -52,6 +68,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  msets          settings in force on this map\n"
 					"  strafebar      show/hide the server's strafe meter\n"
 					"  speedo         show/hide the server's speedometer\n"
+					"  takeoff        show/hide the takeoff mark\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
@@ -234,6 +251,13 @@ bool Jump_ClientCommand(edict_t *ent)
 		jc->client_speed = atoi(gi.argv(2));
 		jc->client_strafe = atoi(gi.argv(3));
 
+		// CGaz joined the report later, so a client built before it sends four
+		// arguments rather than five. Read it when it is there and leave the last
+		// known value alone when it is not, rather than refusing the whole report
+		// and losing the client_hud flag with it.
+		if (gi.argc() > 4)
+			jc->client_cgaz = atoi(gi.argv(4));
+
 		// Whatever the menu last asked for, the client has now told us where it
 		// actually stands, so the request has done its job. Clearing it here is
 		// what keeps it one-shot: a request left standing would be re-applied at
@@ -270,6 +294,26 @@ bool Jump_ClientCommand(edict_t *ent)
 		{
 			jc->server_strafebar = want;
 			gi.Client_Print(ent, PRINT_HIGH, want ? "Strafe bar on.\n" : "Strafe bar off.\n");
+		}
+
+		return true;
+	}
+
+	// No client copy of this one, so no redirect and no handshake: the bar is the
+	// only thing that draws the takeoff mark, for stock and DLL clients alike.
+	if (!Q_strcasecmp(cmd, "takeoff"))
+	{
+		jump_client_t *jc = Jump_ClientData(ent);
+
+		if (!jc)
+			return true;
+
+		const bool want = gi.argc() > 1 ? atoi(gi.argv(1)) != 0 : !jc->server_takeoff;
+
+		if (want != jc->server_takeoff)
+		{
+			jc->server_takeoff = want;
+			gi.Client_Print(ent, PRINT_HIGH, want ? "Takeoff mark on.\n" : "Takeoff mark off.\n");
 		}
 
 		return true;

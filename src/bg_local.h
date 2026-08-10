@@ -97,6 +97,14 @@ enum
 	// for everyone who sees it.
 	CONFIG_JUMP_ANNOUNCE,
 
+	// [Jump] One slot per potential player, holding what their last hop earned
+	// ("+45"). Per-client and written only when the value changes, which is once
+	// per jump - rare enough for a configstring in a way a per-frame readout
+	// never is, and the reason a teaching element can live on the status bar
+	// where every player sees it. Sized like CONFIG_JUMP_PB_STRING above.
+	CONFIG_JUMP_TAKEOFF_STRING,
+	CONFIG_JUMP_TAKEOFF_STRING_END = CONFIG_JUMP_TAKEOFF_STRING + 64 - 1,
+
 	CONFIG_LAST
 };
 

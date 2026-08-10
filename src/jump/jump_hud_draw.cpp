@@ -81,6 +81,7 @@ static cvar_t *jump_hud_cgaz_y;
 static int32_t jump_told_master = -1;
 static int32_t jump_told_speed = -1;
 static int32_t jump_told_strafe = -1;
+static int32_t jump_told_cgaz = -1;
 
 // The sequence number of the last options-menu request we applied; 0 = none.
 // Tracked because the values alone cannot say whether a request is new - being
@@ -118,13 +119,18 @@ void Jump_InitClientCvars()
 	// The strafe meter: 0 no meter at all, 1 a plain 0-100% bar, 2
 	// centre-anchored. Any non-zero value means the overlay draws it.
 	//
+	// OFF by default, unlike the speedometer, and for the reason set out beside
+	// server_strafebar in jump_local.h: it scores you against a total you cannot
+	// see, and it cannot say anything at all below 300 ups. Turn it on when the
+	// motor pattern is already there and you want to sharpen it.
+	//
 	// 1 is the calmer of the two - one thing moving, always in the same
 	// direction, next to a number you are already reading. 2 adds which WAY you
 	// are wrong, which is genuinely more information: the penalty is lopsided,
 	// since a shallow strafe still captures most of what was available while a
 	// fractionally steep one captures none of it. It also swaps sides, and a bar
 	// that changes direction is a second thing to track.
-	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "1", CVAR_ARCHIVE);
+	jump_hud_strafe = cgi.cvar("jump_hud_strafe", "0", CVAR_ARCHIVE);
 
 	// How long the reading remembers, in ms. Roughly one airtime. The raw
 	// per-frame value is unreadable; this is what makes it a meter rather than
@@ -162,6 +168,7 @@ void Jump_InitClientCvars()
 	jump_told_master = -1;
 	jump_told_speed = -1;
 	jump_told_strafe = -1;
+	jump_told_cgaz = -1;
 	jump_applied_request = 0;
 	Jump_CG_ResetSamples();
 }
@@ -572,6 +579,7 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 
 		cgi.cvar_set("jump_hud_speed", G_Fmt("{}", Jump_HudRequestSpeed(request)).data());
 		cgi.cvar_set("jump_hud_strafe", G_Fmt("{}", Jump_HudRequestStrafe(request)).data());
+		cgi.cvar_set("jump_hud_cgaz", G_Fmt("{}", Jump_HudRequestCgaz(request)).data());
 	}
 
 	const int32_t master = jump_hud ? jump_hud->integer : 1;
@@ -586,10 +594,11 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	const bool want_speed = enabled && speed_set != JUMP_READOUT_OFF;
 	const bool want_strafe = enabled && strafe_set != JUMP_READOUT_OFF;
 
-	// CGaz is not reported to the server and has no bar-side twin: there is no
-	// second copy for the server to stop drawing, so it stays out of the
-	// handshake entirely.
-	const bool want_cgaz = enabled && jump_hud_cgaz && jump_hud_cgaz->integer;
+	// CGaz has no bar-side twin - there is no second copy for the server to stop
+	// drawing - but it is still reported, because the options menu has a row for
+	// it and a menu row has to know what it is currently set to.
+	const int32_t cgaz_set = jump_hud_cgaz ? jump_hud_cgaz->integer : JUMP_READOUT_OFF;
+	const bool	  want_cgaz = enabled && cgaz_set != JUMP_READOUT_OFF;
 
 	// Tell the server what we are set to, so it knows which copies to draw and
 	// what the options menu should say. See jump_told_* above for why this is the
@@ -600,13 +609,16 @@ void Jump_DrawHud(int32_t isplit, const player_state_t *ps, vrect_t hud_vrect, v
 	// its own copies are wanted back, and the options menu sets these cvars by
 	// stuffing them, so a pick made while the overlay is off has to be reported
 	// too or the menu shows a change the server never saw.
-	if (master != jump_told_master || speed_set != jump_told_speed || strafe_set != jump_told_strafe)
+	if (master != jump_told_master || speed_set != jump_told_speed || strafe_set != jump_told_strafe ||
+		cgaz_set != jump_told_cgaz)
 	{
 		jump_told_master = master;
 		jump_told_speed = speed_set;
 		jump_told_strafe = strafe_set;
+		jump_told_cgaz = cgaz_set;
 
-		cgi.AddCommandString(G_Fmt("cmd jumphud {} {} {}\n", master, speed_set, strafe_set).data());
+		cgi.AddCommandString(
+			G_Fmt("cmd jumphud {} {} {} {}\n", master, speed_set, strafe_set, cgaz_set).data());
 	}
 
 	// Clamped rather than trusted: a typo here would otherwise either freeze

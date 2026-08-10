@@ -55,6 +55,13 @@ struct jump_client_t
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
 
+	// The speedometer frozen at the last takeoff. Tracked per usercmd like the
+	// strafe meter, and for the same reason: the server sees every command, so
+	// it catches the exact frame the feet leave the ground.
+	jump::jump_takeoff_state_t takeoff;
+	int						 takeoff_shown = 0;	  // what the configstring currently holds
+	bool					 takeoff_written = false; // whether it holds anything at all
+
 	// The strafe meter, accumulated per usercmd. The server sees every command
 	// rather than one per rendered frame, so this is a finer sample than the
 	// client half can take - it just has a coarser way of drawing the result.
@@ -79,7 +86,16 @@ struct jump_client_t
 	bool        menu_hint_shown = false; // %bind:inven% hint printed once
 	// Whether the SERVER draws each readout for this player, for a client that
 	// is NOT running the mod's own. `speedo` / `strafebar` set these.
-	bool        server_strafebar = true;
+	//
+	// The strafe meter is OFF by default and the speedometer on, which is a
+	// judgement about who each one serves. A speedometer explains itself: the
+	// number goes up when you do well. The strafe meter is a percentage of a
+	// total that is invisible, changes every frame and shrinks as you improve -
+	// and below 300 ups it reads full whatever you do, because there is no wrong
+	// angle to find yet. A new player is told they are perfect while doing
+	// nothing, then told they are failing once they start trying. It is a good
+	// instrument for somebody who can already strafe; it is not a teacher.
+	bool        server_strafebar = false;
 	bool        server_speedo = true;
 
 	// What the mod's own client reports about its overlay cvars, via `jumphud`.
@@ -91,6 +107,12 @@ struct jump_client_t
 	int         client_hud_master = 1; // jump_hud
 	int         client_speed = JUMP_READOUT_ON;
 	int         client_strafe = JUMP_READOUT_ON;
+	int         client_cgaz = JUMP_READOUT_OFF;
+
+	// Whether the SERVER draws the takeoff mark for this player. Unlike the two
+	// above there is no client copy and no handshake: the bar is the only thing
+	// that draws it, so one flag governs it for everybody.
+	bool        server_takeoff = true;
 
 	// Rate limit for the "teleporter needs N ups" print. A gated teleport's
 	// trigger touches every frame you are inside it, and on a speed map that
@@ -247,6 +269,10 @@ void Jump_StatusbarFrame();
 // For a client running the mod's own half this is derived live from the cvars it
 // reported; for a stock client it is the `speedo` / `strafebar` flag.
 bool Jump_ServerDrawsSpeedo(const jump_client_t *jc);
+
+// Whether the player has a speedometer at all, from either half. The takeoff
+// mark is a reference for it and must not outlive it.
+bool Jump_PlayerHasSpeedo(const jump_client_t *jc);
 bool Jump_ServerDrawsStrafeBar(const jump_client_t *jc);
 
 // jump_mset.cpp

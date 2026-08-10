@@ -537,6 +537,59 @@ struct strafe_state_t
 	strafe_readout_t Update(const move_ring_t &ring, uint64_t tau_ms = STRAFE_TAU_MS);
 };
 
+// ---------------------------------------------------------------------------
+// Takeoff speed
+// ---------------------------------------------------------------------------
+//
+// The speedometer, frozen at the moment your feet left the ground, and held
+// until they leave it again. Above the live number it reads as a mark to beat:
+// you left at 420, you are at 455 now, next takeoff says whether the whole cycle
+// gained or lost.
+//
+// A frozen speed rather than a computed difference, and the difference matters.
+// It is in the same units as the number under it, so there is no second thing to
+// learn; the comparison is one a player does for themselves; and because it
+// holds all through the flight it gives continuous feedback rather than one
+// verdict per cycle.
+//
+// TAKEOFF is the moment to freeze it, not landing, for two reasons. It makes the
+// pair span a whole cycle, so the speed a slow ground contact costs you shows up
+// rather than hiding in a lower starting point - and not hopping promptly is the
+// most expensive beginner mistake. And it is the only stable moment:
+// PM_Friction takes `speed * 6 * dt` off you, around 60 ups in one 40 Hz frame
+// at 400 ups, so anything sampled near a landing says more about when it was
+// read than about how the jump went.
+constexpr uint64_t JUMP_TAKEOFF_CHAIN_BREAK_MS = 750;
+
+// Below this a takeoff is not worth marking. Jumping on the spot leaves the
+// ground at nearly nothing, and a teleport or a recall zeroes velocity outright,
+// so without this the mark reads "0" at moments that are not jumps at all.
+constexpr float JUMP_TAKEOFF_MIN_SPEED = 50.f;
+
+struct jump_takeoff_state_t
+{
+	bool	 airborne = false;
+	bool	 have_speed = false;
+	int		 speed = 0;		// horizontal ups at the last takeoff, rounded
+	uint64_t ground_ms = 0; // consecutive time on the ground
+
+	// Whether the feet have been on the ground since the last reset. Without it
+	// the very first frame counts as a takeoff, because `airborne` starts false
+	// meaning "was on the ground" - and on the frame a player joins they are not
+	// stood on anything yet, so the mark appeared as a "0" before they had moved.
+	bool have_ground = false;
+
+	void Reset();
+
+	// Feed one frame of ground state and horizontal speed. Returns true on the
+	// frame a new takeoff is recorded.
+	//
+	// Stand around and the chain is over: after JUMP_TAKEOFF_CHAIN_BREAK_MS on
+	// the ground the reading clears, rather than leaving a mark from a run the
+	// player has already walked away from.
+	bool Update(bool on_ground, float speed, uint64_t dt_ms);
+};
+
 // A teleporter's minimum-speed gate: `speed` on a trigger_teleport or
 // misc_teleporter is the horizontal speed a player must be carrying before it
 // will fire. Below that it does nothing at all.

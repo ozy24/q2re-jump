@@ -1287,6 +1287,91 @@ static void TestTeleportSpeedGate()
 	CHECK(!jump::TeleportSpeedAllows(3200.f, 4000.f));
 }
 
+// The speedometer frozen at the last takeoff.
+static void TestTakeoffSpeed()
+{
+	jump::jump_takeoff_state_t t;
+
+	// n frames of a given ground state at 25 ms each. Only safe to CONTINUE an
+	// air phase - its first frame after ground would be a takeoff, and it passes
+	// no speed - so every takeoff below is an explicit Update.
+	auto run = [&](bool on_ground, int frames) {
+		for (int i = 0; i < frames; i++)
+			t.Update(on_ground, 0.f, 25);
+	};
+
+	// Joining the game: the very first frames are not a takeoff. `airborne`
+	// starts false, meaning "was on the ground", so without the have_ground gate
+	// the first airborne frame counts as leaving it - and a player who has not
+	// moved yet is doing 0, which is what put a "0" above the speedometer the
+	// instant anyone joined.
+	t.Reset();
+	CHECK(!t.Update(false, 0.f, 25));
+	CHECK(!t.have_speed);
+	run(false, 10);
+	CHECK(!t.have_speed);
+
+	// Nothing to show until the feet leave the ground the first time.
+	t.Reset();
+	run(true, 2);
+	CHECK(!t.have_speed);
+
+	// Takeoff freezes the speedometer, and it holds all through the flight - that
+	// is what makes it a mark to compare the live number against.
+	CHECK(t.Update(false, 420.4f, 25));
+	CHECK(t.have_speed);
+	CHECK(t.speed == 420);
+
+	run(false, 20);
+	CHECK(t.speed == 420); // unchanged by anything that happens in the air
+
+	// The next takeoff replaces it.
+	run(true, 1);
+	CHECK(t.Update(false, 445.f, 25));
+	CHECK(t.speed == 445);
+
+	// Rounded the way the live speedometer rounds, so the two agree at the
+	// instant of takeoff rather than differing by one.
+	run(true, 1);
+	t.Update(false, 449.6f, 25);
+	CHECK(t.speed == 449);
+
+	// Stand about and the chain is over: the mark clears rather than hanging над
+	// the live number from a run already abandoned.
+	run(true, (int) (jump::JUMP_TAKEOFF_CHAIN_BREAK_MS / 25) + 1);
+	CHECK(!t.have_speed);
+	CHECK(t.speed == 0);
+
+	// Hopping on the spot is not a mark. Nor is being put somewhere by a recall
+	// or a teleport, both of which zero the velocity - the old behaviour showed
+	// "0" for those too.
+	t.Reset();
+	run(true, 2);
+	CHECK(!t.Update(false, 0.f, 25));
+	CHECK(!t.have_speed);
+
+	run(true, 2);
+	CHECK(!t.Update(false, jump::JUMP_TAKEOFF_MIN_SPEED - 1.f, 25));
+	CHECK(!t.have_speed);
+
+	// And the threshold is a floor, not a band: at it, the mark is taken.
+	run(true, 2);
+	CHECK(t.Update(false, jump::JUMP_TAKEOFF_MIN_SPEED, 25));
+	CHECK(t.have_speed);
+
+	// Ground time resets at each takeoff, so an ordinary hop chain never
+	// accumulates its way to the break however long it runs.
+	t.Reset();
+	t.Update(false, 400.f, 25);
+	run(true, 10);
+	CHECK(t.Update(false, 410.f, 25));
+	run(false, 4);
+	run(true, 10);
+	CHECK(t.Update(false, 425.f, 25));
+	CHECK(t.have_speed);
+	CHECK(t.speed == 425);
+}
+
 static void TestCgaz()
 {
 	// No keys held: nothing to steer, so nothing to draw. A strip built from an
@@ -1680,6 +1765,7 @@ int main()
 	TestStrafeKeysDoNotMatter();
 	TestStrafeCliffAsymmetry();
 	TestTeleportSpeedGate();
+	TestTakeoffSpeed();
 	TestCgaz();
 	TestStrafeBarLevel();
 	TestSpeedDigits();

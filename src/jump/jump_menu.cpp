@@ -68,7 +68,9 @@ static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenOptions(edict_t *ent, pmenuhnd_t *hnd);
 
 static void Jump_MenuCycleSpeedo(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuToggleTakeoff(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuCycleCgaz(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateOptions(edict_t *ent);
 
@@ -240,20 +242,25 @@ static const pmenu_t jump_help_menu[JUMP_MENU_ENTRIES] = {
 // it - and a row here means the readout, not one of the two copies. So "On" is
 // the best version that player can get, and the handler works out which half to
 // speak to. See Jump_MenuUpdateOptions.
+// Grouped in pairs, because that is how they are used: the speedometer and the
+// mark above it are one instrument, and the strafe meter and CGaz are the two
+// halves of the angle question - where to point, and how well you pointed.
 constexpr int JUMP_OPT_SPEEDO = 2;
-constexpr int JUMP_OPT_STRAFE = 3;
-constexpr int JUMP_OPT_JUMPERS = 5;
+constexpr int JUMP_OPT_TAKEOFF = 3;
+constexpr int JUMP_OPT_STRAFE = 5;
+constexpr int JUMP_OPT_CGAZ = 6;
+constexpr int JUMP_OPT_JUMPERS = 8;
 
 static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
 	{ "Options", PMENU_ALIGN_CENTER, nullptr },				 // 0
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 1  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleSpeedo },			 // 2  speedometer
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe },			 // 3  strafe meter
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleTakeoff },		 // 3  takeoff mark
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 4  blank
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleJumpers },		 // 5  hide players
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 6
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 7
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 8
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe },			 // 5  strafe meter
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleCgaz },			 // 6  cgaz
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 7  blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleJumpers },		 // 8  hide players
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 9
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 10
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 11
@@ -499,18 +506,43 @@ static void Jump_OpenHelpMenu(edict_t *ent)
 // Options
 // ---------------------------------------------------------------------------
 
+// Which readout a row is about. They differ in who can draw them, and that is
+// what decides how a row behaves rather than anything cosmetic:
+//
+//   speedo, strafe  both halves can draw it, so every player gets a working row
+//   cgaz            the overlay only - the bar cannot draw a moving angular
+//                   zone at any price - so a stock client's row has nothing to
+//                   set and says so instead of lying
+enum class jump_readout_kind_t
+{
+	speedo,
+	strafe,
+	cgaz
+};
+
 // What a readout is currently set to, as one of JUMP_READOUT_*. For a client
 // running the mod's own half that is the cvar it reported; for a stock client
 // there is only the server's copy, so on/off is all it can be.
-static int Jump_MenuReadoutState(const jump_client_t *jc, bool speedo)
+static int Jump_MenuReadoutState(const jump_client_t *jc, jump_readout_kind_t kind)
 {
 	if (!jc)
 		return JUMP_READOUT_OFF;
 
 	if (jc->client_hud)
-		return speedo ? jc->client_speed : jc->client_strafe;
+	{
+		switch (kind)
+		{
+		case jump_readout_kind_t::speedo: return jc->client_speed;
+		case jump_readout_kind_t::strafe: return jc->client_strafe;
+		case jump_readout_kind_t::cgaz: return jc->client_cgaz;
+		}
+	}
 
-	const bool on = speedo ? jc->server_speedo : jc->server_strafebar;
+	// No overlay, so no CGaz to report on at all.
+	if (kind == jump_readout_kind_t::cgaz)
+		return JUMP_READOUT_OFF;
+
+	const bool on = kind == jump_readout_kind_t::speedo ? jc->server_speedo : jc->server_strafebar;
 
 	return on ? JUMP_READOUT_ON : JUMP_READOUT_OFF;
 }
@@ -533,32 +565,41 @@ static const char *Jump_MenuReadoutLabel(int state)
 //
 // For a stock client there is no cvar and no overlay to carry the request, so the
 // server's own flag is both the setting and the whole story.
-static void Jump_MenuSetReadout(edict_t *ent, jump_client_t *jc, bool speedo, int state)
+static void Jump_MenuSetReadout(edict_t *ent, jump_client_t *jc, jump_readout_kind_t kind, int state)
 {
 	if (jc->client_hud)
 	{
-		if (speedo)
-			jc->client_speed = state;
-		else
-			jc->client_strafe = state;
+		switch (kind)
+		{
+		case jump_readout_kind_t::speedo: jc->client_speed = state; break;
+		case jump_readout_kind_t::strafe: jc->client_strafe = state; break;
+		case jump_readout_kind_t::cgaz: jc->client_cgaz = state; break;
+		}
 
-		// Both readouts ride in the one stat, so a request always carries the
-		// pair - the one just picked and whatever the other is already set to.
+		// All three ride in the one stat, so a request always carries the whole
+		// set - the one just picked and whatever the others are already set to.
 		int seq = Jump_HudRequestSeq(jc->hud_request) + 1;
 
 		if (seq > JUMP_HUD_REQUEST_SEQ_MAX)
 			seq = 1; // 0 means "nothing pending", so it is never a live sequence
 
-		jc->hud_request = Jump_EncodeHudRequest(seq, jc->client_speed, jc->client_strafe);
+		jc->hud_request =
+			Jump_EncodeHudRequest(seq, jc->client_speed, jc->client_strafe, jc->client_cgaz);
 
-		Jump_Log("options -> %s: request %d, speed=%d strafe=%d", Jump_DisplayName(ent), seq, jc->client_speed,
-				 jc->client_strafe);
+		Jump_Log("options -> %s: request %d, speed=%d strafe=%d cgaz=%d", Jump_DisplayName(ent), seq,
+				 jc->client_speed, jc->client_strafe, jc->client_cgaz);
 		return;
 	}
 
-	Jump_Log("options: no client hud reported, setting the server's %s to %d", speedo ? "speedo" : "strafebar", state);
+	// A stock client has no overlay, so CGaz has nothing to set - and its row is
+	// unpickable for exactly that reason, so this should never be reached.
+	if (kind == jump_readout_kind_t::cgaz)
+		return;
 
-	if (speedo)
+	Jump_Log("options: no client hud reported, setting the server's %s to %d",
+			 kind == jump_readout_kind_t::speedo ? "speedo" : "strafebar", state);
+
+	if (kind == jump_readout_kind_t::speedo)
 		jc->server_speedo = (state != JUMP_READOUT_OFF);
 	else
 		jc->server_strafebar = (state != JUMP_READOUT_OFF);
@@ -581,13 +622,37 @@ static void Jump_MenuUpdateOptions(edict_t *ent)
 
 	const jump_client_t *jc = Jump_ClientData(ent);
 
-	Jump_MenuSetRow(hnd->entries[JUMP_OPT_SPEEDO],
-					G_Fmt("Speedometer: {}", Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, true))).data(),
-					PMENU_ALIGN_LEFT, Jump_MenuCycleSpeedo);
+	Jump_MenuSetRow(
+		hnd->entries[JUMP_OPT_SPEEDO],
+		G_Fmt("Speedometer: {}",
+			  Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, jump_readout_kind_t::speedo)))
+			.data(),
+		PMENU_ALIGN_LEFT, Jump_MenuCycleSpeedo);
 
-	Jump_MenuSetRow(hnd->entries[JUMP_OPT_STRAFE],
-					G_Fmt("Strafe Meter: {}", Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, false))).data(),
-					PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe);
+	// The mark is drawn by the bar for everybody, so unlike the rows around it
+	// this one needs no handshake and works the same whatever client you are on.
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_TAKEOFF],
+					G_Fmt("Takeoff Mark: {}", (jc && jc->server_takeoff) ? "On" : "Off").data(),
+					PMENU_ALIGN_LEFT, Jump_MenuToggleTakeoff);
+
+	Jump_MenuSetRow(
+		hnd->entries[JUMP_OPT_STRAFE],
+		G_Fmt("Strafe Meter: {}",
+			  Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, jump_readout_kind_t::strafe)))
+			.data(),
+		PMENU_ALIGN_LEFT, Jump_MenuCycleStrafe);
+
+	// CGaz is overlay-only, so a stock client's row has nothing to offer. Say why
+	// rather than showing a switch that would do nothing, and drop the SelectFunc
+	// so the cursor skips it - the same idiom the locked store rows use.
+	if (jc && jc->client_hud)
+		Jump_MenuSetRow(
+			hnd->entries[JUMP_OPT_CGAZ],
+			G_Fmt("CGaz: {}", Jump_MenuReadoutLabel(Jump_MenuReadoutState(jc, jump_readout_kind_t::cgaz)))
+				.data(),
+			PMENU_ALIGN_LEFT, Jump_MenuCycleCgaz);
+	else
+		Jump_MenuSetRow(hnd->entries[JUMP_OPT_CGAZ], "CGaz: needs the DLL", PMENU_ALIGN_LEFT, nullptr);
 
 	// Named for what picking it does, not for the state it is in, because the
 	// state is on the same row - "Hide Players: On" is unambiguous in a way that
@@ -597,9 +662,9 @@ static void Jump_MenuUpdateOptions(edict_t *ent)
 					Jump_MenuToggleJumpers);
 }
 
-// The three handlers below leave the menu open and let it relabel in place,
-// which is what makes a settings screen usable - the map pager does the same.
-// PMenu_Update marks the menu dirty and the next client frame re-sends it.
+// The handlers below leave the menu open and let it relabel in place, which is
+// what makes a settings screen usable - the map pager does the same. PMenu_Update
+// marks the menu dirty and the next client frame re-sends it.
 static void Jump_MenuCycleSpeedo(edict_t *ent, pmenuhnd_t *hnd)
 {
 	jump_client_t *jc = Jump_ClientData(ent);
@@ -607,9 +672,39 @@ static void Jump_MenuCycleSpeedo(edict_t *ent, pmenuhnd_t *hnd)
 	if (!jc)
 		return;
 
-	const bool on = Jump_MenuReadoutState(jc, true) != JUMP_READOUT_OFF;
+	const bool on = Jump_MenuReadoutState(jc, jump_readout_kind_t::speedo) != JUMP_READOUT_OFF;
 
-	Jump_MenuSetReadout(ent, jc, true, on ? JUMP_READOUT_OFF : JUMP_READOUT_ON);
+	Jump_MenuSetReadout(ent, jc, jump_readout_kind_t::speedo, on ? JUMP_READOUT_OFF : JUMP_READOUT_ON);
+	Jump_MenuClick(ent);
+	PMenu_Update(ent);
+}
+
+// No handshake and no client copy: the bar draws the mark for everyone, so this
+// is the one readout row that is a plain server-side flag.
+static void Jump_MenuToggleTakeoff(edict_t *ent, pmenuhnd_t *hnd)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	jc->server_takeoff = !jc->server_takeoff;
+	Jump_MenuClick(ent);
+	PMenu_Update(ent);
+}
+
+// Off - On only. The strip has no second form to offer, and no bar-side twin
+// either, so this row is only ever reached by a client that can draw it.
+static void Jump_MenuCycleCgaz(edict_t *ent, pmenuhnd_t *hnd)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || !jc->client_hud)
+		return;
+
+	const bool on = Jump_MenuReadoutState(jc, jump_readout_kind_t::cgaz) != JUMP_READOUT_OFF;
+
+	Jump_MenuSetReadout(ent, jc, jump_readout_kind_t::cgaz, on ? JUMP_READOUT_OFF : JUMP_READOUT_ON);
 	Jump_MenuClick(ent);
 	PMenu_Update(ent);
 }
@@ -625,7 +720,7 @@ static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd)
 	// The status bar has no way to anchor a bar in the middle, so for a stock
 	// client the third state would be indistinguishable from the second and the
 	// cycle would look broken.
-	const int state = Jump_MenuReadoutState(jc, false);
+	const int state = Jump_MenuReadoutState(jc, jump_readout_kind_t::strafe);
 	int		  next;
 
 	if (state == JUMP_READOUT_OFF)
@@ -635,7 +730,7 @@ static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd)
 	else
 		next = JUMP_READOUT_OFF;
 
-	Jump_MenuSetReadout(ent, jc, false, next);
+	Jump_MenuSetReadout(ent, jc, jump_readout_kind_t::strafe, next);
 	Jump_MenuClick(ent);
 	PMenu_Update(ent);
 }

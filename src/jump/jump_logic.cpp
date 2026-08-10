@@ -708,6 +708,54 @@ strafe_frame_t StrafeFrame(const float vel_before_xy[2], float pitch_deg, float 
 	return out;
 }
 
+void jump_takeoff_state_t::Reset()
+{
+	*this = jump_takeoff_state_t {};
+}
+
+bool jump_takeoff_state_t::Update(bool on_ground, float speed, uint64_t dt_ms)
+{
+	bool produced = false;
+
+	if (on_ground)
+	{
+		ground_ms += dt_ms;
+		have_ground = true;
+
+		// The chain is over. Clear the mark rather than leave the speed of a run
+		// the player has already stopped sitting above their live number.
+		if (ground_ms >= JUMP_TAKEOFF_CHAIN_BREAK_MS)
+		{
+			have_speed = false;
+			this->speed = 0;
+		}
+	}
+
+	// Takeoff: on the ground last frame, not on it now. Leaving a ledge counts,
+	// which is right - it is still the start of an air phase, and the mark stays
+	// honest about what the whole cycle did.
+	//
+	// Two things have to be true before that is a real takeoff. The feet must
+	// have been on the ground at some point, or the first frame of all counts as
+	// one - which is what put a "0" on screen the instant a player joined. And
+	// the player must be moving: hopping on the spot, or being put somewhere by a
+	// teleport or a recall, leaves the ground at nothing, and a mark of 0 is
+	// worse than no mark.
+	if (airborne == false && on_ground == false && have_ground && speed >= JUMP_TAKEOFF_MIN_SPEED)
+	{
+		// Rounded the same way the live speedometer rounds, so the frozen number
+		// and the moving one cannot disagree at the instant of takeoff.
+		this->speed = SpeedStat(speed, 0.f);
+		have_speed = true;
+		ground_ms = 0;
+		produced = true;
+	}
+
+	airborne = !on_ground;
+
+	return produced;
+}
+
 bool TeleportSpeedAllows(float horizontal_speed, float required)
 {
 	if (!(required > 0.f))
