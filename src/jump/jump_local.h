@@ -87,20 +87,20 @@ struct jump_client_t
 	// Whether the SERVER draws each readout for this player, for a client that
 	// is NOT running the mod's own. `speedo` / `strafebar` set these.
 	//
-	// EVERY performance readout is off by default, here and in the cvars the
-	// overlay registers. The status bar's job by default is what you need to
-	// PLAY - timer, checkpoints, stores, personal best, team, time remaining -
-	// and everything about playing BETTER is asked for. That line is the same one
-	// the two halves are split along (AGENTS.md), applied to the default state
-	// rather than to who draws what.
+	// THE SHIPPED BASELINE, matched by the cvars the overlay registers and by
+	// Jump_ResetReadouts: the speedometer on, everything else off.
 	//
-	// This replaced a finer-grained rule that had the two self-explanatory
-	// readouts on and the two needing teaching off. It was not wrong so much as
-	// not worth the asymmetry: a new player arriving on a jump server should be
-	// shown a clean screen and given the tools when they look for them, and
-	// Options is where they look. Reset Readouts returns to exactly this state.
+	// The default HUD is what you need to PLAY - timer, checkpoints, stores,
+	// personal best, team, time remaining - plus the one readout that needs no
+	// explaining. A number that goes up when you do well teaches on sight and
+	// costs nothing to ignore. The takeoff mark, the strafe meter and CGaz all
+	// have to be read before they help, so they are asked for, and Options is
+	// where a player goes looking.
+	//
+	// Keep these three in step with jump_hud_draw.cpp's cvar defaults and with
+	// Jump_ResetReadouts, or "reset" stops meaning "what a fresh install shows".
 	bool        server_strafebar = false;
-	bool        server_speedo = false;
+	bool        server_speedo = true;
 
 	// What the mod's own client reports about its overlay cvars, via `jumphud`.
 	// A stock client never sends it, so client_hud is also how the server knows

@@ -667,7 +667,7 @@ static void Jump_MenuUpdateOptions(edict_t *ent)
 	// these cvars whether or not you ever touched them, so a player who has run an
 	// older build never sees a changed default - this is how they get it without
 	// editing system.cfg by hand.
-	Jump_MenuSetRow(hnd->entries[JUMP_OPT_RESET], "Turn All Readouts Off", PMENU_ALIGN_LEFT,
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_RESET], "Reset Readouts", PMENU_ALIGN_LEFT,
 					Jump_MenuResetReadouts);
 }
 

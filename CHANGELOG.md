@@ -13,7 +13,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 ### Added
 
 - **Takeoff speed**, above the speedometer: the same number, frozen at the moment your feet left the
-  ground. Everyone gets it, including players on a stock client, and it is on by default.
+  ground. Everyone can have it, including players on a stock client — turn it on with `takeoff` or
+  from Options.
 
   This is the readout for someone learning the movement, and the first one that is. The top number
   is the mark, the bottom is you, bigger is better — no explaining required. In the air it shows what
@@ -68,13 +69,13 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Changed
 
-- **Every performance readout is now off by default**, and there is a **Turn All Readouts Off** row in
-  Options (and a `hudreset` command) that puts you back to that state.
+- **Only the speedometer is on by default now**, and there is a **Reset Readouts** row in Options
+  (and a `hudreset` command) that puts you back to that state.
 
-  What the HUD shows unasked is now what you need to *play* — timer, checkpoints, stores, personal
-  best, team, time remaining. The speedometer, the takeoff mark, the strafe meter and CGaz are all
-  things you turn on. A new player arriving on a jump server gets a clean screen and finds the tools
-  when they go looking for them, which is what Options is for.
+  What the HUD shows unasked is what you need to *play* — timer, checkpoints, stores, personal best,
+  team, time remaining — plus the one readout that needs no explaining. The takeoff mark, the strafe
+  meter and CGaz all have to be read before they help, so they are things you turn on, and Options is
+  where you find them.
 
   The reset row is not just a convenience. The rerelease writes these cvars to `system.cfg` whether
   or not you have ever touched one, so a changed default can only ever reach a *fresh* install — if

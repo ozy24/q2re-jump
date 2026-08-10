@@ -186,12 +186,16 @@ whatever you do, because until your speed exceeds the target there is no wrong a
 beginner is told they are perfect while doing nothing, then told they are failing the moment they
 start trying. Two experienced players read it as broken inside an hour.
 
-So it is now off by default - and so is everything else of its kind. What the bar shows unasked is
-what you need to **play**: timer, checkpoints, stores, personal best, team, time remaining. Every
-readout about playing **better** is opt-in, wherever it is drawn. That is the same line the two
-halves are split along, applied to the default state rather than to who renders what, and it
-replaced a finer-grained rule that kept the self-explanatory readouts on - not wrong, but not worth
-the asymmetry once there was a menu to find them in.
+So it is now off by default, and the readouts are ranked by who they serve rather than by who can
+see them. What the bar shows unasked is what you need to **play** - timer, checkpoints, stores,
+personal best, team, time remaining - plus the speedometer, which explains itself: a number that
+goes up when you do well teaches on sight and costs nothing to ignore. The takeoff mark, the strafe
+meter and CGaz all have to be read before they help, so they are opt-in, and Options is where a
+player goes looking.
+
+The baseline lives in three places that must agree - `server_*` in `jump_local.h`, the cvar defaults
+in `jump_hud_draw.cpp`, and `Jump_ResetReadouts` - because if they drift, "reset" stops meaning
+"what a fresh install shows".
 
 Because a default can only ever reach a fresh install - the rerelease archives every CVAR_ARCHIVE
 cvar whether the player touched it or not - `Jump_ResetReadouts` exists to put an existing player

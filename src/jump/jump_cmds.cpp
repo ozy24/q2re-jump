@@ -24,9 +24,9 @@ bool Jump_ServerDrawsSpeedo(const jump_client_t *jc)
 	return jc->server_speedo;
 }
 
-// Back to a clean screen: every performance readout off, whichever half draws
-// it. This is the shipped default state, so "reset" and "what a fresh install
-// looks like" are the same thing by construction.
+// Back to the shipped baseline: the speedometer on, everything else off. Kept in
+// step with the defaults in jump_local.h and jump_hud_draw.cpp, so "reset" and
+// "what a fresh install shows" are the same thing by construction.
 //
 // It exists because a default change cannot reach anyone who has already played.
 // The rerelease writes every CVAR_ARCHIVE cvar to system.cfg whether or not the
@@ -45,13 +45,13 @@ void Jump_ResetReadouts(edict_t *ent)
 	if (!jc)
 		return;
 
-	jc->server_speedo = false;
+	jc->server_speedo = true;
 	jc->server_strafebar = false;
 	jc->server_takeoff = false;
 
 	if (jc->client_hud)
 	{
-		jc->client_speed = JUMP_READOUT_OFF;
+		jc->client_speed = JUMP_READOUT_ON;
 		jc->client_strafe = JUMP_READOUT_OFF;
 		jc->client_cgaz = JUMP_READOUT_OFF;
 
@@ -60,10 +60,10 @@ void Jump_ResetReadouts(edict_t *ent)
 		if (seq > JUMP_HUD_REQUEST_SEQ_MAX)
 			seq = 1;
 
-		jc->hud_request = Jump_EncodeHudRequest(seq, JUMP_READOUT_OFF, JUMP_READOUT_OFF, JUMP_READOUT_OFF);
+		jc->hud_request = Jump_EncodeHudRequest(seq, JUMP_READOUT_ON, JUMP_READOUT_OFF, JUMP_READOUT_OFF);
 	}
 
-	gi.Client_Print(ent, PRINT_HIGH, "Readouts off. Turn them back on in Options.\n");
+	gi.Client_Print(ent, PRINT_HIGH, "Readouts reset: speedometer on, the rest off.\n");
 }
 
 // Whether this player has a speedometer at all, drawn by either half.
@@ -111,7 +111,7 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  strafebar      show/hide the server's strafe meter\n"
 					"  speedo         show/hide the server's speedometer\n"
 					"  takeoff        show/hide the takeoff mark\n"
-					"  hudreset       turn every readout off again\n"
+					"  hudreset       put the readouts back to their defaults\n"
 					"  votemap <map>  call a vote to change map\n"
 					"  timeextend [n] call a vote to add time (default 15 min)\n"
 					"  yes / no       vote on the current call\n"
