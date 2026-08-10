@@ -214,6 +214,16 @@ first; `health`, `falldamage`, `weapons`, `timelimit` follow if a test map needs
 format (`jump/mset/<map>.json`) since jsoncpp is already linked, with the `.cfg` key/value form
 accepted as a fallback for imported maps.
 
+**Port decision (`singlespawn`):** implemented, and the first A-only key to be. A keeps the first
+`info_player_deathmatch` it parses and frees the rest (`g_spawn.c:762-774`), which matters here for
+a reason that has nothing to do with parity: most jump maps inherit a scattering of deathmatch
+spawns, stock selection picks between them, and two players then start the same map from different
+places. `Jump_InhibitEntity` does it through the engine's own `G_InhibitEntity` rather than freeing
+after the spawn, so the extras never exist and the "N entities inhibited" count stays honest.
+First-declared rather than nearest-anything, matching A, so the choice is deterministic and a map
+tuned against upstream lands where it did there. A's server-wide `gsinglespawn` default is **not**
+ported — server-wide mset defaults are a separate question from this key.
+
 **Port decision (fasttele granularity):** the velocity clear, the freeze and the view-angle snap are
 one decision — `fasttele 1` suppresses all three, so a fast teleport does not interrupt you at all.
 A gates them separately by spawnflag and only the freeze answers to the mset

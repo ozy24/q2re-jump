@@ -148,6 +148,10 @@ struct jump_mset_t
 	bool damage = true;	  // false disables even world hazards
 	bool fasttele = false; // skip the teleporter freeze
 
+	// Keep only the first info_player_deathmatch the map declares, so everyone
+	// starts a run from the same place. See Jump_InhibitEntity.
+	bool singlespawn = false;
+
 	// Weapons the map wants usable rather than treated as the finish line.
 	bool weapon_rocket = false;
 	bool weapon_grenadelauncher = false;
@@ -161,6 +165,11 @@ struct jump_level_t
 	bool	active = false;			 // jump owns this level
 	int32_t checkpoint_total = 0;	 // checkpoints required to finish
 	char	mapname[64] = { 0 };
+
+	// singlespawn: whether a spawn point has already been kept this level.
+	// Safe to hold here because Jump_InitLevel runs before the entity parse
+	// loop that reads it (g_spawn.cpp), so it always starts false.
+	bool singlespawn_kept = false;
 
 	// Precached in Jump_InitLevel. gi.soundindex allocates a configstring and
 	// the server broadcasts it, so it can only be called while a map is

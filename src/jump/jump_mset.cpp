@@ -63,6 +63,8 @@ jump_mset_result_t Jump_ApplyMset(const std::string &key, const std::string &val
 		ok = set_bool(jump_mset.damage);
 	else if (named("fasttele"))
 		ok = set_bool(jump_mset.fasttele);
+	else if (named("singlespawn"))
+		ok = set_bool(jump_mset.singlespawn);
 	else if (named("rocket"))
 		ok = set_bool(jump_mset.weapon_rocket);
 	else if (named("grenadelauncher"))
@@ -305,6 +307,7 @@ static std::vector<std::pair<std::string, std::string>> Jump_MsetPairs()
 		{ "checkpoint_total", std::to_string(jump_mset.checkpoint_total) },
 		{ "damage", flag(jump_mset.damage) },
 		{ "fasttele", flag(jump_mset.fasttele) },
+		{ "singlespawn", flag(jump_mset.singlespawn) },
 		{ "rocket", flag(jump_mset.weapon_rocket) },
 		{ "grenadelauncher", flag(jump_mset.weapon_grenadelauncher) },
 		{ "hyperblaster", flag(jump_mset.weapon_hyperblaster) },
@@ -381,6 +384,13 @@ static void Jump_MsetSet(const char *key, const char *value)
 	Jump_InvalidateCheckpointTotal();
 
 	gi.Com_PrintFmt("{} {}\n", key, value);
+
+	// Every other mset is read during play. singlespawn is read once, by the
+	// entity parse loop, so setting it now changes nothing until the map
+	// reloads - and the rule this file already follows is that a mset which
+	// quietly does nothing is indistinguishable from one that does not work.
+	if (Q_strcasecmp(key, "singlespawn") == 0)
+		gi.Com_Print("  (takes effect on the next level load - the spawn points for this one already exist)\n");
 }
 
 bool Jump_ServerCommand()

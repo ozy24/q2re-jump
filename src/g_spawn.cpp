@@ -1073,6 +1073,11 @@ void G_FindTeams()
 // inhibit entities from game based on cvars & spawnflags
 inline bool G_InhibitEntity(edict_t *ent)
 {
+	// [Jump] msets can drop an entity outright - above the branch below, which
+	// returns before anything else is considered in deathmatch
+	if (Jump_InhibitEntity(ent))
+		return true;
+
 	// dm-only
 	if (deathmatch->integer)
 		return ent->spawnflags.has(SPAWNFLAG_NOT_DEATHMATCH);

@@ -10,6 +10,45 @@
 void InitTrigger(edict_t *self);
 
 // ---------------------------------------------------------------------------
+// singlespawn
+//
+// Most jump maps are built on deathmatch scaffolding and inherit a scattering
+// of info_player_deathmatch entities, which stock spawn selection then picks
+// between. For a racing mode that is poison: two players on the same map start
+// from different places, so their times are not measuring the same run, and a
+// start line only exists if there is one of it.
+//
+// `singlespawn 1` keeps the first spawn the map declares and drops the rest,
+// which is upstream q2jump's fix for a map its author never cleaned up
+// (g_spawn.c:762-774). First-declared rather than nearest-anything so the
+// choice is deterministic and matches what a map tuned against upstream got.
+//
+// Dropped before ED_CallSpawn rather than freed after it, via the same
+// G_InhibitEntity the engine already asks - so the extras never exist, and the
+// "N entities inhibited" line stays true.
+//
+// info_player_deathmatch only, again matching upstream. A map with a single
+// info_player_start is already unambiguous, and one that has both is answered
+// by the stock preference order.
+// ---------------------------------------------------------------------------
+bool Jump_InhibitEntity(edict_t *ent)
+{
+	if (!Jump_Active() || !jump_mset.singlespawn)
+		return false;
+
+	if (!ent->classname || strcmp(ent->classname, "info_player_deathmatch") != 0)
+		return false;
+
+	if (!jump_level.singlespawn_kept)
+	{
+		jump_level.singlespawn_kept = true;
+		return false;
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------
 // Teleporter speed gate
 // ---------------------------------------------------------------------------
 

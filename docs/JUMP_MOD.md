@@ -802,6 +802,7 @@ Two sources, applied in order so the server always wins per key:
 | `checkpoints` / `checkpoint_total` | *(counted)* | Checkpoints required to finish; overrides the entity count |
 | `damage` | `1` | `0` disables all damage, including hazards |
 | `fasttele` | `0` | `1` carries your speed *and your view* through a teleporter instead of clearing velocity, snapping you to face the destination's angle and freezing you for 160 ms. Applies to `misc_teleporter` and `trigger_teleport` alike |
+| `singlespawn` | `0` | `1` keeps only the first `info_player_deathmatch` the map declares and drops the rest, so every run starts from the same place. For maps that inherited a scattering of deathmatch spawns. The one mset that only takes effect at the next level load — the spawn points for the current map already exist |
 | `rocket` | `0` | `1` makes the rocket launcher a usable pickup instead of the finish |
 | `grenadelauncher` | `0` | As above for the grenade launcher |
 | `hyperblaster` | `0` | As above for the hyperblaster |

@@ -77,6 +77,11 @@ bool Jump_ItemTouch(edict_t *ent, edict_t *other);
 // ED_CallSpawn: returns true when this classname is a jump entity.
 bool Jump_CallSpawn(edict_t *ent);
 
+// G_InhibitEntity, above the deathmatch branch that returns first: true when a
+// mset says this entity should never spawn. Today that is only `singlespawn`,
+// which keeps the first info_player_deathmatch and drops the rest.
+bool Jump_InhibitEntity(edict_t *ent);
+
 // trigger_push_touch: a push whose `target` starts with "checkpoint" is a
 // checkpoint barrier. Returns true when the player has earned their way past,
 // meaning no push should be applied at all.

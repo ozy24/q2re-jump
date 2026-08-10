@@ -12,6 +12,15 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **The `singlespawn` mset**, from classic q2jump. `1` keeps the first `info_player_deathmatch` the
+  map declares and drops the rest, so everyone starts a run from the same place.
+
+  Most jump maps are built on deathmatch scaffolding and inherit a scattering of spawn points that
+  stock spawn selection then picks between — which means two players race the same map from
+  different starting positions, and their times are not measuring the same thing. This is the fix
+  for a map whose author never cleaned that up. Set it per map like any other mset:
+  `sv jump_mset singlespawn 1`.
+
 - **A grapple hook on Practice**, and never on Ranked. `bind mouse3 "use Grapple"`, then hold
   attack. You always have it — it is not a pickup and no map has to place one.
 
