@@ -52,9 +52,9 @@ released — see [docs/release-process.md](docs/release-process.md).
   It pairs with the strafe meter rather than replacing it — one shows where to look, the other how
   well you looked. Credit to Sata for that framing.
 
-- **The strafe meter now says when you are turning too little**, by filling the empty part of the
-  bar with arrows — `[####<<<<<<<<]` — instead of dashes. Players running the mod's own DLL get a
-  red block on the left of the bar for the same thing.
+- **The strafe meter now says when you are turning too little**, with a `!` just past the fill —
+  `[####!-------]` — at the edge of what you captured. Players running the mod's own DLL get a red
+  track behind the bar for the same thing.
 
   This is the one distinction the bar was missing, and it matters more than it sounds. Being *wide*
   of the best angle is gentle: the gain tapers off over about forty degrees, so you still collect

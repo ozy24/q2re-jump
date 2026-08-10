@@ -319,13 +319,13 @@ and is easier than remembering which setting you have. The equivalents are
 `jump_hud_strafe 0`, which turns the meter off everywhere including the server's
 copy, and `strafebar` without the DLL.
 
-**Arrows mean you are inside the line.** When the empty part of the bar turns
-from dashes into arrows — `[####<<<<<<<<]` — you are turning *too little*, and
-that is a different problem from being a bit wide:
+**A `!` means you are inside the line.** It sits just past the fill, at the edge
+of what you captured, and it says you are turning *too little* — a different
+problem from being a bit wide:
 
 ```
 [########----]   wide of the best angle — you are taking most of what is there
-[####<<<<<<<<]   inside it — you are taking nothing, turn further
+[####!-------]   inside it — the missing part is paying you nothing
 ```
 
 Being wide is gentle. The gain tapers off over about forty degrees, so a wide
@@ -335,16 +335,20 @@ accelerating you entirely, so the frame is worth exactly zero however slightly
 you crossed. At 125 fps that boundary is **half a degree** from the best angle,
 against forty-eight degrees of room on the other side.
 
-That asymmetry is why the arrows exist. Both mistakes shorten the bar, and from
+That asymmetry is why the mark exists. Both mistakes shorten the bar, and from
 the length alone you cannot tell which one you are making — but only one of them
-is the kind where turning further is free and turning back costs you the lot.
-The arrows appear when enough of what you are missing is on that side; the bar
-can still be part-full while they show, because you are only crossing the line
-some of the time.
+is the kind where turning further is free and turning back costs you the lot. It
+appears when enough of what you are missing is on that side; the bar can still be
+part-full while it shows, because you are only crossing the line some of the time.
 
-If you are good enough to sit right on the best angle you will see them come and
-go as you cross it. That is real, not a glitch, and it is why most players are
-better off riding a degree or two wide on purpose.
+Note it does not point anywhere. The bar has no left or right meaning — "turn
+less" is a left correction when your velocity is off to your left and a right one
+when it is off to your right — so the mark says *what* kind of waste this is, not
+which way to move. CGaz is the readout that answers that.
+
+If you are good enough to sit right on the best angle you will see it come and go
+as you cross it. That is real, not a glitch, and it is why most players are better
+off riding a degree or two wide on purpose.
 
 Four more things worth knowing:
 

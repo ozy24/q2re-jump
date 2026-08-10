@@ -1100,19 +1100,37 @@ std::string StrafeBarString(int level, int segments, bool dead_side)
 	// Plain ASCII on purpose. The bar has to render in both HUD fonts - the
 	// 1997 character set and the rerelease's own - and anything outside ASCII
 	// is only guaranteed in one of them.
-	// The dead side is marked by what the bar is NOT filled with, so both
-	// families are the same number of glyphs. A cstring2 centres the whole
-	// string, so a marker appended on the end would slide the bar sideways every
-	// time it appeared - and it appears exactly when the player is crossing the
-	// line repeatedly, which is the shimmy this readout is meant to cure.
+	// The dead side is marked inside the bar, so both families are the same number
+	// of glyphs. A cstring2 centres the whole string, so a marker appended on the
+	// end would slide the bar sideways every time it appeared - and it appears
+	// exactly when the player is crossing the line repeatedly, which is the shimmy
+	// this readout is meant to cure.
 	//
-	// The fill still means what it always did. Only the remainder changes, from
-	// neutral dashes to arrows saying the missing part is on the side that pays
-	// nothing at all.
+	// ONE cell, immediately past the fill, rather than the whole remainder. Filling
+	// every empty cell was the first attempt and it was unreadable: a dozen glyphs
+	// of noise, with no way to see where the fill ended. A single mark sits exactly
+	// at the boundary of what you captured, which is the thing worth looking at.
+	//
+	// '!' rather than an arrow, deliberately. The bar has no left or right meaning
+	// - "turn less" is a left correction or a right one depending on which way your
+	// velocity lies, which is why the centred meter reports over/under rather than
+	// a screen direction - so a glyph that points somewhere would invite exactly
+	// that misreading. This one only says "the missing part is the kind that pays
+	// nothing".
 	std::string out = "[";
 
 	out.append((size_t) level, '#');
-	out.append((size_t) (segments - level), dead_side ? '<' : '-');
+
+	if (dead_side && level < segments)
+	{
+		out += '!';
+		out.append((size_t) (segments - level - 1), '-');
+	}
+	else
+	{
+		out.append((size_t) (segments - level), '-');
+	}
+
 	out += ']';
 
 	return out;

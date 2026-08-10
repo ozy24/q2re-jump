@@ -1631,13 +1631,18 @@ static void TestStrafeBarLevel()
 	CHECK_EQ(jump::StrafeBarString(-3, 12), "[------------]");
 	CHECK_EQ(jump::StrafeBarString(99, 12), "[############]");
 
-	// The dead-side family: same fill, same glyph count, and the remainder says
-	// which side the missing part is on. Equal length is not cosmetic - the row
-	// is drawn with a centred token, so a longer string would shift the bar
-	// sideways every time the marker appeared, which is precisely when the
-	// player is crossing the line and least wants the thing moving.
-	CHECK_EQ(jump::StrafeBarString(4, 12, true), "[####<<<<<<<<]");
-	CHECK_EQ(jump::StrafeBarString(0, 12, true), "[<<<<<<<<<<<<]");
+	// The dead-side family: same fill, same glyph count, and one mark at the edge
+	// of what was captured. Equal length is not cosmetic - the row is drawn with a
+	// centred token, so a longer string would shift the bar sideways every time the
+	// mark appeared, which is precisely when the player is crossing the line and
+	// least wants the thing moving. Marking every empty cell instead was tried and
+	// was unreadable.
+	CHECK_EQ(jump::StrafeBarString(4, 12, true), "[####!-------]");
+	CHECK_EQ(jump::StrafeBarString(0, 12, true), "[!-----------]");
+
+	// A full bar cannot be dead-side - |offset| <= 1 - efficiency caps a marked bar
+	// at three quarters - but if it ever were, there is no cell past the fill to
+	// mark and the string must still be the right width.
 	CHECK_EQ(jump::StrafeBarString(12, 12, true), "[############]");
 
 	for (int i = 0; i <= 12; i++)
