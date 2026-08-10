@@ -103,6 +103,13 @@ void Jump_InitLevel(const char *entities)
 		jump_level.sound_pb = gi.soundindex("misc/secret.wav");
 		jump_level.sound_record = gi.soundindex("ctf/flagcap.wav");
 
+		// The grapple is a Practice tool here, so nothing in the map spawns it
+		// and stock's CTFPrecache never runs - the mode forces ctf off. Precache
+		// it by hand, from level spawn rather than Jump_Init, for the reason in
+		// AGENTS.md: a configstring allocated before a server exists overflows
+		// an unallocated sizebuf and kills the game at startup.
+		PrecacheItem(GetItemByIndex(IT_WEAPON_GRAPPLE));
+
 		// Every fill level of the strafe bar, written once here so that showing
 		// it during play is a stat pointing at one of these rather than a text
 		// write per frame - a configstring write broadcasts to everyone, which
@@ -261,6 +268,10 @@ void Jump_RestartRun(edict_t *ent)
 	if (jc)
 		Jump_ResetRun(*jc);
 
+	// Before PutClientInServer, which memsets gclient_t (p_client.cpp:2143) and
+	// with it the only pointer to the grapple. See Jump_MovePlayer.
+	CTFPlayerResetGrapple(ent);
+
 	PutClientInServer(ent);
 	G_PostRespawn(ent);
 }
@@ -276,6 +287,14 @@ void Jump_FreeStoreMarker(jump_client_t &jc)
 
 void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles)
 {
+	// A hook attached to somewhere else in the map would immediately drag the
+	// player back off the position they just recalled to. Stock resets the
+	// grapple on death and through a teleporter for the same reason; a recall is
+	// the third way to leave a place suddenly, and it is ours.
+	//
+	// No-op when nothing is attached, so this costs a null check on Ranked.
+	CTFPlayerResetGrapple(ent);
+
 	gi.unlinkentity(ent);
 
 	ent->s.origin = origin;

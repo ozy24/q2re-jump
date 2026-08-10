@@ -16,6 +16,7 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
 |---|---|---|---|
 | store / recall | yes, recall keeps elapsed timer | recall = full respawn (run restarts) | n/a |
 | death respawn | at the most recent store | at the map spawn | n/a |
+| grapple / hook | yes | never | n/a |
 | times recorded | never | yes | n/a |
 | noclip | yes (B) | no | n/a |
 | replays recorded | no | yes | n/a |
@@ -31,6 +32,35 @@ This is the behavioural contract the Q2RE port targets. Where A and B disagree, 
 - Dying on Easy respawns you on your most recent store. A does it by overriding the spawn point
   inside `PutClientInServer` itself, right after `SelectSpawnPoint` and gated on `can_store`
   (`p_client.c:1180-1187`), so it covers every route back into the map at once.
+
+- A ships its own hook (`hook_laser_*`, `hook_service`, `hook_reset` in `jumpmod.c:3133-3260`), bound
+  to `+hook` and governed by the server-wide gsets `hook`, `hookpull` and `hookspeed`
+  (`jumpmod.c:532-550`). It is not team-gated. B has no hook at all.
+
+**Port decision (grapple):** the stock CTF grapple (`IT_WEAPON_GRAPPLE`, `CTFWeapon_Grapple`)
+rather than a port of A's hook, and gated by **team** rather than by a server gset — Practice
+always, Ranked never, at any setting.
+
+Reusing the stock weapon is what keeps this free for a stock client: the model, the sounds and the
+cable temp-entity all ship with the game, and none of the implementation is CTF-gated. Only the
+give (`p_client.cpp:883-888`, behind `g_allow_grapple`) and the precache (`CTFPrecache`) are, and
+this mode reaches neither — it forces `ctf` off and strips the inventory on every spawn. So the
+grant is explicit in `Jump_ClientSpawn`, after the strip, which also means `g_allow_grapple 1`
+cannot arm a Ranked player: the stock give runs earlier in `PutClientInServer` than the strip.
+
+Team-gating rather than server-gating is a deliberate divergence from A. A hook makes a jump you
+cannot yet do reachable, which is exactly what Practice is for and exactly what Ranked cannot
+have if its times are to mean anything.
+
+`level.no_grapple` is **ignored**. It is a rerelease worldspawn key, msets are how a map speaks to
+this mod, and no corpus map sets it.
+
+The grapple entity outlives the client struct, so it has to be released before anything that
+memsets `gclient_t` (`p_client.cpp:2143`) or the only pointer to it is lost and it keeps pulling
+with `FL_NO_KNOCKBACK` stuck on — which would also kill rocket jumping. Stock covers death
+(`player_die`) and `misc_teleporter` only; this port adds `trigger_teleport` (the same
+two-function split as `fasttele`), `Jump_MovePlayer` for recall, `Jump_RestartRun` and
+`Jump_JoinTeam`.
 
 **Port decision (death respawn):** same behaviour, different seam. A's blanket override of the
 spawn point cannot be copied here, because this port has a restart-from-spawn action A does not —

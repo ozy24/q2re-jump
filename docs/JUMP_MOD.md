@@ -158,9 +158,21 @@ map spawn, so a mistake costs you the same as `kill` does. Without a store
 you go back to the spawn as usual. Practice runs are timed for your own benefit
 but are never broadcast and never recorded.
 
-**Ranked** is for setting times. `store` is refused and `recall` restarts your
-run from the spawn, so the only way to a time is one clean run. Only ranked
-times are saved.
+Practice also gives you the **grapple hook**. It is not in the world anywhere
+and cannot be picked up — you simply have it, on every map:
+
+```
+bind mouse3 "use Grapple"
+```
+
+Select it and hold attack; letting go releases the hook. Recalling, restarting,
+switching teams and going through a teleporter all drop it too. It is there so
+you can reach the part of a map you are actually working on when the jump before
+it is still beyond you.
+
+**Ranked** is for setting times. `store` is refused, `recall` restarts your
+run from the spawn, and there is no grapple at any server setting, so the only
+way to a time is one clean run. Only ranked times are saved.
 
 Upstream q2jump calls these Easy and Hard; those names still work as command
 aliases, but they read as map difficulty rather than what they actually are.

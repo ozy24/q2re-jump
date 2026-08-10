@@ -97,6 +97,11 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	Jump_ResetRun(*jc);
 	Jump_FreeStoreMarker(*jc);
 
+	// Practice to Ranked while hanging from the hook: the grapple has to go
+	// before PutClientInServer memsets gclient_t, or the only pointer to it is
+	// lost and it keeps pulling a player who is no longer allowed one.
+	CTFPlayerResetGrapple(ent);
+
 	const bool spectator = (team == jump_team_t::spectator);
 
 	ent->client->pers.spectator = spectator;

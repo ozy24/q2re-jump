@@ -84,6 +84,19 @@ void Jump_ClientSpawn(edict_t *ent)
 	Jump_StripInventory(ent);
 	Jump_ClearCheckpointFlags(ent);
 
+	// The grapple is a Practice tool: it makes a jump you cannot do yet
+	// reachable, so you can work on the part after it. On Ranked it would make
+	// times incomparable, which is the one thing Ranked is for, so it is not
+	// offered there at any setting - `use Grapple` finds nothing in the
+	// inventory.
+	//
+	// Granting it here rather than leaving it to the stock give at
+	// p_client.cpp:888 is also what makes that absolute: the stock give runs
+	// earlier in PutClientInServer than the strip above, so `g_allow_grapple 1`
+	// cannot arm a Ranked player by accident.
+	if (jc->team == jump_team_t::practice)
+		ent->client->pers.inventory[IT_WEAPON_GRAPPLE] = 1;
+
 	// Pick the player's stored best for this map back up. This has to happen
 	// here rather than at level init, because when Jump_InitLevel runs every
 	// client is still flagged disconnected.

@@ -12,6 +12,18 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **A grapple hook on Practice**, and never on Ranked. `bind mouse3 "use Grapple"`, then hold
+  attack. You always have it — it is not a pickup and no map has to place one.
+
+  It is a practice tool in the same family as `store`: a way to reach the part of a map you are
+  working on when the jump before it is still beyond you. Ranked cannot have one at any server
+  setting, because a time set with a hook is not a time anyone can compare theirs to.
+
+  This is the stock Quake II grapple, the one CTF uses, which is why it costs a player on an
+  unmodified client nothing — the model, the sounds and the cable all ship with the game.
+  Upstream q2jump has its own hook governed by server settings rather than by team; this reuses
+  what the rerelease already has and gates it where the difference actually matters.
+
 - **Takeoff speed**, above the speedometer: the same number, frozen at the moment your feet left the
   ground. Everyone can have it, including players on a stock client — turn it on with `takeoff` or
   from Options.

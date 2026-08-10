@@ -55,6 +55,11 @@ TOUCH(trigger_teleport_touch) (edict_t *self, edict_t *other, const trace_t &tr,
 		return;
 	}
 
+	// [Jump] drop the grapple, as teleporter_touch already does unconditionally
+	// in stock: an attached hook survives the teleport and drags you back to the
+	// far side of the map. The same two-function split as fasttele
+	CTFPlayerResetGrapple(other);
+
 	gi.WriteByte(svc_temp_entity);
 	gi.WriteByte(TE_TELEPORT_EFFECT);
 	gi.WritePosition(other->s.origin);
