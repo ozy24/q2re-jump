@@ -2046,12 +2046,17 @@ TOUCH(teleporter_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool 
 	}
 
 	// set angles
-	other->client->ps.pmove.delta_angles = dest->s.angles - other->client->resp.cmd_angles;
+	// [Jump] fasttele leaves your view alone too: snapping it mid-flight breaks the
+	// strafe chain the preserved velocity exists to keep going
+	if (!Jump_FastTeleport())
+	{
+		other->client->ps.pmove.delta_angles = dest->s.angles - other->client->resp.cmd_angles;
 
-	other->s.angles = {};
-	other->client->ps.viewangles = {};
-	other->client->v_angle = {};
-	AngleVectors(other->client->v_angle, other->client->v_forward, nullptr, nullptr);
+		other->s.angles = {};
+		other->client->ps.viewangles = {};
+		other->client->v_angle = {};
+		AngleVectors(other->client->v_angle, other->client->v_forward, nullptr, nullptr);
+	}
 
 	gi.linkentity(other);
 

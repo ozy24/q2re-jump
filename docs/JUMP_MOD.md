@@ -786,7 +786,7 @@ Two sources, applied in order so the server always wins per key:
 | `gravity` | `800` | Per-map gravity |
 | `checkpoints` / `checkpoint_total` | *(counted)* | Checkpoints required to finish; overrides the entity count |
 | `damage` | `1` | `0` disables all damage, including hazards |
-| `fasttele` | `0` | `1` carries your speed through a teleporter instead of clearing velocity and freezing you for 160 ms. Applies to `misc_teleporter` and `trigger_teleport` alike |
+| `fasttele` | `0` | `1` carries your speed *and your view* through a teleporter instead of clearing velocity, snapping you to face the destination's angle and freezing you for 160 ms. Applies to `misc_teleporter` and `trigger_teleport` alike |
 | `rocket` | `0` | `1` makes the rocket launcher a usable pickup instead of the finish |
 | `grenadelauncher` | `0` | As above for the grenade launcher |
 | `hyperblaster` | `0` | As above for the hyperblaster |

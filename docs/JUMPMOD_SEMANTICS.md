@@ -173,14 +173,25 @@ first; `health`, `falldamage`, `weapons`, `timelimit` follow if a test map needs
 format (`jump/mset/<map>.json`) since jsoncpp is already linked, with the `.cfg` key/value form
 accepted as a fallback for imported maps.
 
-**Port decision (fasttele granularity):** the velocity clear and the freeze are one decision,
-following B. A gates them separately — `spawnflags & 1` on the teleporter suppresses the velocity
-clear, `spawnflags & 3` suppresses the view-angle snap, and only the freeze answers to the mset
-(`g_misc.c:1985-2006`). The per-teleporter flags are **not** ported: a scan of all 4241 parseable
-maps in the corpus found zero `misc_teleporter` setting either bit (the only values present are
-`0` and one stray `256`), and in KEX those bits already mean `NO_SOUND` and `NO_TELEPORT_EFFECT`.
-Angles are always snapped, matching B. `fasttele` covers `misc_teleporter` and `trigger_teleport`
-(39 corpus maps, 405 entities); `trigger_ctf_teleport` is left alone as CTF is forced off.
+**Port decision (fasttele granularity):** the velocity clear, the freeze and the view-angle snap are
+one decision — `fasttele 1` suppresses all three, so a fast teleport does not interrupt you at all.
+A gates them separately by spawnflag and only the freeze answers to the mset
+(`g_misc.c:1985-2006`); B (`g_misc.c:1813-1826`) ties the clear and the freeze to the mset and
+always snaps the angles.
+
+Note what A's bit arithmetic actually does, because it is the reason this port sides against B on
+the angles: the velocity clear is gated on `spawnflags & 1` and the snap on `spawnflags & 3`, so
+the bit that preserves velocity **also** preserves the view. A already treats a momentum-preserving
+teleport as a view-preserving one; this port applies the same pairing through the mset instead of
+per teleporter. Snapping the view while carrying velocity through is the worst of both — the
+velocity vector survives in world space but the wishdir that was accelerating it does not, which
+kills the strafe chain `fasttele` exists to keep going.
+
+The per-teleporter flags are **not** ported: a scan of all 4241 parseable maps in the corpus found
+zero `misc_teleporter` setting either bit (the only values present are `0` and one stray `256`),
+and in KEX those bits already mean `NO_SOUND` and `NO_TELEPORT_EFFECT`. `fasttele` covers
+`misc_teleporter` and `trigger_teleport` (39 corpus maps, 405 entities); `trigger_ctf_teleport` is
+left alone as CTF is forced off.
 
 **Port decision (mset parsing):** keys match case-insensitively and values are validated —
 booleans accept `0`/`1`, `on`/`off`, `true`/`false`, `yes`/`no`, integers must be whole tokens.

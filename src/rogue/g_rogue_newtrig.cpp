@@ -83,13 +83,18 @@ TOUCH(trigger_teleport_touch) (edict_t *self, edict_t *other, const trace_t &tr,
 		other->s.event = EV_PLAYER_TELEPORT;
 
 		// set angles
-		other->client->ps.pmove.delta_angles = dest->s.angles - other->client->resp.cmd_angles;
+		// [Jump] fasttele leaves your view alone too, as it does in teleporter_touch
+		if (!jump_fasttele)
+		{
+			other->client->ps.pmove.delta_angles = dest->s.angles - other->client->resp.cmd_angles;
 
-		other->client->ps.viewangles = {};
-		other->client->v_angle = {};
+			other->client->ps.viewangles = {};
+			other->client->v_angle = {};
+		}
 	}
 
-	other->s.angles = {};
+	if (!jump_fasttele)
+		other->s.angles = {};
 
 	gi.linkentity(other);
 

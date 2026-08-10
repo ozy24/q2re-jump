@@ -111,6 +111,13 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Fixed
 
+- **`fasttele` now carries your view through the teleporter as well as your speed.** It used to
+  keep the velocity but still snap you to face the destination's angle, which is the worst of the
+  two halves: the velocity vector survives in world space, but the direction you were steering it
+  does not, so a strafe chain dies on the far side of a teleport that exists precisely to let it
+  continue. Nothing changes with `fasttele` off — there the freeze stops you anyway, so the snap
+  costs nothing and still points you down the next corridor.
+
 - **Speed-gated teleporters now work**, which some maps are built entirely around. A `speed` key on
   `trigger_teleport` or `misc_teleporter` is the horizontal speed you must be carrying before it
   fires; below that it does nothing and tells you what you need. Upstream q2jump has had this for
