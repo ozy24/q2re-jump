@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-14
+
 ### Added
 
 - **`start_line`**, from classic q2jump. A brush trigger a mapper places on the track; crossing it
