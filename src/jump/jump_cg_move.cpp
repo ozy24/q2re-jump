@@ -27,6 +27,7 @@
 
 #include "../cg_local.h"
 #include "jump_cg_move.h"
+#include "jump_slick.h"
 #include "jump_stats.h"
 
 #include <cmath>
@@ -60,6 +61,7 @@ struct jump_pass_t
 	int32_t air_accel = 0;
 	uint8_t water_level = 0;
 	bool	jumped = false;
+	bool	on_slick = false;
 };
 
 static jump_pass_t jump_pass;
@@ -125,6 +127,7 @@ void Jump_CG_Pmove(pmove_t *pm)
 	// replay argument is unchanged: a replayed command rewrites the same slot
 	// with the same value.
 	float	 vel_before[3] = { 0, 0, 0 };
+	float	 origin_before[3] = { 0, 0, 0 };
 	uint16_t pm_flags_before = 0;
 	uint16_t pm_time_before = 0;
 	int		 pm_type_before = 0;
@@ -132,7 +135,10 @@ void Jump_CG_Pmove(pmove_t *pm)
 	if (jump_cg_sampling)
 	{
 		for (int i = 0; i < 3; i++)
+		{
 			vel_before[i] = pm->s.velocity[i];
+			origin_before[i] = pm->s.origin[i];
+		}
 
 		pm_flags_before = (uint16_t) pm->s.pm_flags;
 		pm_time_before = pm->s.pm_time;
@@ -178,6 +184,31 @@ void Jump_CG_Pmove(pmove_t *pm)
 	// measures against, so a stale value would quietly grade against the wrong
 	// physics.
 	jump_pass.air_accel = pm_config.airaccel;
+
+	// Was the ground this command STARTED on frictionless? The strafe meter
+	// grades an ice frame and refuses an ordinary ground one, and pmove keeps
+	// its ground surface in pml_t where neither half can see it, so both halves
+	// repeat the trace and share one verdict (jump_slick.h).
+	//
+	// Traced from the pre-move origin but AFTER Pmove returns, because
+	// PM_SetDimensions sets pm->mins/maxs inside the call - before it they are
+	// whatever the caller left there. Still reads only: nothing is written back
+	// to `pm`, so the observation-only contract above is intact.
+	jump_pass.on_slick = false;
+
+	if (pm_flags_before & PMF_ON_GROUND)
+	{
+		contents_t mask = MASK_PLAYERSOLID;
+
+		if (pm_flags_before & PMF_IGNORE_PLAYER_COLLISION)
+			mask &= ~CONTENTS_PLAYER;
+
+		const vec3_t start = { origin_before[0], origin_before[1], origin_before[2] };
+		const vec3_t end = { origin_before[0], origin_before[1], origin_before[2] - 0.25f };
+		const trace_t tr = pm->trace(start, &pm->mins, &pm->maxs, end, pm->player, mask);
+
+		jump_pass.on_slick = Jump_TraceHitFrictionlessGround(tr);
+	}
 }
 
 // Everything that moves the player without accelerating them. Comparing across
@@ -282,6 +313,7 @@ const jump::speed_readout_t &Jump_CG_SampleFrame(const player_state_t *ps, bool 
 		// The three that have to come from before the move, or they describe
 		// where the player ended up rather than which branch ran.
 		sample.on_ground_entry = (jump_pass.pm_flags_before & PMF_ON_GROUND) != 0;
+		sample.on_slick = jump_pass.on_slick;
 		sample.timed_move = jump_pass.pm_time_before != 0;
 		sample.pm_normal = jump_pass.pm_type_before == PM_NORMAL;
 

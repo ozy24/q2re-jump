@@ -170,6 +170,13 @@ switching teams and going through a teleporter all drop it too. It is there so
 you can reach the part of a map you are actually working on when the jump before
 it is still beyond you.
 
+It is deliberately much faster than the stock CTF grapple it is built on — the
+mod sets `g_grapple_fly_speed 2000` and `g_grapple_pull_speed 1100`, against
+stock's 650 and 650. At stock speeds you watch the hook travel and then get
+dragged along at running pace, which is not much of a shortcut. A server that
+wants different numbers can set either cvar in its config after the mod starts;
+both are read live, and the pull speed even retunes a hook already attached.
+
 **Ranked** is for setting times. `store` is refused, `recall` restarts your
 run from the spawn, and there is no grapple at any server setting, so the only
 way to a time is one clean run. Only ranked times are saved.
@@ -589,7 +596,9 @@ every file:
 |---|---|
 | `weapon_finish` | 35 |
 | any `key_*` item (checkpoints) | 87 |
+| `weapon_clear` | 1 (2 entities) |
 | `jump_time` / `jump_score` | 1 |
+| `start_line` | 1 |
 | `trigger_finish`, `cpbox_*`, `jumpbox_*`, `jump_clip`, `one_way_wall`, `jump_cpwall`, `jump_cpbrush`, `trigger_weapon`, `trigger_lapcounter`, `trigger_lapcp`, `cp_clear`, `trigger_quad` | **0** |
 
 Classic maps finish on an ordinary **weapon pickup** and checkpoint on **key
@@ -597,11 +606,20 @@ items** — both already handled. The `trigger_finish` / `cpbox_*` vocabulary
 belongs to Q2JumpRefresh and does not appear in this corpus at all. Support for
 it is still correct to have; it just is not what makes these 4,252 maps work.
 
+`start_line` is a caution against reading those counts as a priority list. One
+map in 4,252 carries it, which is as close to "never used" as the corpus gets —
+and yet it is load-bearing on the map that has it, because without a spawn
+function the engine frees the entity and the start line silently is not there.
+Rarity in this corpus measures what mappers reached for in the archive, not what
+a map being played today needs.
+
 ### Supported entities
 
 | Entity | Behaviour |
 |---|---|
 | `trigger_finish`, `weapon_finish` | Ends the run |
+| `start_line` | Restarts the run where you stand: clock back to zero, checkpoints and inventory cleared. Stores and the Practice grapple are kept |
+| `weapon_clear` | Empties your inventory, leaving the run and your checkpoints alone |
 | any `weapon_*` item | Ends the run, unless the map enables it via an mset |
 | any `key_*` item | Checkpoint |
 | `cpbox_small` / `_medium` / `_large` | Checkpoint volume |

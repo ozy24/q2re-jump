@@ -93,6 +93,11 @@ re-placed by the recall, since it is visible to everyone.
 
 - **Start**: first movement input. B: `abs(forwardmove)|abs(upmove)|abs(sidemove) > 0`
   (`p_client.c:797-810`). A additionally starts on `BUTTON_ATTACK` (`p_client.c:2139-2148`).
+- **Restart at a `start_line`**: A only. A resizable brush entity (`g_items.c:2560-2582`,
+  declared as a key item and switched on `pickup_name`); touching it wipes the inventory,
+  clears checkpoints and sets `client_think_begin` to now, leaving the run *running*
+  (`g_items.c:593-609`). It fires every frame you are inside the volume, so the clock is
+  re-zeroed continuously and the run effectively begins as you leave the line.
 - **Stop**: on accepted finish.
 - **Reset**: any respawn / spawn-variable init.
 - **Recall (Easy)**: `timer_begin = now - store.time_interval`, i.e. elapsed time carries over.
@@ -104,6 +109,14 @@ re-placed by the recall, since it is visible to everyone.
 occur on a server think (40 Hz), so recorded values are not sub-tick collision times,
 but they are no longer forced onto a 25 ms `level.time` grid. No attack-to-start, no
 fudge factors, no time_adjust.
+
+`start_line` is taken from A, and the two mechanisms coexist rather than compete: a map
+without one still starts on first movement, and a map with one simply wipes whatever the
+clock had reached by the time you crossed it. **One divergence** — A's `ClearPersistants`
+also wipes the recall stores, and the port keeps them. Stores are a Practice tool rather
+than part of the timed contract, so losing them on every lap of a start-line map costs the
+player something without making any time more comparable. The Practice grapple survives for
+the same reason.
 
 ### Message formats (B `jump.cpp:226-291`)
 

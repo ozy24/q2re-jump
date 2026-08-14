@@ -114,6 +114,7 @@
     <ClInclude Include="jump\jump_stats.h" />
     <ClInclude Include="jump\jump_local.h" />
     <ClInclude Include="jump\jump_logic.h" />
+    <ClInclude Include="jump\jump_slick.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="g_local.h" />
     <ClInclude Include="g_statusbar.h" />

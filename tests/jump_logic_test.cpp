@@ -860,6 +860,84 @@ static void TestClassifyStrafeFrame()
 	s.forwardmove = 0.f;
 	s.sidemove = 0.f;
 	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::no_opportunity);
+
+	// Ice. PM_Friction's drop on a slick surface is exactly zero, so a ground
+	// frame there is as exact as an airborne one and IS graded - which is the
+	// whole point: an ice slide is a sustained strafing phase, and excluding it
+	// left the bar frozen and then blank for as long as the player was on it.
+	s = clean;
+	s.on_ground_entry = true;
+	s.on_ground = true;
+	s.on_slick = true;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::usable);
+
+	// Slick is only ever an excuse for GROUND. Every other exclusion still bites.
+	for (int which = 0; which < 4; which++)
+	{
+		s = clean;
+		s.on_ground_entry = true;
+		s.on_ground = true;
+		s.on_slick = true;
+
+		switch (which)
+		{
+		case 0:
+			// The takeoff stroke off an ice brush: PM_CheckJump clears
+			// groundentity partway through, so the accel runs in the AIR branch
+			// from a frame that started on the floor. Neither model fits.
+			s.jumped = true;
+			break;
+		case 1:
+			s.on_ladder = true;
+			break;
+		case 2:
+			s.water_level = 1;
+			break;
+		case 3:
+			s.timed_move = true;
+			break;
+		}
+
+		CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+	}
+
+	// Landing on ice from the air: on_slick describes the ground the command
+	// STARTED on, and this one started airborne. Still excluded, because the
+	// slide move put the player on the floor partway through.
+	s = clean;
+	s.on_ground = true;
+	s.on_slick = false;
+	CHECK(jump::ClassifyStrafeFrame(s) == jump::strafe_frame_kind_t::excluded);
+}
+
+// The ground acceleration model, which ice frames are graded against. It is not
+// the air model with a different number: PM_WalkMove hands the full wishspeed
+// straight to PM_Accelerate, so the 30-unit air target never applies.
+static void TestStrafeFrameOnGround()
+{
+	const float vel[2] = { 400.f, 0.f };
+
+	// Air, with the 30-clamp model selected (airaccel > 0).
+	const jump::strafe_frame_t air =
+		jump::StrafeFrame(vel, 0.f, 0.f, 0.f, 0.f, 400.f, 0.025f, false, 30, false);
+
+	// Same command, on frictionless ground.
+	const jump::strafe_frame_t ground =
+		jump::StrafeFrame(vel, 0.f, 0.f, 0.f, 0.f, 400.f, 0.025f, false, 30, true);
+
+	// The air target is clamped to PM_AIR_TARGET; the ground target is the full
+	// wishspeed, itself clamped only to pm_maxspeed.
+	CHECK(air.target == jump::PM_AIR_TARGET);
+	CHECK(ground.target == ground.wishspeed);
+	CHECK(ground.target > air.target);
+
+	// budget = accel * wishspeed * dt, and ground accel is 10 regardless of what
+	// sv_airaccelerate happens to be.
+	CHECK(Near(ground.budget, jump::PM_GROUND_ACCEL * ground.wishspeed * 0.025f, 0.001f));
+
+	// A bigger target and a bigger budget mean there is more on offer, so the
+	// bar is measuring against a genuinely different maximum.
+	CHECK(ground.gain_max > air.gain_max);
 }
 
 static void TestStrafeState()
@@ -1766,6 +1844,7 @@ int main()
 	TestBestAlong();
 	TestStrafeFrame();
 	TestClassifyStrafeFrame();
+	TestStrafeFrameOnGround();
 	TestStrafeState();
 	TestStrafeKeysDoNotMatter();
 	TestStrafeCliffAsymmetry();

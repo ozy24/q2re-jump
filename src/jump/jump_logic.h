@@ -275,6 +275,11 @@ struct move_sample_t
 	// Read BEFORE the move: pm_flags after it is the landing state, not the
 	// state the movement branch was chosen from.
 	bool on_ground_entry = false;
+	// The ground pmove will not apply friction to - slick, or a hit with no
+	// surface (Jump_TraceHitFrictionlessGround). Traced by the caller from the pre-move
+	// origin, because pmove keeps its ground surface in pml_t and never
+	// publishes it. Meaningless unless on_ground_entry.
+	bool on_slick = false;
 	// pm_time was already running: a land, teleport, waterjump or trick freeze.
 	bool timed_move = false;
 	// PM_NORMAL. Spectator and noclip take a different path entirely, and dead
@@ -473,9 +478,15 @@ enum class strafe_frame_kind_t
 // simplification. In the air, with no water, no ladder and no timed state,
 // PM_Friction's drop is zero and PM_CheckJump returns before touching velocity
 // - so the velocity captured at the top of the pmove wrapper IS the velocity
-// PM_Accelerate sees, and nothing is approximated. On the ground that stops
-// being true, and SURF_SLICK is never surfaced through pmove_t, so a ground
-// meter would quietly misreport on every ice brush.
+// PM_Accelerate sees, and nothing is approximated. On ordinary ground that
+// stops being true: friction has already run by the time acceleration happens.
+//
+// Ice is the exception, and it is admitted. PM_Friction's drop on a slick
+// surface is exactly zero (p_move.cpp:564), so the reconstruction there is as
+// exact as it is in the air - it just needs the GROUND acceleration model
+// rather than the air one. Detection costs a downward trace per half, because
+// pmove keeps its ground surface in pml_t; see Jump_TraceHitFrictionlessGround
+// in jump_slick.h, which is the single definition both halves share.
 strafe_frame_kind_t ClassifyStrafeFrame(const move_sample_t &sample);
 
 // Memory of the smoothing below, in ms. Roughly one airtime.

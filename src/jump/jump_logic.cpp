@@ -793,13 +793,13 @@ cgaz_readout_t CgazFromSample(const move_sample_t &sample)
 
 	// CGaz is live, the way every other CGaz is: it follows whatever branch pmove
 	// is actually taking, and the GROUND is a branch rather than a reason to stop
-	// drawing. This is where it parts company with the strafe meter, which
-	// excludes ground frames outright - and the two are asking different
-	// questions. Grading a ground frame needs the reconstruction to be exact,
-	// and it is not: friction has already run by the time PM_Accelerate sees the
-	// velocity, and SURF_SLICK never reaches pmove_t. Pointing at the angles
-	// that would speed you up is far more forgiving, and a strip that blanked
-	// every time you touched the floor would be useless on a hop chain.
+	// drawing. This is where it parts company with the strafe meter, which takes
+	// a ground frame only when the surface is frictionless - and the two are
+	// asking different questions. Grading a ground frame needs the
+	// reconstruction to be exact, and on ordinary floor it is not: friction has
+	// already run by the time PM_Accelerate sees the velocity. Pointing at the
+	// angles that would speed you up is far more forgiving, and a strip that
+	// blanked every time you touched the floor would be useless on a hop chain.
 	//
 	// What is still refused is anything where the wish itself is not what the
 	// keys said. PM_AddCurrents rewrites it on ladders and in water, so the
@@ -915,9 +915,25 @@ strafe_frame_kind_t ClassifyStrafeFrame(const move_sample_t &sample)
 	if (sample.discontinuity || !sample.pm_normal)
 		return strafe_frame_kind_t::excluded;
 
+	// A fresh jump press clears groundentity partway through the command, so the
+	// accel runs in the AIR branch even though the frame started on the floor.
+	// Neither model describes it, so it is excluded whatever it was stood on.
+	if (sample.jumped)
+		return strafe_frame_kind_t::excluded;
+
 	// Ground at either end of the command: friction ran, or the slide move put
-	// us on the floor partway through.
-	if (sample.on_ground_entry || sample.on_ground || sample.jumped)
+	// us on the floor partway through - EXCEPT on ice, where PM_Friction's drop
+	// is exactly zero (p_move.cpp:564) and the reconstruction is as exact as it
+	// is in the air. Ice strafing is a real technique and a sustained one, so
+	// refusing to grade it left the bar dead for the whole slide.
+	//
+	// Both ends of the command have to be frictionless. on_slick is sampled from
+	// the pre-move origin, so a slide that ends on normal floor is excluded by
+	// on_ground below - which is what we want, since friction ran on that one.
+	if (sample.on_ground_entry && !sample.on_slick)
+		return strafe_frame_kind_t::excluded;
+
+	if (sample.on_ground && !sample.on_slick)
 		return strafe_frame_kind_t::excluded;
 
 	// PM_AddCurrents rewrites the wish vector on ladders and in water, and both
@@ -1030,8 +1046,13 @@ strafe_readout_t strafe_state_t::Update(const move_ring_t &ring, uint64_t tau_ms
 	{
 		const float vel[2] = { now->vel_before[0], now->vel_before[1] };
 
+		// The ground model when the frame was admitted on ice: PM_WalkMove hands
+		// the full wishspeed to PM_Accelerate at accel 10, with no 30-clamp.
+		// Same switch CGaz uses, and the reason it was already a parameter.
+		const bool on_ground = now->on_ground_entry;
+
 		frame = StrafeFrame(vel, now->view_pitch, now->view_yaw, now->view_roll, now->forwardmove,
-							now->sidemove, now->msec / 1000.f, now->ducked, now->air_accel);
+							now->sidemove, now->msec / 1000.f, now->ducked, now->air_accel, on_ground);
 	}
 
 	return Add(frame, usable, dt_ms, tau_ms);

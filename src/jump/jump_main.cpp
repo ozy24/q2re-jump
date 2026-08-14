@@ -80,6 +80,22 @@ void Jump_Init()
 	gi.cvar_set("g_dm_random_items", "0");
 	gi.cvar_set("g_instagib", "0");
 
+	// The hook is a Practice tool for reaching a jump you cannot do yet, and
+	// stock CTF's 650/650 is far too slow to be one - you watch the hook travel,
+	// then get dragged at running pace. Classic q2jump shipped 1200 fly / 750
+	// pull (jumpmod.c:6545); this is faster still, which is what players who
+	// know the Lithium hook expect.
+	//
+	// Both cvars are read live - fly at fire time (g_ctf.cpp:1442), pull every
+	// frame (:1374) - so a server that wants different numbers can still set
+	// them in its config after this runs, and even retune an attached hook.
+	//
+	// Kept well under the overshoot bound: the pull SETS velocity rather than
+	// adding to it, and the PULL->HANG switch is at 64 units (:1366), so trouble
+	// starts somewhere north of 2500 ups, not here.
+	gi.cvar_set("g_grapple_fly_speed", "2000");
+	gi.cvar_set("g_grapple_pull_speed", "1100");
+
 	Jump_LoadMapList();
 
 	gi.Com_PrintFmt("==== Jump mode enabled (v" JUMP_VERSION_STRING ") ====\n");

@@ -10,6 +10,49 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`start_line`**, from classic q2jump. A brush trigger a mapper places on the track; crossing it
+  restarts your clock where you stand, clears your checkpoints and empties your hands. The run
+  therefore begins at the line rather than on your first movement.
+
+  It fires for as long as you are stood on it, which is what makes the timer start as you *leave*
+  the line rather than as you enter it — walk up to it at your leisure, the clock only counts from
+  the moment you step off. Maps without one are unaffected: they still start on first movement.
+
+  Your recall stores survive, which is a deliberate departure from upstream. Stores are a Practice
+  tool rather than part of the timed contract, and losing them on every lap of a map built around a
+  start line would make Practice worse without making anything more comparable. The Practice
+  grapple survives the wipe for the same reason.
+
+- **`weapon_clear`**, also from classic q2jump — the same kind of brush trigger, emptying your hands
+  without touching the run or your checkpoints.
+
+### Changed
+
+- **The grapple hook is much faster.** Fly speed 650 → 2000, pull speed 650 → 1100. Stock CTF's
+  numbers meant watching the hook travel and then being dragged at running pace, which is not much
+  of a shortcut past a jump you cannot do yet; classic q2jump shipped 1200/750 and this goes
+  further. Servers that want different numbers can still set `g_grapple_fly_speed` and
+  `g_grapple_pull_speed` in their config — both are read live, and the pull even retunes a hook
+  that is already attached.
+
+### Fixed
+
+- **`start_line` entities no longer vanish at map load.** The classname had no spawn function, so
+  the engine freed the entity before the map ran and the line silently was not there. This is why
+  timing on maps with a start line began on first movement and never reset.
+
+- **The strafe meter now works on ice.** On a slick surface you stay on the ground, so every frame
+  of a slide was excluded as unmeasurable: the bar froze at its last airborne reading for half a
+  second and then went blank for as long as you kept sliding — through what is a sustained strafing
+  phase and exactly when the reading is worth having.
+
+  Ice is the one kind of ground where the meter can be exact, because friction genuinely does not
+  run there, so those frames are now graded against the ground acceleration model. Ordinary ground
+  is still excluded, and so is the jump itself — the stroke you take off an ice brush with runs
+  under air physics from a frame that started on the floor, and neither model describes it.
+
 ## [0.9.5] - 2026-08-10
 
 ### Added

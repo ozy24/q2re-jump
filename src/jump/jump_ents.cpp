@@ -109,6 +109,49 @@ static void SP_trigger_finish(edict_t *self)
 }
 
 // ---------------------------------------------------------------------------
+// start_line / weapon_clear
+//
+// Resizable brush triggers in classic q2jump, declared there as key items with
+// a `?` QUAKED size spec and switched on their pickup_name (g_items.c:583-609,
+// 2560-2582). The item machinery is upstream's implementation detail; what a map
+// carries is a brush entity with just a classname, which is what these spawn.
+//
+// Without them the entity has no spawn function, so ED_CallSpawn frees it
+// (g_spawn.cpp:520) and the line silently is not there - the symptom being a
+// timer that only ever starts on first movement.
+// ---------------------------------------------------------------------------
+
+TOUCH(jump_start_line_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool other_touching_self) -> void
+{
+	if (!other->client)
+		return;
+
+	Jump_StartLine(other);
+}
+
+static void SP_start_line(edict_t *self)
+{
+	InitTrigger(self);
+	self->touch = jump_start_line_touch;
+	gi.linkentity(self);
+}
+
+TOUCH(jump_weapon_clear_touch) (edict_t *self, edict_t *other, const trace_t &tr, bool other_touching_self) -> void
+{
+	if (!other->client)
+		return;
+
+	Jump_ClearWeapons(other);
+}
+
+static void SP_weapon_clear(edict_t *self)
+{
+	InitTrigger(self);
+	self->touch = jump_weapon_clear_touch;
+	gi.linkentity(self);
+}
+
+// ---------------------------------------------------------------------------
 // cpbox_* - checkpoint pickups
 // ---------------------------------------------------------------------------
 
@@ -442,6 +485,8 @@ struct jump_spawn_t
 static const jump_spawn_t jump_spawns[] = {
 	{ "trigger_finish", SP_trigger_finish },
 	{ "weapon_finish", SP_trigger_finish }, // deprecated alias
+	{ "start_line", SP_start_line },
+	{ "weapon_clear", SP_weapon_clear },
 	{ "jumpbox_small", SP_jumpbox_small },
 	{ "jumpbox_medium", SP_jumpbox_medium },
 	{ "jumpbox_large", SP_jumpbox_large },

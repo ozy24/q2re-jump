@@ -2,6 +2,7 @@
 
 #include "../g_local.h"
 #include "jump_local.h"
+#include "jump_slick.h"
 
 // Jump players hold nothing at all, as in Refresh. Classic q2jump hands out a
 // blaster but gates the bolt behind an mset that defaults off, so in both mods
@@ -26,6 +27,33 @@ void Jump_StripInventory(edict_t *ent)
 	client->enviro_time = 0_ms;
 	client->breather_time = 0_ms;
 	client->silencer_shots = 0;
+}
+
+// The clean-slate half of a spawn: no run, no checkpoints, nothing carried, and
+// the Practice hook handed back.
+//
+// Extracted because the start line puts a player into exactly this state without
+// moving them, and the two must not drift - in particular the grapple re-grant,
+// which the strip above would otherwise take away for good the first time
+// somebody crossed the line.
+//
+// The grapple is a Practice tool: it makes a jump you cannot do yet reachable,
+// so you can work on the part after it. On Ranked it would make times
+// incomparable, which is the one thing Ranked is for, so it is not offered there
+// at any setting - `use Grapple` finds nothing in the inventory.
+//
+// Granting it here rather than leaving it to the stock give at p_client.cpp:888
+// is also what makes that absolute: the stock give runs earlier in
+// PutClientInServer than the strip, so `g_allow_grapple 1` cannot arm a Ranked
+// player by accident.
+static void Jump_ClearRunState(edict_t *ent, jump_client_t &jc)
+{
+	Jump_ResetRun(jc);
+	Jump_StripInventory(ent);
+	Jump_ClearCheckpointFlags(ent);
+
+	if (jc.team == jump_team_t::practice)
+		ent->client->pers.inventory[IT_WEAPON_GRAPPLE] = 1;
 }
 
 // Runs at the top of PutClientInServer, above the spectator branch - which is
@@ -80,22 +108,7 @@ void Jump_ClientSpawn(edict_t *ent)
 	if (!jc)
 		return;
 
-	Jump_ResetRun(*jc);
-	Jump_StripInventory(ent);
-	Jump_ClearCheckpointFlags(ent);
-
-	// The grapple is a Practice tool: it makes a jump you cannot do yet
-	// reachable, so you can work on the part after it. On Ranked it would make
-	// times incomparable, which is the one thing Ranked is for, so it is not
-	// offered there at any setting - `use Grapple` finds nothing in the
-	// inventory.
-	//
-	// Granting it here rather than leaving it to the stock give at
-	// p_client.cpp:888 is also what makes that absolute: the stock give runs
-	// earlier in PutClientInServer than the strip above, so `g_allow_grapple 1`
-	// cannot arm a Ranked player by accident.
-	if (jc->team == jump_team_t::practice)
-		ent->client->pers.inventory[IT_WEAPON_GRAPPLE] = 1;
+	Jump_ClearRunState(ent, *jc);
 
 	// Pick the player's stored best for this map back up. This has to happen
 	// here rather than at level init, because when Jump_InitLevel runs every
@@ -117,6 +130,92 @@ void Jump_ClientSpawn(edict_t *ent)
 	Jump_RefreshPlayerInstancing();
 }
 
+// ---------------------------------------------------------------------------
+// start_line / weapon_clear
+//
+// Both are resizable brush triggers in classic q2jump, so both fire on every
+// frame you are stood inside the volume rather than once on entry. That is not
+// a defect to guard away wholesale: for the start line it is precisely what
+// makes the run begin as you LEAVE the line rather than as you enter it, since
+// the clock is re-zeroed continuously while you are on it.
+//
+// What does have to be guarded is the expensive half. Jump_ClearCheckpointFlags
+// sweeps every edict in the level, and on a large map at 40 Hz that is real
+// work for no gain once the first touch has already cleared everything.
+// ---------------------------------------------------------------------------
+
+// True on the first touch of a contiguous run of them, so the heavy reset lands
+// once per entry into the volume.
+static bool Jump_LineTouchIsEntry(jump_client_t &jc)
+{
+	const bool entry = level.time > jc.line_touch_time + FRAME_TIME_S;
+
+	jc.line_touch_time = level.time;
+
+	return entry;
+}
+
+// The strip nulls pers.weapon but leaves ps.gunindex still drawing the old gun;
+// ChangeWeapon is what actually puts it away (see the note on Jump_StripInventory).
+// Only worth calling when there was something in hand - it does a modelindex
+// lookup and a sound check every time.
+static void Jump_WipeHeldWeapon(edict_t *ent, bool had_weapon)
+{
+	if (had_weapon)
+		ChangeWeapon(ent);
+}
+
+void Jump_StartLine(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || ent->client->resp.spectator || ent->client->chase_target ||
+		jc->team == jump_team_t::spectator)
+		return;
+
+	if (Jump_LineTouchIsEntry(*jc))
+	{
+		const bool had_weapon = ent->client->pers.weapon != nullptr;
+
+		Jump_ClearRunState(ent, *jc);
+		Jump_WipeHeldWeapon(ent, had_weapon);
+	}
+
+	// The line restarts the clock rather than re-arming it: upstream sets
+	// client_think_begin to now and leaves the run running (g_items.c:605), so
+	// crossing the line does not put you back to waiting for a movement input.
+	//
+	// Stores are deliberately left alone. Upstream's ClearPersistants wipes them
+	// here, but recall stores are a Practice tool rather than part of the timed
+	// contract, and losing them on every lap of a map built around a start line
+	// would make Practice worse for no gain in comparability.
+	jc->state = jump_run_state_t::running;
+	jc->run_start_ms = Jump_NowMs();
+}
+
+void Jump_ClearWeapons(edict_t *ent)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || ent->client->resp.spectator || ent->client->chase_target ||
+		jc->team == jump_team_t::spectator)
+		return;
+
+	if (!Jump_LineTouchIsEntry(*jc))
+		return;
+
+	const bool had_weapon = ent->client->pers.weapon != nullptr;
+
+	Jump_StripInventory(ent);
+	Jump_WipeHeldWeapon(ent, had_weapon);
+
+	// Not a map weapon, so the wipe should not cost you it. Same reasoning as
+	// Jump_ClearRunState, which is not used here because weapon_clear leaves the
+	// run and the checkpoints alone - it only empties your hands.
+	if (jc->team == jump_team_t::practice)
+		ent->client->pers.inventory[IT_WEAPON_GRAPPLE] = 1;
+}
+
 // The strafe meter, fed one usercmd at a time.
 //
 // This runs BEFORE Pmove (p_client.cpp), which is what makes it exact rather
@@ -126,9 +225,10 @@ void Jump_ClientSpawn(edict_t *ent)
 // only gets one sample per rendered frame, and has to reconstruct the pre-move
 // state from a wrapper around Pmove.
 //
-// Air only, for the reason in jump_logic.h: on the ground friction has already
-// run by the time acceleration happens, and SURF_SLICK is not visible from
-// here, so a ground reading would be quietly wrong on ice.
+// Air, plus ice. On ordinary ground friction has already run by the time
+// acceleration happens, so a reading there would be quietly wrong - but on a
+// slick surface PM_Friction's drop is exactly zero (p_move.cpp:564) and the
+// reconstruction is as exact as it is in the air. See jump_logic.h.
 // What the last hop earned. Fed from the same place as the strafe meter, so it
 // sees the exact command the feet leave the ground on rather than whichever one
 // happened to fall on a rendered frame.
@@ -152,6 +252,35 @@ static void Jump_TrackTakeoff(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
 	jc.takeoff.Update(ent->groundentity != nullptr, speed, ucmd->msec);
 }
 
+// Is the player stood on ground pmove will not slow them down on?
+//
+// pmove finds this with a trace of its own and keeps the surface in pml_t, which
+// never reaches the game, so the only way to know is to repeat the trace. Shaped
+// like PM_CatagorizePosition (p_move.cpp:977-991): the player hull, a quarter
+// unit down.
+static bool Jump_OnFrictionlessGround(edict_t *ent)
+{
+	if (!ent->groundentity)
+		return false;
+
+	// Mirrors PM_Trace's own mask (p_move.cpp:227-243): pmove strips
+	// CONTENTS_PLAYER whenever PMF_IGNORE_PLAYER_COLLISION is set, which
+	// g_disable_player_collision (forced on in Jump_Init) makes true for every
+	// player here outside coop. Skipping this would let the probe hit an
+	// overlapping player instead of the ground - a solid-ground read exactly
+	// where pmove itself saw none, and a possible disagreement with the cgame
+	// half's trace in jump_cg_move.cpp, which already excludes it.
+	contents_t mask = MASK_PLAYERSOLID;
+
+	if (ent->client->ps.pmove.pm_flags & PMF_IGNORE_PLAYER_COLLISION)
+		mask &= ~CONTENTS_PLAYER;
+
+	const vec3_t point = { ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 0.25f };
+	const trace_t tr = gi.trace(ent->s.origin, ent->mins, ent->maxs, point, ent, mask);
+
+	return Jump_TraceHitFrictionlessGround(tr);
+}
+
 static void Jump_TrackStrafe(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
 {
 	const int64_t now = Jump_NowMs();
@@ -164,11 +293,23 @@ static void Jump_TrackStrafe(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
 	const bool playable = !ent->client->resp.spectator && !ent->client->chase_target &&
 						  jc.team != jump_team_t::spectator;
 
-	// Every exclusion is a case where the reconstruction would not be exact.
-	// The jump frame needs no test of its own: you are on the ground when you
-	// press it, so the ground check below already covers it.
-	const bool usable = playable && ucmd->msec > 0 && pm.pm_type == PM_NORMAL && !ent->groundentity &&
-						!ent->waterlevel && !(pm.pm_flags & PMF_ON_LADDER) && pm.pm_time == 0;
+	// A fresh jump press clears groundentity partway through the command, so the
+	// accel runs in the air branch from a frame that started on the floor and
+	// neither model describes it. This used to need no test of its own - the
+	// ground check excluded every such frame for free - but now that ice frames
+	// are admitted, the takeoff stroke off an ice brush would slip through.
+	// Held jump does not re-trigger (p_move.cpp:1078), so holding stays gradeable.
+	const bool jumping = (ucmd->buttons & BUTTON_JUMP) && !(pm.pm_flags & PMF_JUMP_HELD);
+
+	// Only trace when the answer can matter - once per command per grounded
+	// player, and never for a spectator or a frame that is excluded anyway.
+	const bool gradeable_ground = playable && !jumping && ent->groundentity && Jump_OnFrictionlessGround(ent);
+
+	// Every remaining exclusion is a case where the reconstruction would not be
+	// exact.
+	const bool usable = playable && ucmd->msec > 0 && pm.pm_type == PM_NORMAL && !jumping &&
+						(!ent->groundentity || gradeable_ground) && !ent->waterlevel &&
+						!(pm.pm_flags & PMF_ON_LADDER) && pm.pm_time == 0;
 
 	jump::strafe_frame_t frame;
 
@@ -183,7 +324,8 @@ static void Jump_TrackStrafe(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc)
 
 		frame = jump::StrafeFrame(vel, angles[PITCH], angles[YAW], angles[ROLL], ucmd->forwardmove,
 								  ucmd->sidemove, ucmd->msec / 1000.f,
-								  (pm.pm_flags & PMF_DUCKED) != 0, pm_config.airaccel);
+								  (pm.pm_flags & PMF_DUCKED) != 0, pm_config.airaccel,
+								  gradeable_ground);
 	}
 
 	jc.strafe_readout = jc.strafe.Add(frame, usable, (uint64_t) (dt_ms > 0 ? dt_ms : 0));

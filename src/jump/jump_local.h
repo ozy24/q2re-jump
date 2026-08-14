@@ -123,6 +123,18 @@ struct jump_client_t
 	// volume can be the whole track.
 	gtime_t     tele_speed_print_time = 0_ms;
 
+	// Last frame a start_line or weapon_clear volume touched this client. Same
+	// problem as the print above - the trigger fires every frame you stand in
+	// it - but here it guards work rather than spam: clearing the checkpoint
+	// flags sweeps every edict in the level, which must not run at frame rate.
+	// The clock reset is cheap and deliberately does run every frame.
+	//
+	// One timestamp for both entities, which is only safe while no map places
+	// them adjacently: stepping straight out of one into the other would read as
+	// one continuous touch and suppress the second one's heavy half. No corpus
+	// map has both, so this stays one field until one does.
+	gtime_t     line_touch_time = 0_ms;
+
 	// A readout state the options menu wants this client's overlay to adopt,
 	// encoded by Jump_EncodeHudRequest and published in JUMP_STAT_HUD_REQUEST.
 	// One-shot: cleared as soon as the client reports back, so a request can
@@ -238,6 +250,13 @@ void Jump_CmdKill(edict_t *ent);
 
 // jump_client.cpp
 void Jump_StripInventory(edict_t *ent);
+
+// start_line: restart the clock where the player stands, with a spawn-clean
+// inventory and no checkpoints. Does not move them and does not touch stores.
+void Jump_StartLine(edict_t *ent);
+
+// weapon_clear: the same inventory wipe on its own, leaving the run alone.
+void Jump_ClearWeapons(edict_t *ent);
 
 // jump_team.cpp
 const char *Jump_TeamName(jump_team_t team);
