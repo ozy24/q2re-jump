@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-15
+
 ### Added
 
 - **`replay`**, from classic q2jump - watch your own personal best back, frozen and moved
