@@ -177,6 +177,7 @@
     <ClCompile Include="jump\jump_store.cpp" />
     <ClCompile Include="jump\jump_files.cpp" />
     <ClCompile Include="jump\jump_records.cpp" />
+    <ClCompile Include="jump\jump_replay.cpp" />
     <ClCompile Include="jump\jump_scoreboard.cpp" />
     <ClCompile Include="jump\jump_sound.cpp" />
     <ClCompile Include="jump\jump_menu.cpp" />

@@ -499,6 +499,14 @@ void Jump_IdleFrame()
 		if (jc->state == jump_run_state_t::running)
 			continue;
 
+		// A player watching a replay sends no meaningful input by design -
+		// that is the whole point of "frozen and moved through the saved
+		// frames" - so idle time must not accrue while playback is active, or
+		// a replay longer than jump_idle_time gets force-switched to
+		// spectator mid-playback.
+		if (jc->replay_mode != jump_replay_mode_t::none)
+			continue;
+
 		if (jc->last_input_time == 0_ms)
 		{
 			jc->last_input_time = level.time;

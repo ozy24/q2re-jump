@@ -109,6 +109,112 @@ struct map_records_t
 };
 
 // ---------------------------------------------------------------------------
+// Replays
+// ---------------------------------------------------------------------------
+//
+// One frame per REPLAY_FRAME_MS of elapsed run time, recorded on Ranked while
+// a run is in progress and saved whenever it beats the player's own personal
+// best (see Jump_TrackReplay / Jump_SaveReplay). Sampled at a fixed 40 Hz
+// regardless of the server's actual tick rate - both upstream mods this port
+// is based on baked in their server's 10 Hz tick, which reads as choppy
+// played back at any other rate. Bucketing by ELAPSED TIME rather than by
+// call count is what makes the 40 Hz figure true independent of how often
+// the recorder is actually polled.
+
+// One recorded frame. Origin and velocity are fixed-point (1/8 unit and
+// whole ups respectively, matching the precision Quake's own network
+// protocol already uses for a position) so that a delta between two frames
+// is an exact integer rather than a float subtraction that has to be
+// re-quantized. Angles are the standard 16-bit tick encoding (65536 per
+// circle), which makes wraparound a plain unsigned subtraction.
+struct replay_frame_t
+{
+	int32_t	 origin_ticks[3] = { 0, 0, 0 }; // 1/8 unit
+	int32_t	 velocity[3] = { 0, 0, 0 };		// whole ups
+	uint16_t yaw_ticks = 0;
+	uint16_t pitch_ticks = 0;
+	uint8_t	 buttons = 0; // BUTTON_* bits actually in play (ATTACK|USE|HOLSTER|JUMP|CROUCH)
+};
+
+constexpr int	  REPLAY_HZ = 40;
+constexpr int64_t REPLAY_FRAME_MS = 1000 / REPLAY_HZ; // 25
+// A full-precision frame is re-emitted this often so that a long delta chain
+// cannot drift and a single corrupt byte cannot cost more than ~10s of
+// playback rather than everything after it.
+constexpr int REPLAY_KEYFRAME_INTERVAL = 400; // ~10s at 40 Hz
+// 15 minutes at 40 Hz. Recording past this stops silently rather than
+// growing without bound - a run this long on Ranked is already far outside
+// what this format needs to handle well.
+constexpr int REPLAY_MAX_FRAMES = 36000;
+
+// The live in-memory buffer a run records into. Compression only happens
+// once, at save time - the buffer itself is plain, uncompressed frames.
+struct replay_recorder_t
+{
+	std::vector<replay_frame_t> frames;
+	bool						overflowed = false; // hit REPLAY_MAX_FRAMES; never saved
+
+	void Reset();
+
+	// Buckets by ELAPSED RUN TIME, not by call count, so frame i always
+	// means i * REPLAY_FRAME_MS of real elapsed time - not merely "the i-th
+	// frame that happened to be sampled". That distinction matters: anchoring
+	// on when a sample actually arrived (rather than on the slot it belongs
+	// to) lets the recorded frame count quietly fall behind real time
+	// whenever polling runs slower than 40 Hz, which plays back FASTER than
+	// the run actually was. Anchoring on the slot index instead, and padding
+	// with the last known frame when polling falls behind, keeps recorded
+	// duration equal to elapsed duration regardless of how densely the
+	// caller polls. Returns true when the caller's own frame was the one
+	// appended (false if the slot was already filled, or the buffer is full).
+	bool Sample(int64_t elapsed_ms, const replay_frame_t &frame);
+};
+
+// A decoded replay, ready for playback or raceline sampling.
+struct replay_t
+{
+	static constexpr int SCHEMA_VERSION = 1;
+
+	int32_t						 sample_hz = REPLAY_HZ;
+	std::vector<replay_frame_t> frames;
+
+	// (frames.size() - 1) * REPLAY_FRAME_MS, or 0 when empty.
+	int64_t DurationMs() const;
+};
+
+// An interpolated moment in a replay, ready to write onto a player_state_t.
+struct replay_sample_t
+{
+	float origin[3] = { 0, 0, 0 };
+	float velocity[3] = { 0, 0, 0 };
+	float yaw = 0.f;
+	float pitch = 0.f;
+	uint8_t buttons = 0;
+};
+
+// Delta + varint encoding: the first frame and every REPLAY_KEYFRAME_INTERVAL
+// -th one after it are written at full precision; every other frame is
+// zigzag-varint-delta-coded against the one immediately before it. Angle
+// deltas use signed 16-bit wraparound subtraction, which is correct mod
+// 65536 for free. A 4-byte "JREP" magic, a version byte (checked against
+// SCHEMA_VERSION the same way Jump_ParseRecords refuses a newer JSON
+// schema), a sample-rate byte and a frame count make up the header.
+std::string EncodeReplay(const replay_t &replay);
+
+// Bounds-checked against the buffer end at every read; rejects a version
+// newer than this build understands rather than guessing at its layout.
+// `out` is left as a default-constructed replay_t on failure.
+bool DecodeReplay(const std::string &bytes, replay_t &out);
+
+// Linear interpolation between the two 40 Hz frames bracketing `elapsed_ms`,
+// with shortest-arc interpolation on the angles. This is what makes played-
+// back movement smooth at whatever the server's real tick rate is, rather
+// than snapping between samples the way a 10 Hz recording would. False when
+// `elapsed_ms` is negative, past the end of the replay, or the replay is
+// empty.
+bool ReplaySampleAt(const replay_t &replay, int64_t elapsed_ms, replay_sample_t &out);
+
+// ---------------------------------------------------------------------------
 // Active-players board
 // ---------------------------------------------------------------------------
 

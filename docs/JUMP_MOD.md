@@ -33,6 +33,10 @@ lobby, so everything below is a console command.
 | `recall [1-5]` | Return to a saved position; 1 is the most recent |
 | `reset` | Discard all saved positions |
 | `kill` | Go again: recalls on practice, restarts on ranked |
+| `replay` | Watch your personal best on this map, frozen and moved through it |
+| `replay stop` | End an in-progress replay early |
+| `race` | Race live against your personal best's ghost (ranked only) |
+| `race off` | Stop racing the ghost |
 | `team practice\|ranked\|spectator` | Change team (`easy`/`hard` still work as aliases) |
 | `maptimes` | Full list of best times on this map |
 | `playertimes` | Your completions and points |
@@ -470,6 +474,33 @@ centre print skips the player who set it — they are already reading their own
 The banner is drawn as part of the status bar rather than as a chat print
 because a print goes to the notify area, where the next line of chat scrolls it
 away. Practice runs announce nothing; they are never recorded.
+
+### Replays and the raceline ghost
+
+Every ranked run is recorded — origin, view angle, velocity and key inputs, sampled
+40 times a second — and saved to disk whenever it beats your own personal best on that
+map. That is a higher, and fixed, rate than the classic mods this port is based on: they
+recorded once per server tick, 10 times a second on the servers they usually ran on, so
+older replays play back visibly choppy. This one interpolates between recorded frames, so
+it stays smooth no matter what tick rate the server you're actually on happens to run at.
+
+`replay` watches your own personal best back. You are frozen — no collision, no
+input — and moved through the saved frames until it ends or you type `replay stop`.
+
+`race` is different: you play the course for real, and a short green trail traces where
+your own personal best was at the same point in the run, so you can see whether you're
+ahead or behind as you go. It only ever shows to you — nobody else sees your ghost, the
+same way nobody sees your own store marker glow through walls. Under the hood this is the
+"race spark" both upstream mods already have, just built differently: they re-sent it as a
+temporary effect every single server tick, which is a lot of small messages for a
+cosmetic trail; this one repositions a handful of persistent beam entities instead, which
+costs far less network traffic for the same thing on screen. `race off` turns it off.
+
+Replays are saved one per player per map, not one per map — there is no "watch the map
+record" yet, only your own. They live under `<data>/replays/<map>/<player-id>.jrep`, a
+small binary format rather than JSON: the position and angle deltas between frames are
+packed down (not merely dumped raw), which is what keeps a multi-minute run to tens of
+kilobytes rather than hundreds.
 
 ## Stock clients
 

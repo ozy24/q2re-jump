@@ -268,6 +268,302 @@ static void TestRecords()
 	CHECK(records.RankOf("dave") == 3);
 }
 
+// The property that actually matters: after feeding any sequence of
+// (non-decreasing) elapsed_ms values, the recorded frame count must track
+// real elapsed time - frame i means i * REPLAY_FRAME_MS of real time, so
+// duration = (frames.size()-1)*REPLAY_FRAME_MS must equal the last elapsed_ms
+// fed in, rounded down to the nearest slot. Getting this wrong is exactly
+// what would make a replay play back faster or slower than the run actually
+// was, regardless of how densely the recorder happens to be polled.
+static void CheckTracksElapsedTime(const jump::replay_recorder_t &rec, int64_t last_elapsed_ms)
+{
+	const int64_t expect_frames = last_elapsed_ms / jump::REPLAY_FRAME_MS + 1;
+	CHECK((int64_t) rec.frames.size() == expect_frames);
+}
+
+static void TestReplayRecorderBucketing()
+{
+	// Polling exactly on the 40 Hz cadence: every call is accepted, one frame
+	// each.
+	{
+		jump::replay_recorder_t rec;
+		int						 accepted = 0;
+		int64_t					 last_t = 0;
+
+		for (int64_t t = 0; t <= 1000; t += jump::REPLAY_FRAME_MS)
+		{
+			if (rec.Sample(t, jump::replay_frame_t {}))
+				accepted++;
+			last_t = t;
+		}
+
+		CHECK(accepted == (int) (1000 / jump::REPLAY_FRAME_MS) + 1);
+		CheckTracksElapsedTime(rec, last_t);
+	}
+
+	// Polling faster than 40 Hz (every 16ms): most calls are throttled away,
+	// but the SURVIVING frame count still tracks real elapsed time exactly -
+	// this is the bug a naive "accept, then wait 25ms from acceptance time"
+	// design gets wrong: it undercounts against real time whenever the poll
+	// interval doesn't evenly divide 25ms, which plays the recording back
+	// faster than it happened.
+	{
+		jump::replay_recorder_t rec;
+		int64_t					 last_t = 0;
+
+		for (int64_t t = 0; t <= 1000; t += 16)
+		{
+			rec.Sample(t, jump::replay_frame_t {});
+			last_t = t;
+		}
+
+		CheckTracksElapsedTime(rec, last_t);
+	}
+
+	// Polling slower than 40 Hz (every 50ms): every call is accepted (each
+	// one is always past the last filled slot), and the gap between slots is
+	// padded by holding the most recent known frame rather than skipping -
+	// so the count still tracks elapsed time exactly rather than falling
+	// behind it.
+	{
+		jump::replay_recorder_t rec;
+		int						 accepted = 0;
+		int						 calls = 0;
+		int64_t					 last_t = 0;
+
+		for (int64_t t = 0; t <= 1000; t += 50)
+		{
+			calls++;
+			if (rec.Sample(t, jump::replay_frame_t {}))
+				accepted++;
+			last_t = t;
+		}
+
+		CHECK(accepted == calls);
+		CheckTracksElapsedTime(rec, last_t);
+	}
+
+	// A single large gap (e.g. a stalled command): padded with copies of the
+	// last known frame up to the target slot, then the real sample lands on
+	// its own slot - not skipped, not merged into an earlier one.
+	{
+		jump::replay_recorder_t rec;
+
+		jump::replay_frame_t first;
+		first.origin_ticks[0] = 111;
+		CHECK(rec.Sample(0, first));
+
+		jump::replay_frame_t later;
+		later.origin_ticks[0] = 999;
+		CHECK(rec.Sample(1000, later));
+
+		CheckTracksElapsedTime(rec, 1000);
+
+		CHECK(rec.frames.front().origin_ticks[0] == 111);
+		CHECK(rec.frames.back().origin_ticks[0] == 999);
+
+		// Every padded slot in between holds the last known frame, not a
+		// blend or a zeroed placeholder.
+		for (size_t i = 1; i + 1 < rec.frames.size(); i++)
+			CHECK(rec.frames[i].origin_ticks[0] == 111);
+	}
+
+	// Overflow: recording stops silently past REPLAY_MAX_FRAMES rather than
+	// growing without bound.
+	{
+		jump::replay_recorder_t rec;
+		int64_t					 t = 0;
+
+		for (int i = 0; i < jump::REPLAY_MAX_FRAMES + 10; i++)
+		{
+			rec.Sample(t, jump::replay_frame_t {});
+			t += jump::REPLAY_FRAME_MS;
+		}
+
+		CHECK(rec.overflowed);
+		CHECK((int) rec.frames.size() == jump::REPLAY_MAX_FRAMES);
+	}
+}
+
+// A synthetic run with straight-line coasting, periodic sharp turns/
+// accelerations and a bobbing vertical component, spanning at least one
+// REPLAY_KEYFRAME_INTERVAL boundary for n >= ~450.
+static jump::replay_t MakeSyntheticReplay(int n)
+{
+	jump::replay_t replay;
+	replay.sample_hz = jump::REPLAY_HZ;
+	replay.frames.reserve((size_t) n);
+
+	int32_t	 x = 1000, y = -500, z = 100;
+	int32_t	 vx = 300, vy = 0, vz = 0;
+	uint16_t yaw = 0, pitch = 2000;
+
+	for (int i = 0; i < n; i++)
+	{
+		x += vx / 40;
+		y += vy / 40;
+		z += (i % 80 < 40) ? 20 : -20;
+
+		if (i % 50 == 0)
+			vx += 400; // a sharp acceleration
+		if (i % 73 == 0)
+			vy -= 250;
+
+		yaw = (uint16_t) (yaw + ((i % 211 == 0) ? 20000 : 40)); // steady drift plus occasional hard turn
+
+		jump::replay_frame_t f;
+		f.origin_ticks[0] = x;
+		f.origin_ticks[1] = y;
+		f.origin_ticks[2] = z;
+		f.velocity[0] = vx;
+		f.velocity[1] = vy;
+		f.velocity[2] = vz;
+		f.yaw_ticks = yaw;
+		f.pitch_ticks = pitch;
+		f.buttons = (uint8_t) (i % 7);
+
+		replay.frames.push_back(f);
+	}
+
+	return replay;
+}
+
+static void TestReplayCodecRoundTrip()
+{
+	// n = 500 spans the first REPLAY_KEYFRAME_INTERVAL (400) boundary.
+	const jump::replay_t original = MakeSyntheticReplay(500);
+	const std::string	  encoded = jump::EncodeReplay(original);
+
+	jump::replay_t decoded;
+	CHECK(jump::DecodeReplay(encoded, decoded));
+	CHECK(decoded.frames.size() == original.frames.size());
+
+	// The codec is delta-coded but not lossy in itself - everything it
+	// carries is already a quantized integer, so round-tripping must be bit
+	// exact, not merely within tolerance.
+	for (size_t i = 0; i < original.frames.size(); i++)
+	{
+		const jump::replay_frame_t &a = original.frames[i];
+		const jump::replay_frame_t &b = decoded.frames[i];
+
+		CHECK(a.origin_ticks[0] == b.origin_ticks[0]);
+		CHECK(a.origin_ticks[1] == b.origin_ticks[1]);
+		CHECK(a.origin_ticks[2] == b.origin_ticks[2]);
+		CHECK(a.velocity[0] == b.velocity[0]);
+		CHECK(a.velocity[1] == b.velocity[1]);
+		CHECK(a.velocity[2] == b.velocity[2]);
+		CHECK(a.yaw_ticks == b.yaw_ticks);
+		CHECK(a.pitch_ticks == b.pitch_ticks);
+		CHECK(a.buttons == b.buttons);
+	}
+}
+
+static void TestReplayCodecKeyframeResync()
+{
+	// Spans two keyframe boundaries (400, 800): if the delta chain fed off
+	// the wrong "previous frame" across a keyframe, this would drift and the
+	// exact-equality check below would catch it.
+	const jump::replay_t original = MakeSyntheticReplay(850);
+	const std::string	  encoded = jump::EncodeReplay(original);
+
+	jump::replay_t decoded;
+	CHECK(jump::DecodeReplay(encoded, decoded));
+	CHECK(decoded.frames.size() == original.frames.size());
+
+	for (size_t i = 0; i < original.frames.size(); i += 37) // sample throughout, not just densely near the start
+	{
+		CHECK(decoded.frames[i].origin_ticks[0] == original.frames[i].origin_ticks[0]);
+		CHECK(decoded.frames[i].yaw_ticks == original.frames[i].yaw_ticks);
+	}
+}
+
+static void TestReplayCodecCorruptRejection()
+{
+	const jump::replay_t original = MakeSyntheticReplay(50);
+	const std::string	  encoded = jump::EncodeReplay(original);
+
+	jump::replay_t decoded;
+
+	// Truncated at every possible length: never crashes (that's what running
+	// this at all proves), and never succeeds when data was actually cut.
+	for (size_t len = 0; len < encoded.size(); len++)
+		CHECK(!jump::DecodeReplay(encoded.substr(0, len), decoded));
+
+	// The untruncated buffer still decodes, so the loop above wasn't
+	// vacuously true.
+	CHECK(jump::DecodeReplay(encoded, decoded));
+
+	// Bad magic.
+	std::string bad_magic = encoded;
+	bad_magic[0] = 'X';
+	CHECK(!jump::DecodeReplay(bad_magic, decoded));
+
+	// A schema version newer than this build understands.
+	std::string bad_version = encoded;
+	bad_version[4] = (char) (jump::replay_t::SCHEMA_VERSION + 1);
+	CHECK(!jump::DecodeReplay(bad_version, decoded));
+}
+
+static void TestReplaySampleAtInterpolation()
+{
+	jump::replay_t replay;
+	replay.sample_hz = jump::REPLAY_HZ;
+
+	jump::replay_frame_t f0, f1;
+	f0.origin_ticks[0] = 0;
+	f1.origin_ticks[0] = 800; // 100 units at the 1/8-unit tick scale
+	f0.velocity[0] = 100;
+	f1.velocity[0] = 300;
+	replay.frames.push_back(f0);
+	replay.frames.push_back(f1);
+
+	jump::replay_sample_t sample;
+
+	CHECK(jump::ReplaySampleAt(replay, 0, sample));
+	CHECK(std::fabs(sample.origin[0] - 0.f) < 0.001f);
+
+	// 10ms of a 25ms frame is exactly t = 0.4, chosen so the expected values
+	// below are exact rather than depending on REPLAY_FRAME_MS / 2 truncating
+	// (25 / 2 == 12 in integer division, not the true midpoint).
+	CHECK(jump::ReplaySampleAt(replay, 10, sample));
+	CHECK(std::fabs(sample.origin[0] - 40.f) < 0.01f);	  // (800 * 0.4) / 8
+	CHECK(std::fabs(sample.velocity[0] - 180.f) < 0.01f); // 100 + (300-100) * 0.4
+
+	CHECK(jump::ReplaySampleAt(replay, jump::REPLAY_FRAME_MS, sample));
+	CHECK(std::fabs(sample.origin[0] - 100.f) < 0.001f);
+
+	// Angle wrap: interpolating from 359 degrees to 1 degree must cross the
+	// 360/0 seam (a 2-degree arc), not go the long way around through 180.
+	jump::replay_t wrap;
+	jump::replay_frame_t w0, w1;
+	w0.yaw_ticks = (uint16_t) (359.0 / 360.0 * 65536.0);
+	w1.yaw_ticks = (uint16_t) (1.0 / 360.0 * 65536.0);
+	wrap.frames.push_back(w0);
+	wrap.frames.push_back(w1);
+
+	jump::replay_sample_t wrap_sample;
+	CHECK(jump::ReplaySampleAt(wrap, jump::REPLAY_FRAME_MS / 2, wrap_sample));
+
+	const float diff = std::fabs(jump::WrapDegrees(wrap_sample.yaw - 0.f));
+	CHECK(diff < 1.f);
+}
+
+static void TestReplaySampleAtOutOfRange()
+{
+	jump::replay_t replay;
+	replay.frames.push_back(jump::replay_frame_t {});
+	replay.frames.push_back(jump::replay_frame_t {});
+
+	jump::replay_sample_t sample;
+
+	CHECK(jump::ReplaySampleAt(replay, replay.DurationMs(), sample));		// exactly at the end: valid
+	CHECK(!jump::ReplaySampleAt(replay, replay.DurationMs() + 1, sample)); // past it: invalid
+	CHECK(!jump::ReplaySampleAt(replay, -1, sample));
+
+	jump::replay_t empty;
+	CHECK(!jump::ReplaySampleAt(empty, 0, sample));
+}
+
 static void TestJumpersPolicy()
 {
 	// Self is always visible / audible.
@@ -1854,6 +2150,12 @@ int main()
 	TestStrafeBarLevel();
 	TestSpeedDigits();
 	TestRecords();
+	TestReplayRecorderBucketing();
+	TestReplayCodecRoundTrip();
+	TestReplayCodecKeyframeResync();
+	TestReplayCodecCorruptRejection();
+	TestReplaySampleAtInterpolation();
+	TestReplaySampleAtOutOfRange();
 	TestJumpersPolicy();
 	TestSortPlayerRows();
 

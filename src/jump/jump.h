@@ -126,3 +126,12 @@ bool Jump_FastTeleport();
 // separate in the rerelease, which is what once let fasttele work on one and
 // not the other.
 bool Jump_TeleportSpeedBlocked(edict_t *self, edict_t *other);
+
+// ClientThink's pm_type derivation: whether `replay` is currently driving
+// this client's own body. PM_FREEZE alone is not enough to hold it, because
+// ClientThink recomputes pm_type from scratch on every call and none of its
+// other branches (menu, awaiting_respawn, spectator, dead, grapple) apply to
+// a live, normal, ungrappled player - so without this a replaying player's
+// own next command would fall through to PM_NORMAL and run real physics
+// between Jump_ReplayFrame's ticks.
+bool Jump_ReplayModeActive(edict_t *ent);

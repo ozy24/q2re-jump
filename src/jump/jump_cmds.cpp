@@ -101,6 +101,10 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  store          save your position\n"
 					"  recall [1-5]   return to a saved position (1 = most recent)\n"
 					"  reset          discard all saved positions\n"
+					"  replay         watch your personal best, frozen and moved through it\n"
+					"  replay stop    end an in-progress replay early\n"
+					"  race           race live against your personal best's ghost\n"
+					"  race off       stop racing the ghost\n"
 					"  kill           go again: recalls on practice, restarts on ranked\n"
 					"  team <name>    practice (stores allowed), ranked (timed), spectator\n"
 					"  maptimes       best times on this map\n"
@@ -184,6 +188,24 @@ bool Jump_ClientCommand(edict_t *ent)
 	if (!Q_strcasecmp(cmd, "reset"))
 	{
 		Jump_CmdReset(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "replay"))
+	{
+		if (gi.argc() > 1 && !Q_strcasecmp(gi.argv(1), "stop"))
+			Jump_CmdReplayStop(ent);
+		else
+			Jump_CmdReplay(ent);
+		return true;
+	}
+
+	if (!Q_strcasecmp(cmd, "race"))
+	{
+		if (gi.argc() > 1 && !Q_strcasecmp(gi.argv(1), "off"))
+			Jump_CmdRaceOff(ent);
+		else
+			Jump_CmdRace(ent);
 		return true;
 	}
 

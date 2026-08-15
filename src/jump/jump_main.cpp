@@ -174,6 +174,17 @@ void Jump_InitLevel(const char *entities)
 		jc.takeoff.Reset();
 		jc.takeoff_written = false;
 
+		jc.replay_rec.Reset();
+		jc.loaded_replay = {};
+		jc.loaded_replay_valid = false; // a new map invalidates the old one's cache
+		jc.replay_mode = jump_replay_mode_t::none;
+		jc.replay_start_ms = 0;
+		jc.replay_return_origin = {};
+		jc.replay_return_angles = {};
+		jc.race_armed = false;
+		for (auto &beam : jc.race_beam)
+			beam = nullptr; // freed with TAG_LEVEL, same as store_marker above
+
 		jc.team = jump_team_t::spectator;
 		jc.team_chosen = false;
 		jc.menu_prompted = false;
@@ -221,6 +232,7 @@ void Jump_RunFrame()
 	Jump_MsetFrame();
 	Jump_AnnounceFrame();
 	Jump_StatusbarFrame();
+	Jump_ReplayFrame();
 }
 
 void Jump_Shutdown()
@@ -275,6 +287,10 @@ void Jump_ResetRun(jump_client_t &jc)
 	// leave them comparing against a jump from a run they are no longer on.
 	jc.takeoff.Reset();
 	jc.takeoff_written = false;
+
+	// Same reasoning: a restarted run should not splice its frames onto the
+	// tail of the one that was just abandoned.
+	jc.replay_rec.Reset();
 }
 
 void Jump_RestartRun(edict_t *ent)
@@ -301,7 +317,7 @@ void Jump_FreeStoreMarker(jump_client_t &jc)
 	}
 }
 
-void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles)
+void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles, float z_offset)
 {
 	// A hook attached to somewhere else in the map would immediately drag the
 	// player back off the position they just recalled to. Stock resets the
@@ -314,7 +330,7 @@ void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles)
 	gi.unlinkentity(ent);
 
 	ent->s.origin = origin;
-	ent->s.origin[2] += 10;
+	ent->s.origin[2] += z_offset;
 	ent->s.old_origin = ent->s.origin;
 
 	ent->velocity = {};

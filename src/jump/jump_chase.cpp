@@ -382,7 +382,22 @@ void Jump_SyncFollowPresentation(edict_t *ent)
 
 bool Jump_EntityVisibility(edict_t *ent, edict_t *viewer, bool &visible)
 {
-	if (!Jump_Active() || !ent || !ent->client)
+	if (!Jump_Active() || !ent)
+		return false;
+
+	// The raceline trail is a non-player SVF_INSTANCED edict, so it must be
+	// handled before the !ent->client bailout below - appending it after
+	// would be dead code, and worse, would fall through to
+	// Entity_IsVisibleToPlayer's item-pickup fallback, which defaults to
+	// VISIBLE for an edict that has never been "picked up" by anyone. That is
+	// the opposite of what a per-owner ghost trail needs.
+	if (ent->classname && !strcmp(ent->classname, "jump_race_beam"))
+	{
+		visible = (ent->owner == viewer);
+		return true;
+	}
+
+	if (!ent->client)
 		return false;
 
 	jump_client_t *vjc = Jump_ClientData(viewer);

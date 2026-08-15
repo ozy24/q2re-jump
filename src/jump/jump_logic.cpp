@@ -134,6 +134,354 @@ int map_records_t::PointsOf(const std::string &id) const
 	return PointsForRank(RankOf(id));
 }
 
+// ---------------------------------------------------------------------------
+// Replays
+// ---------------------------------------------------------------------------
+
+void replay_recorder_t::Reset()
+{
+	frames.clear();
+	overflowed = false;
+}
+
+bool replay_recorder_t::Sample(int64_t elapsed_ms, const replay_frame_t &frame)
+{
+	if (overflowed || elapsed_ms < 0)
+		return false;
+
+	// Which 40 Hz slot this sample belongs to. frames.size() is exactly the
+	// count already emitted, so comparing against it tells us whether this
+	// slot is already filled (too soon - reject) or whether we have fallen
+	// behind it (pad up to it first).
+	const int64_t target_index = elapsed_ms / REPLAY_FRAME_MS;
+
+	if (target_index < (int64_t) frames.size())
+		return false;
+
+	// Polling ran coarser than 40 Hz (a slow server tick, a stalled command):
+	// pad the gap by holding the most recent known frame rather than
+	// skipping slots outright, which would shift every later index and
+	// silently speed the whole recording up on playback.
+	while ((int64_t) frames.size() < target_index)
+	{
+		if ((int) frames.size() >= REPLAY_MAX_FRAMES)
+		{
+			overflowed = true;
+			return false;
+		}
+
+		frames.push_back(frames.empty() ? frame : frames.back());
+	}
+
+	if ((int) frames.size() >= REPLAY_MAX_FRAMES)
+	{
+		overflowed = true;
+		return false;
+	}
+
+	frames.push_back(frame);
+	return true;
+}
+
+int64_t replay_t::DurationMs() const
+{
+	if (frames.size() < 2)
+		return 0;
+
+	return (int64_t) (frames.size() - 1) * REPLAY_FRAME_MS;
+}
+
+static void WriteU16LE(std::string &out, uint16_t v)
+{
+	out.push_back((char) (uint8_t) (v & 0xFF));
+	out.push_back((char) (uint8_t) ((v >> 8) & 0xFF));
+}
+
+static void WriteU32LE(std::string &out, uint32_t v)
+{
+	for (int i = 0; i < 4; i++)
+		out.push_back((char) (uint8_t) ((v >> (i * 8)) & 0xFF));
+}
+
+static void WriteI32LE(std::string &out, int32_t v)
+{
+	WriteU32LE(out, (uint32_t) v);
+}
+
+static bool ReadU16LE(const std::string &bytes, size_t &pos, uint16_t &out)
+{
+	if (pos + 2 > bytes.size())
+		return false;
+
+	out = (uint16_t) (uint8_t) bytes[pos] | ((uint16_t) (uint8_t) bytes[pos + 1] << 8);
+	pos += 2;
+	return true;
+}
+
+static bool ReadU32LE(const std::string &bytes, size_t &pos, uint32_t &out)
+{
+	if (pos + 4 > bytes.size())
+		return false;
+
+	out = 0;
+	for (int i = 0; i < 4; i++)
+		out |= (uint32_t) (uint8_t) bytes[pos + i] << (i * 8);
+
+	pos += 4;
+	return true;
+}
+
+static bool ReadI32LE(const std::string &bytes, size_t &pos, int32_t &out)
+{
+	uint32_t raw;
+
+	if (!ReadU32LE(bytes, pos, raw))
+		return false;
+
+	out = (int32_t) raw;
+	return true;
+}
+
+static void WriteVarint(std::string &out, uint64_t value)
+{
+	while (value >= 0x80)
+	{
+		out.push_back((char) (uint8_t) (0x80 | (value & 0x7F)));
+		value >>= 7;
+	}
+
+	out.push_back((char) (uint8_t) value);
+}
+
+// LEB128-style, capped at 10 bytes (enough for a full 64-bit value) so a
+// malformed stream of continuation bits cannot spin forever.
+static bool ReadVarint(const std::string &bytes, size_t &pos, uint64_t &out)
+{
+	out = 0;
+
+	for (int shift = 0; shift < 70; shift += 7)
+	{
+		if (pos >= bytes.size())
+			return false;
+
+		const uint8_t b = (uint8_t) bytes[pos++];
+
+		out |= (uint64_t) (b & 0x7F) << shift;
+
+		if (!(b & 0x80))
+			return true;
+	}
+
+	return false; // too long to be a real value
+}
+
+static uint64_t ZigZagEncode(int64_t v)
+{
+	return (uint64_t) ((v << 1) ^ (v >> 63));
+}
+
+static int64_t ZigZagDecode(uint64_t v)
+{
+	return (int64_t) (v >> 1) ^ -(int64_t) (v & 1);
+}
+
+static constexpr char REPLAY_MAGIC[4] = { 'J', 'R', 'E', 'P' };
+
+std::string EncodeReplay(const replay_t &replay)
+{
+	std::string out;
+	out.reserve(replay.frames.size() * 14 + 16);
+
+	out.append(REPLAY_MAGIC, 4);
+	out.push_back((char) (uint8_t) replay_t::SCHEMA_VERSION);
+	out.push_back((char) (uint8_t) (replay.sample_hz & 0xFF));
+	WriteU32LE(out, (uint32_t) replay.frames.size());
+
+	replay_frame_t prev {};
+
+	for (size_t i = 0; i < replay.frames.size(); i++)
+	{
+		const replay_frame_t &f = replay.frames[i];
+		const bool			   keyframe = (i % REPLAY_KEYFRAME_INTERVAL) == 0;
+
+		if (keyframe)
+		{
+			for (int a = 0; a < 3; a++)
+				WriteI32LE(out, f.origin_ticks[a]);
+			for (int a = 0; a < 3; a++)
+				WriteI32LE(out, f.velocity[a]);
+
+			WriteU16LE(out, f.yaw_ticks);
+			WriteU16LE(out, f.pitch_ticks);
+		}
+		else
+		{
+			for (int a = 0; a < 3; a++)
+				WriteVarint(out, ZigZagEncode((int64_t) f.origin_ticks[a] - (int64_t) prev.origin_ticks[a]));
+			for (int a = 0; a < 3; a++)
+				WriteVarint(out, ZigZagEncode((int64_t) f.velocity[a] - (int64_t) prev.velocity[a]));
+
+			// uint16 subtraction cast to int16 is exact two's-complement
+			// wraparound, so this is correct across the 65535->0 seam without
+			// special-casing it.
+			WriteVarint(out, ZigZagEncode((int64_t) (int16_t) (f.yaw_ticks - prev.yaw_ticks)));
+			WriteVarint(out, ZigZagEncode((int64_t) (int16_t) (f.pitch_ticks - prev.pitch_ticks)));
+		}
+
+		out.push_back((char) f.buttons);
+		prev = f;
+	}
+
+	return out;
+}
+
+bool DecodeReplay(const std::string &bytes, replay_t &out)
+{
+	out = replay_t {};
+
+	if (bytes.size() < 10 || bytes.compare(0, 4, REPLAY_MAGIC, 4) != 0)
+		return false;
+
+	size_t pos = 4;
+
+	const uint8_t version = (uint8_t) bytes[pos++];
+
+	if (version > replay_t::SCHEMA_VERSION)
+		return false; // written by a newer build; refuse rather than misread it
+
+	out.sample_hz = (uint8_t) bytes[pos++];
+
+	uint32_t count;
+
+	if (!ReadU32LE(bytes, pos, count))
+		return false;
+
+	// Refuse a file claiming more frames than the recorder could ever have
+	// produced, before reserving space for it.
+	if (count > (uint32_t) REPLAY_MAX_FRAMES)
+		return false;
+
+	out.frames.reserve(count);
+
+	replay_frame_t prev {};
+
+	for (uint32_t i = 0; i < count; i++)
+	{
+		replay_frame_t f {};
+		const bool	   keyframe = (i % REPLAY_KEYFRAME_INTERVAL) == 0;
+
+		if (keyframe)
+		{
+			for (int a = 0; a < 3; a++)
+				if (!ReadI32LE(bytes, pos, f.origin_ticks[a]))
+					return false;
+			for (int a = 0; a < 3; a++)
+				if (!ReadI32LE(bytes, pos, f.velocity[a]))
+					return false;
+			if (!ReadU16LE(bytes, pos, f.yaw_ticks))
+				return false;
+			if (!ReadU16LE(bytes, pos, f.pitch_ticks))
+				return false;
+		}
+		else
+		{
+			uint64_t raw;
+
+			for (int a = 0; a < 3; a++)
+			{
+				if (!ReadVarint(bytes, pos, raw))
+					return false;
+				f.origin_ticks[a] = (int32_t) (prev.origin_ticks[a] + ZigZagDecode(raw));
+			}
+
+			for (int a = 0; a < 3; a++)
+			{
+				if (!ReadVarint(bytes, pos, raw))
+					return false;
+				f.velocity[a] = (int32_t) (prev.velocity[a] + ZigZagDecode(raw));
+			}
+
+			if (!ReadVarint(bytes, pos, raw))
+				return false;
+			f.yaw_ticks = (uint16_t) (prev.yaw_ticks + (int16_t) ZigZagDecode(raw));
+
+			if (!ReadVarint(bytes, pos, raw))
+				return false;
+			f.pitch_ticks = (uint16_t) (prev.pitch_ticks + (int16_t) ZigZagDecode(raw));
+		}
+
+		if (pos >= bytes.size())
+			return false;
+
+		f.buttons = (uint8_t) bytes[pos++];
+
+		out.frames.push_back(f);
+		prev = f;
+	}
+
+	return true;
+}
+
+static void ReplaySampleFromFrame(const replay_frame_t &f, replay_sample_t &out)
+{
+	for (int a = 0; a < 3; a++)
+	{
+		out.origin[a] = (float) f.origin_ticks[a] / 8.f;
+		out.velocity[a] = (float) f.velocity[a];
+	}
+
+	out.yaw = (float) f.yaw_ticks * (360.f / 65536.f);
+	out.pitch = (float) f.pitch_ticks * (360.f / 65536.f);
+	out.buttons = f.buttons;
+}
+
+bool ReplaySampleAt(const replay_t &replay, int64_t elapsed_ms, replay_sample_t &out)
+{
+	if (replay.frames.empty() || elapsed_ms < 0)
+		return false;
+
+	const int64_t duration_ms = replay.DurationMs();
+
+	if (elapsed_ms > duration_ms)
+		return false;
+
+	const size_t last = replay.frames.size() - 1;
+
+	// Integer frame index and remainder, both exact - avoids a float boundary
+	// case landing just short of (or past) the final frame.
+	size_t i0 = (size_t) (elapsed_ms / REPLAY_FRAME_MS);
+
+	if (i0 >= last)
+	{
+		ReplaySampleFromFrame(replay.frames[last], out);
+		return true;
+	}
+
+	const int64_t rem_ms = elapsed_ms - (int64_t) i0 * REPLAY_FRAME_MS;
+	const float	  t = (float) rem_ms / (float) REPLAY_FRAME_MS;
+
+	const replay_frame_t &a = replay.frames[i0];
+	const replay_frame_t &b = replay.frames[i0 + 1];
+
+	for (int k = 0; k < 3; k++)
+	{
+		out.origin[k] = ((float) a.origin_ticks[k] + (float) (b.origin_ticks[k] - a.origin_ticks[k]) * t) / 8.f;
+		out.velocity[k] = (float) a.velocity[k] + (float) (b.velocity[k] - a.velocity[k]) * t;
+	}
+
+	// Shortest-arc: the tick delta is taken as a signed 16-bit wraparound
+	// before interpolating, so 359 degrees to 1 degree crosses through the
+	// 360/0 seam rather than the long way through 180.
+	const float yaw_delta = (float) (int16_t) (b.yaw_ticks - a.yaw_ticks);
+	const float pitch_delta = (float) (int16_t) (b.pitch_ticks - a.pitch_ticks);
+
+	out.yaw = ((float) a.yaw_ticks + yaw_delta * t) * (360.f / 65536.f);
+	out.pitch = ((float) a.pitch_ticks + pitch_delta * t) * (360.f / 65536.f);
+	out.buttons = a.buttons;
+
+	return true;
+}
+
 // Rows sort into three bands before anything else is compared.
 static int PlayerRowGroup(const player_row_t &row)
 {

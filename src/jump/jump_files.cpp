@@ -78,6 +78,19 @@ std::filesystem::path Jump_MsetPath(const char *mapname)
 	return dir / (jump::SafeName(mapname ? mapname : "") + ".cfg");
 }
 
+// Nested by map rather than flat like Jump_MapTimesPath: a replay is one
+// file per (map, player) rather than one per map, and the corpus is 4000+
+// maps, so a flat layout would mean thousands of files in one directory.
+std::filesystem::path Jump_ReplayPath(const char *mapname, const char *player_id)
+{
+	const std::filesystem::path dir = Jump_DataRoot() / "replays" / jump::SafeName(mapname ? mapname : "");
+
+	std::error_code ec;
+	std::filesystem::create_directories(dir, ec);
+
+	return dir / (jump::SafeName(player_id ? player_id : "") + ".jrep");
+}
+
 bool Jump_ReadFile(const std::filesystem::path &path, std::string &out)
 {
 	std::ifstream in(path, std::ios::binary);

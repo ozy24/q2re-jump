@@ -21,6 +21,15 @@ static bool Jump_CanStore(edict_t *ent, jump_client_t *jc)
 	if (ent->health <= 0)
 		return false;
 
+	// A frozen replayer's own ent->s.origin is the GHOST's current position,
+	// not theirs - without this, `store` during `replay` would silently save
+	// a point on the recorded path instead of doing nothing.
+	if (jc->replay_mode != jump_replay_mode_t::none)
+	{
+		gi.LocClient_Print(ent, PRINT_HIGH, "You cannot store while replaying.\n");
+		return false;
+	}
+
 	return true;
 }
 
@@ -164,6 +173,14 @@ void Jump_CmdKill(edict_t *ent)
 
 	if (!jc || ent->client->resp.spectator)
 		return;
+
+	// Cancel first, state-only (not the position-restoring variant) - `kill`
+	// is about to reposition the player itself either way, via recall or a
+	// full restart. Without this, `kill` while replaying on Practice with
+	// stores would dead-end: Jump_CmdRecall now refuses during playback
+	// (Jump_CanStore's replay guard), since the player's own ent->s.origin
+	// mid-replay is the ghost's position, not theirs to recall FROM.
+	Jump_CancelReplay(ent);
 
 	if (jc->team == jump_team_t::practice && !jc->stores.Empty())
 	{

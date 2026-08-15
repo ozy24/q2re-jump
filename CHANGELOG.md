@@ -10,6 +10,28 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`replay`**, from classic q2jump - watch your own personal best back, frozen and moved
+  through the saved frames. Recording samples origin, view angle, velocity and key inputs
+  at a fixed 40 Hz, bucketed by elapsed run time rather than by server tick - both upstream
+  mods this port is based on baked their server's 10 Hz tick straight into the recording,
+  which plays back choppy at any other rate. This one is smooth regardless of the server's
+  actual tick rate, and interpolates between recorded frames so movement never snaps. A run
+  is recorded on Ranked only and saved whenever it beats your own personal best; `replay
+  stop` ends one early, and reaching the end hands control back on its own.
+
+- **`race`**, the classic mods' "race spark" - a short green trail tracing your own ghost's
+  recent path while you play the course for real, so you can see whether you are ahead or
+  behind as you go. Only you see your own ghost. Unlike the classic mods, which re-sent the
+  trail as a temporary effect every single server tick, this one is drawn with a handful of
+  persistent beam entities repositioned each tick - the same amount of visual information at
+  a fraction of the network cost. `race off` stops it.
+
+- Replays are saved one per player per map under `<data>/replays/<map>/<player-id>.jrep`, a
+  compact binary format (delta-coded and varint-packed, not JSON) rather than a new external
+  dependency.
+
 ## [0.10.0] - 2026-08-14
 
 ### Added

@@ -3255,6 +3255,14 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 			client->ps.pmove.pm_type = PM_GIB;
 		else if (ent->deadflag)
 			client->ps.pmove.pm_type = PM_DEAD;
+		// [Jump] Ahead of the grapple check: a Practice player can be mid-pull
+		// when they type `replay` (firing the hook doesn't start a run), and
+		// PM_GRAPPLE would otherwise run real Pmove + CTFGrapplePull every
+		// command, fighting Jump_ReplayFrame's snap-back once per server
+		// frame - visible jitter, though never a scoring risk since
+		// G_TouchTriggers stays suppressed regardless of pm_type.
+		else if (Jump_ReplayModeActive(ent))
+			client->ps.pmove.pm_type = PM_FREEZE;
 		else if (ent->client->ctf_grapplestate >= CTF_GRAPPLE_STATE_PULL)
 			client->ps.pmove.pm_type = PM_GRAPPLE;
 		else
@@ -3386,7 +3394,11 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 		ent->gravity = 1.0;
 		// PGM
 
-		if (ent->movetype != MOVETYPE_NOCLIP)
+		// [Jump] A replaying player's body is still MOVETYPE_WALK and gets
+		// dragged through the whole ghost path every frame - without this,
+		// checkpoints, the finish, hazards and teleporters all fire for real
+		// off a position the player never actually earned.
+		if (ent->movetype != MOVETYPE_NOCLIP && !Jump_ReplayModeActive(ent))
 		{
 			G_TouchTriggers(ent);
 			G_TouchProjectiles(ent, old_origin);

@@ -241,7 +241,10 @@ void Jump_Finish(edict_t *ent)
 		jc->session_best_ms = time_ms;
 
 	if (improved_pb)
+	{
 		Jump_UpdatePbString(ent);
+		Jump_SaveReplay(ent, jc->replay_rec);
+	}
 
 	std::string suffix;
 

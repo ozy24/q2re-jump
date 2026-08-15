@@ -97,6 +97,14 @@ void Jump_JoinTeam(edict_t *ent, jump_team_t team)
 	Jump_ResetRun(*jc);
 	Jump_FreeStoreMarker(*jc);
 
+	// A replay/race belongs to the team it was started on (race only arms on
+	// Ranked; replay is refused nowhere but Spectator) - a team switch is
+	// also the idle-kick sweep's only way to interrupt a long-running replay,
+	// so this is the backstop that makes that safe rather than leaving a
+	// frozen pm_type fighting the respawn PutClientInServer is about to do.
+	Jump_CancelReplay(ent);
+	Jump_FreeRaceTrail(*jc);
+
 	// Practice to Ranked while hanging from the hook: the grapple has to go
 	// before PutClientInServer memsets gclient_t, or the only pointer to it is
 	// lost and it keeps pulling a player who is no longer allowed one.

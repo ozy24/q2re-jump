@@ -31,6 +31,25 @@ enum class jump_run_state_t : uint8_t
 	finished = 2 // reached the finish, waiting for a respawn
 };
 
+// Whether `replay` is currently driving this client's own body through a
+// saved run. Distinct from jump_run_state_t: playback requires state to be
+// idle or finished (a run in progress refuses the command), and while active
+// this is what the pm_type hook in p_client.cpp and the idle-kick exemption
+// in jump_vote.cpp both key off.
+enum class jump_replay_mode_t : uint8_t
+{
+	none = 0,
+	playback = 1
+};
+
+// Beam-segment edicts per racer for the raceline trail - the classic mods'
+// "race spark" uses 3 segments over 100ms/segment (10Hz data); this uses
+// four times as many segments at roughly a third the spacing for finer
+// resolution against our 40Hz data, which shrinks how much geometry any
+// single straight segment can cut across at a turn. Edict cost is trivial
+// either way (MAX_EDICTS is 8192).
+constexpr int JUMP_RACE_TRAIL_SEGMENTS = 12;
+
 // The scoreboard has two pages, because one svc_layout cannot hold both: the
 // F1 key cycles players -> records -> closed.
 enum class jump_board_t : uint8_t
@@ -54,6 +73,12 @@ struct jump_client_t
 	edict_t				*store_marker = nullptr;
 	gtime_t				 last_input_time = 0_ms;
 	gtime_t				 finish_deny_time = 0_ms; // rate-limit "need checkpoints" spam
+
+	// The in-progress recording of this run, sampled from Jump_ClientThink
+	// (Jump_TrackReplay) and saved on a personal best (Jump_Finish). Belongs
+	// with the rest of the per-run state: a restart or a new map should not
+	// splice together frames from two different runs.
+	jump::replay_recorder_t replay_rec;
 
 	// The speedometer frozen at the last takeoff. Tracked per usercmd like the
 	// strafe meter, and for the same reason: the server sees every command, so
@@ -141,6 +166,38 @@ struct jump_client_t
 	// never outlive the pick that made it and re-apply itself a map later.
 	int16_t     hud_request = 0;
 	int64_t		pb_time_ms = 0; // 0 = none yet (per map; reset in Jump_InitLevel)
+
+	// The player's own PB replay for the current map, loaded lazily on the
+	// first `replay`/`race` and reused after - not per-run state, so it is
+	// not touched by Jump_ResetRun, only by Jump_InitLevel (a map change
+	// invalidates it outright) and by Jump_SaveReplay (a new PB invalidates
+	// the cache so the next load picks up the run that just finished, rather
+	// than racing or replaying a stale one for the rest of the session).
+	jump::replay_t loaded_replay;
+	bool           loaded_replay_valid = false;
+
+	// Whether `replay` is driving this client's own body right now, and the
+	// Jump_NowMs() stamp playback started - see jump_replay.cpp. Explicitly
+	// cleared by Jump_CmdReplayStop, natural completion, a team change (the
+	// idle-kick sweep can force one mid-playback) and disconnect; also reset
+	// in Jump_InitLevel since a map change destroys the edict state it drives.
+	jump_replay_mode_t replay_mode = jump_replay_mode_t::none;
+	int64_t             replay_start_ms = 0;
+
+	// Where the player was standing when `replay` started, restored when it
+	// ends on its own or via `replay stop`. Without this the player is left
+	// wherever the ghost's last driven position put them - an unlimited free
+	// teleport to anywhere on their own PB path, and on a map with no
+	// checkpoints (the corpus norm), a way to bank a near-instant fake time
+	// by starting a fresh run right where the ghost reached the finish.
+	vec3_t replay_return_origin = {};
+	vec3_t replay_return_angles = {};
+
+	// Whether this player wants their raceline ghost drawn while they run.
+	// Per-map like the loaded replay above, not per-run: restarting a run
+	// keeps racing the same ghost. See jump_replay.cpp / jump_chase.cpp.
+	bool     race_armed = false;
+	edict_t *race_beam[JUMP_RACE_TRAIL_SEGMENTS] = {};
 
 	// Which scoreboard page the next send should build. Only meaningful while
 	// client->showscores is set, which stays the open/closed authority because
@@ -231,7 +288,14 @@ void Jump_ResetRun(jump_client_t &jc);
 void Jump_RestartRun(edict_t *ent);
 
 // Teleport without the teleporter freeze: origin, angles, zeroed velocity.
-void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles);
+// z_offset defaults to 10 - store/recall's "step up off the marker" so a
+// recalled player doesn't land inside the small floating model - and must be
+// passed as 0 by any caller restoring an EXACT prior position (replay's
+// return-to-start): store/recall's nudge is harmless because Ranked refuses
+// store and turns recall into a restart, but a caller reachable on Ranked
+// repeating it (e.g. `replay`/`replay stop` mashed in a bind) would bank a
+// free, repeatable altitude climb every cycle.
+void Jump_MovePlayer(edict_t *ent, const vec3_t &origin, const vec3_t &angles, float z_offset = 10.f);
 
 void Jump_FreeStoreMarker(jump_client_t &jc);
 
@@ -247,6 +311,41 @@ void Jump_CmdStore(edict_t *ent);
 void Jump_CmdRecall(edict_t *ent, int which);
 void Jump_CmdReset(edict_t *ent);
 void Jump_CmdKill(edict_t *ent);
+
+// jump_replay.cpp
+//
+// Sampled from Jump_ClientThink, before pmove - same call site and same
+// reasoning as Jump_TrackStrafe/Jump_TrackTakeoff in jump_client.cpp: the
+// server sees every usercmd, which is what lets it bucket a true 40 Hz
+// regardless of the server's actual tick rate.
+void Jump_TrackReplay(edict_t *ent, usercmd_t *ucmd, jump_client_t &jc);
+
+// Called once per server frame from Jump_RunFrame, for every connected
+// client: advances anyone in playback (Jump_CmdReplay) and repositions
+// anyone's raceline trail (Jump_CmdRace).
+void Jump_ReplayFrame();
+
+// Encodes and writes `rec` to this player's replay file for the current map,
+// and invalidates their loaded_replay cache so the next replay/race picks up
+// the run that was just saved rather than a stale one.
+void Jump_SaveReplay(edict_t *ent, const jump::replay_recorder_t &rec);
+
+void Jump_CmdReplay(edict_t *ent);
+void Jump_CmdReplayStop(edict_t *ent);
+void Jump_CmdRace(edict_t *ent);
+void Jump_CmdRaceOff(edict_t *ent);
+
+// Frees any race_beam[] edicts and clears race_armed. Called on `race off`,
+// a team switch off Ranked, and disconnect.
+void Jump_FreeRaceTrail(jump_client_t &jc);
+
+// Cancels an in-progress replay (restores PM_NORMAL) without requiring the
+// player to still be present to ask for it themselves - the backstop for the
+// idle-kick sweep forcing a team change mid-playback.
+void Jump_CancelReplay(edict_t *ent);
+
+// Jump_ReplayModeActive is declared in jump.h - p_client.cpp's ClientThink
+// needs it and jump.h is the only jump header upstream sources include.
 
 // jump_client.cpp
 void Jump_StripInventory(edict_t *ent);
@@ -267,6 +366,10 @@ void		Jump_CmdTeam(edict_t *ent);
 const std::filesystem::path &Jump_DataRoot();
 std::filesystem::path		 Jump_MapTimesPath(const char *mapname);
 std::filesystem::path		 Jump_MsetPath(const char *mapname);
+// Nested by map rather than flat, unlike Jump_MapTimesPath - the map corpus
+// is 4000+ maps, and a replay is one file per (map, player) rather than one
+// per map, so a flat layout would mean thousands of files in one directory.
+std::filesystem::path		 Jump_ReplayPath(const char *mapname, const char *player_id);
 bool						 Jump_ReadFile(const std::filesystem::path &path, std::string &out);
 bool						 Jump_WriteFileAtomic(const std::filesystem::path &path, const std::string &contents);
 

@@ -52,6 +52,15 @@ static void Jump_ClearRunState(edict_t *ent, jump_client_t &jc)
 	Jump_StripInventory(ent);
 	Jump_ClearCheckpointFlags(ent);
 
+	// A fresh life means a fresh body at the spawn point, which an active
+	// replay would immediately fight - PutClientInServer is about to place
+	// this player for real, so any playback in progress has to give up
+	// control now rather than keep dragging them along the ghost path from
+	// underneath the respawn. Race stays armed: unlike playback it is not
+	// exclusive with playing normally, so a death or a `kill` should not
+	// cost you the ghost you were racing.
+	Jump_CancelReplay(ent);
+
 	if (jc.team == jump_team_t::practice)
 		ent->client->pers.inventory[IT_WEAPON_GRAPPLE] = 1;
 }
@@ -345,6 +354,7 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 
 	Jump_TrackStrafe(ent, ucmd, *jc);
 	Jump_TrackTakeoff(ent, ucmd, *jc);
+	Jump_TrackReplay(ent, ucmd, *jc);
 
 	// The join menu, armed by Jump_PreSpawn. Opening from here rather than the
 	// spawn path is MuffMode's trick: ClientThink only runs once the client is
@@ -362,6 +372,14 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 		return;
 
 	if (ent->client->resp.spectator || ent->client->chase_target)
+		return;
+
+	// A replaying player's own input must never start a real run - the
+	// G_TouchTriggers guard in p_client.cpp stops a ghost path from
+	// finishing one, but this stops it from ever starting in the first
+	// place, which also keeps Jump_TrackReplay (gated on state == running)
+	// from recording over the buffer that is about to be watched back.
+	if (jc->replay_mode != jump_replay_mode_t::none)
 		return;
 
 	// The run starts on the first movement input, matching Q2JumpRefresh.
@@ -385,6 +403,7 @@ void Jump_ClientDisconnect(edict_t *ent)
 
 	Jump_FreeClientFollowers(ent);
 	Jump_FreeStoreMarker(*jc);
+	Jump_FreeRaceTrail(*jc);
 	Jump_ResetRun(*jc);
 	jc->stores.Clear();
 	jc->last_time_ms = 0;
