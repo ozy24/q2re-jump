@@ -1,16 +1,18 @@
 @echo off
-rem Install the built DLL into the local Quake II install and launch it.
-rem   Override the paths with Q2J_GAME_DIR / Q2J_EXE, and the command line with
-rem   Q2J_LAUNCH_ARGS.
+rem Install the built DLL into the local Quake II install as a mod folder and
+rem launch it with that mod selected.
+rem   Override the paths with Q2J_GAME_DIR / Q2J_EXE, the mod folder with
+rem   Q2J_MOD_DIR, and the command line with Q2J_LAUNCH_ARGS.
 setlocal EnableExtensions
 
 set "SRC=%~dp0dist\game_x64.dll"
 
 if not defined Q2J_GAME_DIR set "Q2J_GAME_DIR=G:\Program Files (x86)\Steam\steamapps\common\Quake 2\rerelease"
 if not defined Q2J_EXE set "Q2J_EXE=%Q2J_GAME_DIR%\quake2ex_steam.exe"
+if not defined Q2J_MOD_DIR set "Q2J_MOD_DIR=jump"
 if not defined Q2J_LAUNCH_ARGS set "Q2J_LAUNCH_ARGS=+set deathmatch 1 +map jumptest1"
 
-set "DST_DIR=%Q2J_GAME_DIR%\baseq2"
+set "DST_DIR=%Q2J_GAME_DIR%\%Q2J_MOD_DIR%"
 set "DST=%DST_DIR%\game_x64.dll"
 
 rem Paths are always echoed quoted: an unquoted one containing parentheses -
@@ -22,11 +24,23 @@ if not exist "%SRC%" (
     exit /b 1
 )
 
-if not exist "%DST_DIR%\" (
-    echo ERROR: Destination folder not found: "%DST_DIR%"
+if not exist "%Q2J_GAME_DIR%\" (
+    echo ERROR: Game folder not found: "%Q2J_GAME_DIR%"
     echo        Set Q2J_GAME_DIR to your Quake II rerelease install.
     pause
     exit /b 1
+)
+
+rem The mod folder is ours to create - unlike baseq2 it will not exist on a
+rem fresh install, and an absent one is not a sign of a misconfigured path.
+if not exist "%DST_DIR%\" (
+    mkdir "%DST_DIR%"
+    if errorlevel 1 (
+        echo ERROR: Could not create the mod folder: "%DST_DIR%"
+        pause
+        exit /b 1
+    )
+    echo Created mod folder "%DST_DIR%".
 )
 
 copy /y "%SRC%" "%DST%"
@@ -44,7 +58,7 @@ rem The KEX user-data folder shadows the install folder. If a DLL is already
 rem there it is the one the game will actually load, so leaving it stale means
 rem silently testing old code. Keep the two in step rather than warning about
 rem it - set Q2J_SKIP_USERDATA=1 to opt out.
-set "USERDATA_DLL=%USERPROFILE%\OneDrive\Saved Games\Nightdive Studios\Quake II\baseq2\game_x64.dll"
+set "USERDATA_DLL=%USERPROFILE%\OneDrive\Saved Games\Nightdive Studios\Quake II\%Q2J_MOD_DIR%\game_x64.dll"
 if "%Q2J_SKIP_USERDATA%"=="1" goto :launch
 if not exist "%USERDATA_DLL%" goto :launch
 
@@ -61,7 +75,7 @@ if errorlevel 1 (
 )
 
 :launch
-echo Launching Quake II...
-start "" "%Q2J_EXE%" %Q2J_LAUNCH_ARGS%
+echo Launching Quake II with game "%Q2J_MOD_DIR%"...
+start "" "%Q2J_EXE%" +set game %Q2J_MOD_DIR% %Q2J_LAUNCH_ARGS%
 
 exit /b 0
