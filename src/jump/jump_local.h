@@ -245,6 +245,7 @@ struct jump_level_t
 	// loading - never from Jump_Init, which runs before a server exists.
 	int32_t sound_pb = 0;
 	int32_t sound_record = 0;
+	int32_t sound_vote = 0;
 
 	// When the HUD banner clears. 0 means nothing is showing, which is also
 	// what gates JUMP_STAT_ANNOUNCE off.
@@ -448,12 +449,19 @@ void Jump_IdleFrame();
 void Jump_TrackInput(edict_t *ent, usercmd_t *ucmd);
 void Jump_CmdVoteMap(edict_t *ent);
 void Jump_CmdNominate(edict_t *ent);
+void Jump_CmdCallVote(edict_t *ent);
 void Jump_CmdTimeExtend(edict_t *ent);
 void Jump_CmdVote(edict_t *ent, bool yes);
 void Jump_CmdMapList(edict_t *ent);
 void Jump_CmdIdle(edict_t *ent);
 void Jump_VoteClientDisconnect(edict_t *ent);
+void Jump_ResetVote();
+
+// Shared by the console commands and the menu rows. Each validates, then starts
+// the vote; the command handlers above are argument parsing and nothing else.
 bool Jump_StartMapVote(edict_t *ent, const char *map);
+bool Jump_StartExtendVote(edict_t *ent, int minutes);
+bool Jump_StartNextMapVote(edict_t *ent);
 
 // Every votable map: g_map_pool first, then g_map_list, de-duplicated.
 std::vector<std::string> Jump_CollectVotableMaps();
@@ -486,6 +494,9 @@ void Jump_OpenMainMenu(edict_t *ent);
 // (in-game / spectator) applies. No-op if no menu, or if it is a submenu.
 void Jump_RefreshMainMenu(edict_t *ent);
 void Jump_OpenVoteMenu(edict_t *ent);
+// Open the vote menu, or dismiss whatever menu is open. What `callvote` and
+// `mapvote` do when given no arguments.
+void Jump_ToggleVoteMenu(edict_t *ent);
 void Jump_CmdMenu(edict_t *ent);
 
 // jump_scoreboard.cpp (Jump_ScoreboardMessage is declared in jump.h)

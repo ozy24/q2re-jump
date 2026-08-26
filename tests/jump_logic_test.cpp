@@ -143,6 +143,43 @@ static void TestSafeName()
 	CHECK_EQ(jump::SafeName("..."), "_");
 }
 
+static void TestVoteTally()
+{
+	// 75% of the connected players, rounded up.
+	CHECK(jump::VotesNeeded(1, 0.75f) == 1);
+	CHECK(jump::VotesNeeded(2, 0.75f) == 2);
+	CHECK(jump::VotesNeeded(3, 0.75f) == 3);
+	CHECK(jump::VotesNeeded(4, 0.75f) == 3); // exactly 3, not 4
+	CHECK(jump::VotesNeeded(5, 0.75f) == 4);
+	CHECK(jump::VotesNeeded(8, 0.75f) == 6); // exact multiple, must not round up
+	CHECK(jump::VotesNeeded(0, 0.75f) == 0);
+
+	using jump::vote_result_t;
+
+	// The caller is counted as a yes, so a solo host passes their own vote.
+	CHECK(jump::ResolveVote(1, 0, 1, 1, false) == vote_result_t::passed);
+
+	// Still open: nobody has enough yet, and the clock has not run out.
+	CHECK(jump::ResolveVote(1, 0, 4, 3, false) == vote_result_t::pending);
+	CHECK(jump::ResolveVote(2, 1, 4, 3, false) == vote_result_t::pending);
+
+	// Fails early once enough no's make the remaining yes's insufficient - with
+	// 4 voters needing 3, two no's decide it without waiting out the clock.
+	CHECK(jump::ResolveVote(1, 2, 4, 3, false) == vote_result_t::failed);
+
+	// Expiry fails a vote that never got there.
+	CHECK(jump::ResolveVote(2, 0, 4, 3, true) == vote_result_t::failed);
+
+	// A yes majority already reached still passes on the frame it expires.
+	CHECK(jump::ResolveVote(3, 0, 4, 3, true) == vote_result_t::passed);
+
+	// An empty server stays pending. `needed` is 0 there, so a bare
+	// `yes >= needed` would pass every vote on its own - reachable in the frame
+	// after the last player disconnects mid-vote.
+	CHECK(jump::ResolveVote(0, 0, 0, 0, false) == vote_result_t::pending);
+	CHECK(jump::ResolveVote(0, 0, 0, 0, true) == vote_result_t::pending);
+}
+
 static void TestIsSafeMapToken()
 {
 	CHECK(jump::IsSafeMapToken("q2dm1"));
@@ -2218,6 +2255,7 @@ int main()
 	TestSafeName();
 	TestSanitizeLayoutText();
 	TestIsSafeMapToken();
+	TestVoteTally();
 	TestIsCheckpointBarrierTarget();
 	TestParseMset();
 	TestSpeedStat();

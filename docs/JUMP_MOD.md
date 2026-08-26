@@ -47,8 +47,11 @@ lobby, so everything below is a console command.
 | `speedo` | Show/hide the speedometer (or the menu's Options row) |
 | `takeoff` | Show/hide the takeoff mark (or the menu's Options row) |
 | `hudreset` | Put the readouts back to their defaults |
-| `votemap <map>` | Call a vote to change map (the menu does this too) |
-| `timeextend [minutes]` | Call a vote to add time (default 15) |
+| `callvote map <map>` | Call a vote to change map (the menu does this too) |
+| `callvote extend [minutes]` | Call a vote to add time (default 15) |
+| `callvote nextmap` | Call a vote to move on to the next map in the rotation |
+| `callvote` / `cv` | With no arguments, open the vote menu |
+| `votemap <map>` / `timeextend [n]` | The older single-purpose spellings, still supported |
 | `yes` / `no` | Vote on the current call |
 | `idle` | Move yourself to spectator |
 | `eyecam` | Toggle first-person follow while spectating |
@@ -80,7 +83,7 @@ side of the line. It swaps as soon as you change team, even if it is open:
 | | Load Position |
 | Follow Player / Stop Following | Join Practice / Ranked (whichever you are not on) |
 | Follow View: First- / Third-Person | Spectate |
-| Vote Map, Extend Time | Vote Map, Extend Time |
+| Vote Map, Extend Time, Next Map | Vote Map, Extend Time, Next Map |
 | How to Play | How to Play |
 | Options | Options |
 | Close | Close |
@@ -199,8 +202,27 @@ disconnect.
 **Vote Map** in the menu lists every configured map, paged, with the current
 map marked `(Playing)` and unpickable; pick another and it calls a vote. While a vote is running the menu
 key goes straight to the cast screen instead, showing what was called, who
-called it, the tally and the countdown, with Yes and No rows. `votemap <map>`,
-`yes` and `no` still work from the console.
+called it, the tally and the countdown, with Yes and No rows.
+
+From the console, `callvote` (or `cv`) takes the type as its first argument:
+
+```
+callvote map <mapname>     change to the specified map
+callvote extend [minutes]  add time to the current map (default 15, max 60)
+callvote nextmap           move to the next map in the rotation
+```
+
+`callvote` on its own opens the menu, as it always has. The older spellings —
+`votemap <map>`, `timeextend [n]`, `nominate`, `votetime` — still work, and `yes`
+and `no` cast a vote from anywhere.
+
+Calling a vote plays a sound everyone hears, wherever they are: a chat line is
+easy to miss mid-run.
+
+`nextmap` follows `g_map_list` alone. If the rotation is empty, or the map you
+are on is not in it — after a vote for a `g_map_pool` map, say — the vote is
+refused rather than passed, because ending the level from an unlisted map just
+reloads the same one.
 
 A vote passes at 75% of connected players and runs for 30 seconds, resolving
 early once it cannot pass. A vote never forces the menu open on anyone — being
@@ -828,6 +850,10 @@ map names:
 |---|---|
 | `g_map_list` | the rotation — played in order, and votable |
 | `g_map_pool` | votable only, never rotated into automatically |
+
+Because the pool is never rotated, a `callvote nextmap` from a pool-only map has
+nowhere to go: the engine finds the next map by locating the *current* one in
+`g_map_list`. That vote is refused rather than silently reloading the map.
 
 `jump/maplist.txt` next to the DLL (one map per line, `#` starts a comment) is
 loaded into `g_map_list` at startup, so you can keep the rotation in a file

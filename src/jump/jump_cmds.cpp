@@ -116,8 +116,10 @@ static void Jump_CmdHelp(edict_t *ent)
 					"  speedo         show/hide the server's speedometer\n"
 					"  takeoff        show/hide the takeoff mark\n"
 					"  hudreset       put the readouts back to their defaults\n"
-					"  votemap <map>  call a vote to change map\n"
-					"  timeextend [n] call a vote to add time (default 15 min)\n"
+					"  callvote map <map>  call a vote to change map\n"
+					"  callvote extend [n] call a vote to add time (default 15 min)\n"
+					"  callvote nextmap    call a vote to move on through the rotation\n"
+					"  callvote            open the vote menu (also votemap / timeextend)\n"
 					"  yes / no       vote on the current call\n"
 				"  idle           move yourself to spectator\n"
 				"  eyecam         toggle first-person follow while spectating\n"
@@ -145,17 +147,29 @@ bool Jump_ClientCommand(edict_t *ent)
 		return true;
 	}
 
-	// Vote-focused aliases skip the main menu and open the map list (or cast UI).
-	if (!Q_strcasecmp(cmd, "callvote") || !Q_strcasecmp(cmd, "mapvote"))
+	// `callvote <type> [arg]`, MuffMode's shape, over the vote machinery that was
+	// already here. `cv` is its alias there too.
+	//
+	// With no arguments this stays what it has always been - a shortcut to the
+	// map list, or the cast screen if a vote is running - because that menu is
+	// how most people vote here and is worth a bind. Usage is printed for a
+	// subcommand we do not recognise instead.
+	if (!Q_strcasecmp(cmd, "callvote") || !Q_strcasecmp(cmd, "cv"))
 	{
-		if (ent->client->menu)
+		if (gi.argc() > 1)
 		{
-			PMenu_Close(ent);
-			ent->client->update_chase = true;
+			Jump_CmdCallVote(ent);
 			return true;
 		}
 
-		Jump_OpenVoteMenu(ent);
+		Jump_ToggleVoteMenu(ent);
+		return true;
+	}
+
+	// Kept menu-only: `mapvote` names the map picker, not the vote system.
+	if (!Q_strcasecmp(cmd, "mapvote"))
+	{
+		Jump_ToggleVoteMenu(ent);
 		return true;
 	}
 

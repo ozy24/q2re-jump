@@ -80,6 +80,11 @@ void Jump_Init()
 	gi.cvar_set("g_dm_random_items", "0");
 	gi.cvar_set("g_instagib", "0");
 
+	// EndDMLevel checks this before both level.forcemap and the rotation, so a
+	// server that leaves it set has map voting that passes, announces, ends the
+	// level - and lands back on the same map. Nothing on a jump server wants it.
+	gi.cvar_set("g_dm_same_level", "0");
+
 	// The hook is a Practice tool for reaching a jump you cannot do yet, and
 	// stock CTF's 650/650 is far too slow to be one - you watch the hook travel,
 	// then get dragged at running pace. Classic q2jump shipped 1200 fly / 750
@@ -120,6 +125,11 @@ void Jump_InitLevel(const char *entities)
 
 	jump_level = {};
 
+	// The vote lives in its own file static, so wiping jump_level does not reach
+	// it. Left alone, a vote called just before the timelimit expired carries
+	// into the next map with its ballots intact - see Jump_ResetVote.
+	Jump_ResetVote();
+
 	jump_level.active = g_jump && g_jump->integer && deathmatch->integer;
 	Q_strlcpy(jump_level.mapname, level.mapname, sizeof(jump_level.mapname));
 
@@ -131,6 +141,12 @@ void Jump_InitLevel(const char *entities)
 	{
 		jump_level.sound_pb = gi.soundindex("misc/secret.wav");
 		jump_level.sound_record = gi.soundindex("ctf/flagcap.wav");
+
+		// Upstream SP_worldspawn precaches this one too, so the index is really
+		// already allocated - but soundindex is idempotent and relying on a
+		// worldspawn side effect for our own sound is the sort of thing that
+		// breaks quietly the day it changes.
+		jump_level.sound_vote = gi.soundindex("misc/pc_up.wav");
 
 		// The grapple is a Practice tool here, so nothing in the map spawns it
 		// and stock's CTFPrecache never runs - the mode forces ctf off. Precache

@@ -64,6 +64,7 @@ static void Jump_MenuFollowPlayer(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuFollowView(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuNextMap(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuOpenOptions(edict_t *ent, pmenuhnd_t *hnd);
 
@@ -104,6 +105,7 @@ constexpr int JUMP_GAME_JOIN = 7;
 constexpr int JUMP_GAME_SPECTATE = 8;
 constexpr int JUMP_GAME_VOTE = 10;
 constexpr int JUMP_GAME_EXTEND = 11;
+constexpr int JUMP_GAME_NEXTMAP = 12;
 constexpr int JUMP_GAME_HELP = 13;
 
 // Spectator rows.
@@ -113,6 +115,7 @@ constexpr int JUMP_SPEC_FOLLOW = 6;
 constexpr int JUMP_SPEC_FOLLOW_VIEW = 7;
 constexpr int JUMP_SPEC_VOTE = 9;
 constexpr int JUMP_SPEC_EXTEND = 10;
+constexpr int JUMP_SPEC_NEXTMAP = 11;
 constexpr int JUMP_SPEC_HELP = 12;
 
 // Jump_MenuClearTail writes Options immediately below How to Play, so both help
@@ -134,7 +137,7 @@ static const pmenu_t jump_ingame_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 9  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 10 vote map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 11 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 12 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuNextMap },			  // 12 next map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 13 how to play
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenOptions },		  // 14 options
 	{ "Close", PMENU_ALIGN_LEFT, Jump_MenuClose },		  // 15
@@ -154,7 +157,7 @@ static const pmenu_t jump_spectator_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 8  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote },		  // 9  vote map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuExtendTime },		  // 10 extend
-	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 11 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuNextMap },			  // 11 next map
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenHelp },		  // 12 how to play
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuOpenOptions },		  // 13 options
 	{ "", PMENU_ALIGN_CENTER, nullptr },				  // 14 blank
@@ -377,8 +380,9 @@ static void Jump_MenuUpdateInGame(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[9], "", PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_VOTE], "Vote Map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
 	Jump_MenuSetRow(hnd->entries[JUMP_GAME_EXTEND], "Extend Time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+	Jump_MenuSetRow(hnd->entries[JUMP_GAME_NEXTMAP], "Next Map", PMENU_ALIGN_LEFT, Jump_MenuNextMap);
 
-	Jump_MenuClearTail(hnd, JUMP_GAME_EXTEND + 1, JUMP_GAME_HELP);
+	Jump_MenuClearTail(hnd, JUMP_GAME_NEXTMAP + 1, JUMP_GAME_HELP);
 }
 
 static void Jump_MenuUpdateSpectator(edict_t *ent)
@@ -407,8 +411,9 @@ static void Jump_MenuUpdateSpectator(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[8], "", PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_VOTE], "Vote Map", PMENU_ALIGN_LEFT, Jump_MenuOpenMapVote);
 	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_EXTEND], "Extend Time", PMENU_ALIGN_LEFT, Jump_MenuExtendTime);
+	Jump_MenuSetRow(hnd->entries[JUMP_SPEC_NEXTMAP], "Next Map", PMENU_ALIGN_LEFT, Jump_MenuNextMap);
 
-	Jump_MenuClearTail(hnd, JUMP_SPEC_EXTEND + 1, JUMP_SPEC_HELP);
+	Jump_MenuClearTail(hnd, JUMP_SPEC_NEXTMAP + 1, JUMP_SPEC_HELP);
 }
 
 // Both close first: you want to be looking at the map, not the menu, the
@@ -486,11 +491,21 @@ static void Jump_MenuOpenMapVote(edict_t *ent, pmenuhnd_t *hnd)
 	Jump_OpenMapMenu(ent);
 }
 
+// Not Jump_CmdTimeExtend: a menu row runs from an `invuse` command, so gi.argv()
+// holds whatever that carried. Reading a minute count out of it would be reading
+// an unrelated command's arguments.
 static void Jump_MenuExtendTime(edict_t *ent, pmenuhnd_t *hnd)
 {
 	PMenu_Close(ent);
 	ent->client->update_chase = true;
-	Jump_CmdTimeExtend(ent);
+	Jump_StartExtendVote(ent, 15);
+}
+
+static void Jump_MenuNextMap(edict_t *ent, pmenuhnd_t *hnd)
+{
+	PMenu_Close(ent);
+	ent->client->update_chase = true;
+	Jump_StartNextMapVote(ent);
 }
 
 static void Jump_MenuOpenHelp(edict_t *ent, pmenuhnd_t *hnd)
@@ -1019,6 +1034,19 @@ void Jump_OpenVoteMenu(edict_t *ent)
 	}
 
 	Jump_OpenMapMenu(ent);
+}
+
+// Toggling matches the menu key: the same command that opened it closes it.
+void Jump_ToggleVoteMenu(edict_t *ent)
+{
+	if (ent->client->menu)
+	{
+		PMenu_Close(ent);
+		ent->client->update_chase = true;
+		return;
+	}
+
+	Jump_OpenVoteMenu(ent);
 }
 
 // The menu hangs off the `inven` command, conventionally bound to TAB, so this

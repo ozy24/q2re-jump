@@ -574,6 +574,31 @@ void SortPlayerRows(std::vector<player_row_t> &rows)
 	});
 }
 
+int VotesNeeded(int voters, float pass_fraction)
+{
+	if (voters <= 0)
+		return 0;
+
+	// + 0.999f rather than std::ceil to keep this identical to what the vote
+	// code did inline before it moved here. The products involved are small
+	// exact multiples, so an exact threshold never rounds up an extra ballot.
+	return (int) (voters * pass_fraction + 0.999f);
+}
+
+vote_result_t ResolveVote(int yes, int no, int voters, int needed, bool expired)
+{
+	if (voters <= 0)
+		return vote_result_t::pending;
+
+	if (yes >= needed)
+		return vote_result_t::passed;
+
+	if (no > voters - needed || expired)
+		return vote_result_t::failed;
+
+	return vote_result_t::pending;
+}
+
 bool IsSafeMapToken(const std::string &token)
 {
 	constexpr size_t MAX_MAP_NAME = 64; // MAX_QPATH

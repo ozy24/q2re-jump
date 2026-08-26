@@ -14,7 +14,8 @@ enum class jump_vote_type_t
 {
 	none,
 	map,
-	extend
+	extend,
+	nextmap
 };
 
 struct jump_vote_t
@@ -194,7 +195,7 @@ void Jump_VoteTally(int &yes, int &no, int &needed)
 			no++;
 	}
 
-	needed = (int) (voters * JUMP_VOTE_PASS_FRACTION + 0.999f);
+	needed = jump::VotesNeeded(voters, JUMP_VOTE_PASS_FRACTION);
 }
 
 bool Jump_HasVoted(edict_t *ent)
@@ -249,6 +250,21 @@ static void Jump_ClearVote()
 	jump_vote = {};
 }
 
+// Called from Jump_InitLevel. The vote lives in a file static, so nothing else
+// wipes it on a map change - and a vote that survives one is not merely stale,
+// it is armed: `ends` is an absolute level.time from the old map, level.time
+// restarts at 0, and the ballots are indexed by client slot. The first player to
+// occupy the caller's old slot is read as a yes, and on a one-player server that
+// is already the 75% the vote needs.
+//
+// Only the vote that changes the map clears itself before ending the level
+// (Jump_PassVote), so every other way a level ends - the timelimit, a console
+// `map`, an admin - used to leave one behind.
+void Jump_ResetVote()
+{
+	Jump_ClearVote();
+}
+
 // target/minutes are set here rather than by the caller, because starting a
 // vote resets the whole struct.
 static void Jump_StartVote(edict_t *ent, jump_vote_type_t type, const char *description, const char *target,
@@ -275,6 +291,18 @@ static void Jump_StartVote(edict_t *ent, jump_vote_type_t type, const char *desc
 	gi.Broadcast_Print(PRINT_CHAT, G_Fmt("{} called a vote: {}\nType yes or no ({} seconds).\n",
 										 Jump_DisplayName(ent), description, JUMP_VOTE_SECONDS)
 									   .data());
+
+	// A chat line is easy to miss mid-run, so announce the call out loud. The
+	// same positioned_sound-from-world pattern the finish uses: no falloff, so
+	// everyone hears it wherever they are, and CHAN_RELIABLE because a vote you
+	// never noticed being called is worse than one announced late.
+	//
+	// misc/pc_up.wav is what MuffMode falls back to for its `vote_now`
+	// announcement when no voice pack is installed. It deliberately plays on the
+	// call only: MuffMode's vote_passed/vote_failed entries have no backup sound,
+	// so a stock install is silent on the outcome too.
+	if (jump_level.sound_vote)
+		gi.positioned_sound(world->s.origin, world, CHAN_AUTO | CHAN_RELIABLE, jump_level.sound_vote, 1, ATTN_NONE, 0);
 }
 
 static void Jump_PassVote()
@@ -284,6 +312,16 @@ static void Jump_PassVote()
 	case jump_vote_type_t::map:
 		gi.Broadcast_Print(PRINT_CHAT, G_Fmt("Vote passed: changing to {}\n", jump_vote.target).data());
 		Q_strlcpy(level.forcemap, jump_vote.target, sizeof(level.forcemap));
+		Jump_ClearVote();
+		EndDMLevel();
+		return;
+
+	case jump_vote_type_t::nextmap:
+		// No forcemap, which is the whole difference from the case above: with
+		// it unset EndDMLevel falls through to the g_map_list rotation and picks
+		// whatever follows this map. Clear before ending, same as the map vote -
+		// EndDMLevel can reach intermission and back into another frame.
+		gi.Broadcast_Print(PRINT_CHAT, "Vote passed: moving to the next map\n");
 		Jump_ClearVote();
 		EndDMLevel();
 		return;
@@ -305,36 +343,38 @@ void Jump_VoteFrame()
 	if (jump_vote.type == jump_vote_type_t::none)
 		return;
 
-	int yes = 0, no = 0;
+	// This runs from Jump_RunFrame, which keeps ticking through intermission -
+	// G_RunFrame_ only stops for the fade and the exit, not for
+	// level.intermissiontime. Jump_ClientCommand does gate on it, so nobody can
+	// cast or cancel from the scoreboard; a vote left running there would resolve
+	// with whatever ballots it happened to hold. Worse, a map or nextmap vote
+	// passing here calls EndDMLevel a second time, and while BeginIntermission
+	// early-returns, CreateTargetChangeLevel has already rewritten level.nextmap
+	// by then - silently redirecting the exit that is mid-flight.
+	//
+	// So freeze rather than resolve: the vote resumes if the map somehow does
+	// not change, and Jump_ResetVote clears it when the next one loads.
+	if (level.intermissiontime)
+		return;
+
+	int yes = 0, no = 0, needed = 0;
+	Jump_VoteTally(yes, no, needed);
+
 	const int voters = Jump_VoterCount();
 
-	for (auto player : active_players())
+	switch (jump::ResolveVote(yes, no, voters, needed, level.time >= jump_vote.ends))
 	{
-		const int index = (int) (player->client - game.clients);
-
-		if (!jump_vote.voted[index])
-			continue;
-
-		if (jump_vote.ballots[index])
-			yes++;
-		else
-			no++;
-	}
-
-	const int needed = (int) (voters * JUMP_VOTE_PASS_FRACTION + 0.999f);
-
-	if (yes >= needed && voters > 0)
-	{
+	case jump::vote_result_t::passed:
 		Jump_PassVote();
 		return;
-	}
 
-	// Once enough players have said no the vote can't pass, so don't make
-	// everyone wait out the clock.
-	if (no > voters - needed || level.time >= jump_vote.ends)
-	{
+	case jump::vote_result_t::failed:
 		gi.Broadcast_Print(PRINT_CHAT, G_Fmt("Vote failed ({} yes, {} no, {} needed).\n", yes, no, needed).data());
 		Jump_ClearVote();
+		return;
+
+	case jump::vote_result_t::pending:
+		break;
 	}
 }
 
@@ -414,30 +454,140 @@ void Jump_CmdNominate(edict_t *ent)
 	Jump_CmdVoteMap(ent);
 }
 
-void Jump_CmdTimeExtend(edict_t *ent)
+static void Jump_PrintVoteUsage(edict_t *ent)
+{
+	gi.Client_Print(ent, PRINT_HIGH,
+					"Usage: callvote <command> [arg]\n"
+					"  map <mapname>     change to the specified map\n"
+					"  extend [minutes]  add time to the current map (default 15)\n"
+					"  nextmap           move to the next map in the rotation\n"
+					"Vote on one with yes or no. `callvote` on its own opens the menu.\n");
+}
+
+// `callvote <type> [arg]`. The subcommand is argv(1), so an argument is argv(2)
+// rather than argv(1) as it is for the standalone verbs - which is why each type
+// hands off to a Jump_Start*Vote rather than to its command handler.
+void Jump_CmdCallVote(edict_t *ent)
+{
+	const char *type = gi.argv(1);
+
+	if (!Q_strcasecmp(type, "map"))
+	{
+		// gi.argv() past argc returns "", which would reach the validator and
+		// come back as "not a valid map name" - true, but not the problem.
+		if (gi.argc() < 3)
+		{
+			gi.Client_Print(ent, PRINT_HIGH, "Usage: callvote map <mapname>   (or press TAB for the menu)\n");
+			return;
+		}
+
+		Jump_StartMapVote(ent, gi.argv(2));
+		return;
+	}
+
+	if (!Q_strcasecmp(type, "extend"))
+	{
+		Jump_StartExtendVote(ent, gi.argc() > 2 ? atoi(gi.argv(2)) : 15);
+		return;
+	}
+
+	if (!Q_strcasecmp(type, "nextmap"))
+	{
+		Jump_StartNextMapVote(ent);
+		return;
+	}
+
+	Jump_PrintVoteUsage(ent);
+}
+
+// Shared by the console command and the menu row. The minute count is a
+// parameter rather than being read from argv here, because the two callers put
+// it in different places - `timeextend 5` in argv(1), `callvote extend 5` in
+// argv(2) - and the menu row has no arguments at all.
+bool Jump_StartExtendVote(edict_t *ent, int minutes)
 {
 	if (Jump_VoteBusy(ent))
-		return;
+		return false;
 
 	if (timelimit->value <= 0)
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "There is no time limit to extend.\n");
-		return;
+		return false;
 	}
 
-	int minutes = 15;
-
-	if (gi.argc() > 1)
-		minutes = atoi(gi.argv(1));
-
+	// Refused, not clamped: someone who typed 500 meant something, and silently
+	// giving them 60 hides that the number was ignored.
 	if (minutes <= 0 || minutes > 60)
 	{
 		gi.Client_Print(ent, PRINT_HIGH, "Extend by 1 to 60 minutes.\n");
-		return;
+		return false;
 	}
 
 	Jump_StartVote(ent, jump_vote_type_t::extend, G_Fmt("extend the map by {} minute(s)", minutes).data(), nullptr,
 				   minutes);
+	return true;
+}
+
+// Whether the rotation would actually move off this map.
+//
+// EndDMLevel only advances by finding the *current* map in g_map_list and taking
+// the one after it (g_main.cpp), so an unlisted map is not a starting point: the
+// walk finds nothing, falls through, and reloads where it already is. That is
+// reachable in normal play - pass a map vote for something in g_map_pool, which
+// is votable but deliberately never rotated, and you are standing on a map the
+// list has never heard of.
+//
+// So this checks g_map_list alone, not Jump_CollectVotableMaps, which unions the
+// pool in and would report a rotation that does not exist.
+static bool Jump_CurrentMapInRotation()
+{
+	if (!g_map_list || !g_map_list->string || !g_map_list->string[0])
+		return false;
+
+	const char *cursor = g_map_list->string;
+
+	while (true)
+	{
+		const char *token = COM_ParseEx(&cursor, " ");
+
+		if (!token || !*token)
+			break;
+
+		if (!Q_strcasecmp(token, level.mapname))
+			return true;
+	}
+
+	return false;
+}
+
+bool Jump_StartNextMapVote(edict_t *ent)
+{
+	if (Jump_VoteBusy(ent))
+		return false;
+
+	if (!g_map_list || !g_map_list->string || !g_map_list->string[0])
+	{
+		gi.Client_Print(ent, PRINT_HIGH, "There is no map rotation to move through (g_map_list is empty).\n");
+		return false;
+	}
+
+	if (!Jump_CurrentMapInRotation())
+	{
+		gi.Client_Print(ent, PRINT_HIGH,
+						G_Fmt("'{}' is not in the rotation, so there is no next map from here.\n"
+							  "Use a map vote instead.\n",
+							  level.mapname)
+							.data());
+		return false;
+	}
+
+	Jump_StartVote(ent, jump_vote_type_t::nextmap, "move to the next map in the rotation", nullptr, 0);
+	return true;
+}
+
+void Jump_CmdTimeExtend(edict_t *ent)
+{
+	Jump_StartExtendVote(ent, gi.argc() > 1 ? atoi(gi.argv(1)) : 15);
 }
 
 void Jump_VoteClientDisconnect(edict_t *ent)

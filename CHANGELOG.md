@@ -12,6 +12,28 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **`callvote <type>`**, MuffMode's spelling, over the voting that was already
+  here: `callvote map <mapname>`, `callvote extend [minutes]` and a new
+  `callvote nextmap`. `cv` is an alias, and `callvote` with no arguments still
+  opens the vote menu. The older single-purpose verbs — `votemap`, `timeextend`,
+  `nominate`, `votetime` — all still work, as do `yes` and `no`.
+
+- **Calling a vote now plays a sound** everyone hears wherever they are
+  (`misc/pc_up.wav`, what MuffMode falls back to without a voice pack). A chat
+  line is easy to miss mid-run. Deliberately on the call only, not the outcome —
+  MuffMode is silent there too on a stock install.
+
+- **`nextmap`** ends the map and lets the rotation pick the next one, rather than
+  naming a destination. It is refused when `g_map_list` is empty, and also when
+  the current map is not in it — the engine finds the next map by locating the
+  current one in the list, so from an unlisted map (one voted in from
+  `g_map_pool`, say) ending the level just reloads it. There is a **Next Map** row
+  on the menu alongside Vote Map and Extend Time.
+
+- `g_dm_same_level` is now forced off with the other mode cvars. It is checked
+  ahead of both the vote's destination and the rotation, so leaving it set made
+  every map vote pass, announce, end the level and land back on the same map.
+
 - **Attempts and completions per player per map**, recorded into
   `jump/maptimes/<map>.json` alongside the times. An attempt is a Ranked run started; a
   completion is a Ranked run finished, whether or not it beat your best. Practice counts
@@ -35,6 +57,22 @@ released — see [docs/release-process.md](docs/release-process.md).
   `maptimes` listing, no new times recordable, and the map dropping out of every player's
   points and completions totals until the DLL is upgraded again. Nothing on disk is
   destroyed.
+
+### Fixed
+
+- **A vote could survive a map change, and pass itself on the next one.** The
+  vote was only ever cleared when it resolved, so any other way a level ended —
+  the time limit expiring, a console `map` — left one behind. Its deadline was an
+  absolute time from the old map while the clock restarted at zero, and its
+  ballots were held by player slot: the first player to occupy the caller's slot
+  was read as a yes, which on a quiet server is already the 75% needed. Calling
+  `timeextend` shortly before a map ended could therefore extend the *next* map
+  on its own, or bounce the server straight back off it.
+
+- **A vote could resolve during the end-of-map scoreboard**, where nobody can
+  cast or cancel one. A map vote passing there re-entered the level change and
+  redirected where the server was already on its way to. Votes now freeze at
+  intermission and are cleared when the next map loads.
 
 ## [0.11.0] - 2026-08-15
 

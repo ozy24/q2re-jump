@@ -290,6 +290,34 @@ void SortPlayerRows(std::vector<player_row_t> &rows);
 // Returns "_" for input that reduces to nothing.
 std::string SafeName(const std::string &name);
 
+// ---------------------------------------------------------------------------
+// Voting
+// ---------------------------------------------------------------------------
+
+enum class vote_result_t
+{
+	pending, // still open
+	passed,
+	failed
+};
+
+// Ballots needed to pass, rounding up: 75% of 4 voters is 3, of 5 is 4.
+//
+// Returns 0 for an empty server, which is why ResolveVote checks the voter count
+// separately rather than trusting `yes >= needed`.
+int VotesNeeded(int voters, float pass_fraction);
+
+// Where a vote stands this frame.
+//
+// Fails early once enough players have said no that the rest saying yes could
+// not carry it - there is no reason to make everyone wait out the clock for a
+// result that is already decided.
+//
+// An empty server stays pending rather than passing. With no voters `needed` is
+// 0 and `yes` is 0, so a naive `yes >= needed` passes every vote on its own -
+// reachable in the frame after the last player disconnects mid-vote.
+vote_result_t ResolveVote(int yes, int no, int voters, int needed, bool expired);
+
 // True when a token is usable as a map name.
 //
 // Map names reach the engine through `gamemap "<name>"`, so this is a
