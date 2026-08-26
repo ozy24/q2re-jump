@@ -182,6 +182,13 @@ void Jump_StartLine(edict_t *ent)
 		jc->team == jump_team_t::spectator)
 		return;
 
+	// Read before Jump_ClearRunState below puts the run back to idle, because
+	// it is what decides whether this is a new attempt or the same one being
+	// re-armed. The entry test alone will not do: this function runs EVERY
+	// frame the player stands in the volume, and only the expensive half is
+	// gated behind it, so counting there would add an attempt per server frame.
+	const bool was_running = jc->state == jump_run_state_t::running;
+
 	if (Jump_LineTouchIsEntry(*jc))
 	{
 		const bool had_weapon = ent->client->pers.weapon != nullptr;
@@ -200,6 +207,12 @@ void Jump_StartLine(edict_t *ent)
 	// would make Practice worse for no gain in comparability.
 	jc->state = jump_run_state_t::running;
 	jc->run_start_ms = Jump_NowMs();
+
+	// Only a genuine idle -> running transition. Walking into the line mid-run
+	// re-zeroes the clock without being a new try, which does mean laps after
+	// the first within one life go uncounted on a lap map.
+	if (!was_running)
+		Jump_CountAttempt(ent);
 }
 
 void Jump_ClearWeapons(edict_t *ent)
@@ -390,6 +403,7 @@ void Jump_ClientThink(edict_t *ent, usercmd_t *ucmd)
 	{
 		jc->state = jump_run_state_t::running;
 		jc->run_start_ms = Jump_NowMs();
+		Jump_CountAttempt(ent);
 		Jump_Log("%s started a run", Jump_DisplayName(ent));
 	}
 }

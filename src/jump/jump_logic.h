@@ -81,13 +81,34 @@ struct record_t
 	std::string date; // ISO-8601, for display only
 };
 
-// A map's high score table, kept sorted ascending by time.
+// Per-player counters for one map: how many runs were started, and how many of
+// them were finished. Both are Ranked-only, so they read as the cost of the
+// time sitting next to them.
+//
+// A separate table from record_t rather than four more fields on it, because
+// these exist for a player who has NEVER finished - the times table is
+// completions only, and a zero-time row in it would break Sort, RankOf,
+// PointsOf and every listing that assumes each row is a real time.
+struct player_stats_t
+{
+	std::string id;	  // stable player identity, keyed the same way as record_t
+	std::string name; // display name as of the last update
+	int32_t		attempts = 0;
+	int32_t		completions = 0;
+};
+
+// A map's high score table, kept sorted ascending by time, plus the per-player
+// counters that go in the same file.
 struct map_records_t
 {
-	static constexpr int SCHEMA_VERSION = 1;
+	// 2 added the players table. The bump is not bookkeeping: without it an
+	// older DLL reads a v2 file as v1, ignores `players`, and then SAVES over
+	// it, silently stripping every counter.
+	static constexpr int SCHEMA_VERSION = 2;
 
-	std::string			  map;
-	std::vector<record_t> times;
+	std::string				   map;
+	std::vector<record_t>	   times;
+	std::vector<player_stats_t> players;
 
 	// Record a completion. Each player holds exactly one entry - their best -
 	// so a slower run by an existing player changes nothing.
@@ -106,6 +127,23 @@ struct map_records_t
 	// Restore the ascending-by-time ordering. Ties keep insertion order, so
 	// whoever set an equal time first stays ahead.
 	void Sort();
+
+	// The player's counters, creating the row on first use and refreshing the
+	// display name. The reference is invalidated by the next call.
+	player_stats_t &StatsFor(const std::string &id, const std::string &name);
+
+	// The player's counters, or nullptr when they have none.
+	const player_stats_t *StatsOf(const std::string &id) const;
+
+	// Seed counters for a schema-1 file, which has times but no players table.
+	// Every existing row demonstrably finished at least once, so 1/1 is the
+	// honest floor - 0 completions beside a banked personal best would just
+	// read as broken. Existing rows are never touched, which is what makes
+	// this safe to call twice. Returns true if anything was created.
+	//
+	// Deliberately here rather than in the JSON parser: this is the riskiest
+	// logic in the change and the parser is not in the test binary.
+	bool BackfillFromTimes();
 };
 
 // ---------------------------------------------------------------------------

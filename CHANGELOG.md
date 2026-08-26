@@ -10,6 +10,32 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Attempts and completions per player per map**, recorded into
+  `jump/maptimes/<map>.json` alongside the times. An attempt is a Ranked run started; a
+  completion is a Ranked run finished, whether or not it beat your best. Practice counts
+  toward neither. Nothing displays these yet — this release only starts collecting them,
+  because neither figure can be reconstructed after the fact.
+
+  Attempts are counted when the clock starts rather than when a run is given up on, so
+  every way of abandoning one — dying, `kill`, `recall`, changing team, disconnecting, a
+  map change — is covered. The one visible consequence: on a map with a `start_line`,
+  crossing the line again during the same life re-zeroes the clock without counting as a
+  fresh attempt.
+
+  Counters are batched and written at most every 15 seconds, unlike a personal best, which
+  is still saved the moment it is set — so a server killed outright can lose up to 15
+  seconds of counting. Existing records files are migrated on first load, seeding each
+  entry with 1 attempt and 1 completion. That is a floor, not recovered history: real
+  counts start from this version.
+
+  **This raises the records schema to 2 and is effectively one-way.** An older DLL refuses
+  to read a schema-2 file, which for the maps affected means no personal bests, no
+  `maptimes` listing, no new times recordable, and the map dropping out of every player's
+  points and completions totals until the DLL is upgraded again. Nothing on disk is
+  destroyed.
+
 ## [0.11.0] - 2026-08-15
 
 ### Added

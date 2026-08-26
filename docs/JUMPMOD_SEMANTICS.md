@@ -280,7 +280,10 @@ Both mods use the same placement table for a map's top 15:
 - **A "israfel" score**: `(score / completions) * 4`, only when
   `maps_with_1st > 10 || maps_with_points > 50 || completions > 100`.
 - Completions counted once per map per user for the "maps completed" tally; the per-map counter
-  increments on every finish.
+  increments on every finish. **Both are now ported** — the once-per-map tally is derived by
+  `Jump_PlayerTotals`, the per-map counter is stored in the records file's `players` table.
+  **Attempts** sits beside it and is *not* a port: neither upstream mod ever counted runs
+  started.
 - `MAX_HIGHSCORES = 15` per map; console listings paginate 20/page (`maptimes` 15/page).
 
 ---

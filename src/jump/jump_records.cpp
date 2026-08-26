@@ -9,6 +9,7 @@
 
 #include <json/json.h>
 
+#include <algorithm>
 #include <ctime>
 #include <filesystem>
 #include <map>
@@ -16,6 +17,17 @@
 // Loaded records for the current map.
 static jump::map_records_t jump_records;
 static bool				   jump_records_loaded = false;
+
+// A personal best is rare enough to write on the spot, but attempts change
+// every few seconds per player - a write each would be a full file rewrite per
+// restart. So counters accumulate in memory and Jump_RecordsFrame flushes them.
+static bool	   jump_records_dirty = false;
+static int64_t jump_records_flush_ms = 0;
+
+// Wall clock, not level.time: that restarts at zero on every map load, so a
+// stamp set late in one map would block every flush on the next until its clock
+// caught up. Jump_NowMs is steady_clock and monotonic across maps.
+constexpr int64_t JUMP_RECORDS_FLUSH_INTERVAL_MS = 15000;
 
 const jump::map_records_t &Jump_Records()
 {
@@ -76,7 +88,12 @@ const char *Jump_PlayerId(edict_t *ent)
 // Serialisation
 // ---------------------------------------------------------------------------
 
-static bool Jump_ParseRecords(const std::string &text, const char *mapname, jump::map_records_t &out)
+// backfilled, when given, reports that a schema-1 file was migrated and so has
+// changes worth writing back. An out-parameter rather than marking the table
+// dirty in here, because Jump_PlayerTotals parses every map on the disk into
+// throwaway tables and none of those should schedule a write.
+static bool Jump_ParseRecords(const std::string &text, const char *mapname, jump::map_records_t &out,
+							  bool *backfilled = nullptr)
 {
 	Json::Value				 root;
 	Json::CharReaderBuilder	 builder;
@@ -89,40 +106,103 @@ static bool Jump_ParseRecords(const std::string &text, const char *mapname, jump
 		return false;
 	}
 
-	const int version = root.get("version", 0).asInt();
-
-	if (version > jump::map_records_t::SCHEMA_VERSION)
+	// jsoncpp is built with JSON_USE_EXCEPTION, so every accessor below throws
+	// on a type it did not expect - asInt() on a string, asInt() on a value past
+	// INT32_MAX, get() on an array element that is not an object. Unhandled,
+	// that unwinds out of the game DLL during SpawnEntities and takes the server
+	// down at map load. Worse, Jump_PlayerTotals parses EVERY file on the disk,
+	// so one hand-edited file would break `playertimes` for everyone rather
+	// than just its own map.
+	//
+	// Failing the parse routes the file into the jump_records_loaded guard,
+	// which already refuses to write over a file it could not read - so a
+	// damaged file is preserved for inspection rather than destroyed.
+	try
 	{
-		gi.Com_PrintFmt("[jump] {} was written by a newer version (schema {}); refusing to load\n", mapname, version);
+		const int version = root.get("version", 0).asInt();
+
+		if (version > jump::map_records_t::SCHEMA_VERSION)
+		{
+			gi.Com_PrintFmt("[jump] {} was written by a newer version (schema {}); refusing to load\n", mapname, version);
+			return false;
+		}
+
+		out.map = root.get("map", mapname).asString();
+		out.times.clear();
+		out.players.clear();
+
+		// Note the shape: a missing or non-array `times` must NOT return early.
+		// Doing so would report success with the players table unread, and the
+		// next save would then write it back empty - destroying the counters on a
+		// file the corrupt-file guard cannot help with, because the parse
+		// succeeded.
+		const Json::Value &times = root["times"];
+
+		if (times.isArray())
+		{
+			for (const auto &entry : times)
+			{
+				jump::record_t rec;
+
+				rec.id = entry.get("id", "").asString();
+				rec.name = entry.get("name", "").asString();
+				rec.time_ms = entry.get("time_ms", 0).asInt64();
+				rec.date = entry.get("date", "").asString();
+
+				if (rec.id.empty() || rec.time_ms <= 0)
+					continue; // skip malformed rows rather than failing the whole file
+
+				out.times.push_back(rec);
+			}
+
+			out.Sort();
+		}
+
+		const Json::Value &stats = root["players"];
+
+		if (stats.isArray())
+		{
+			for (const auto &entry : stats)
+			{
+				jump::player_stats_t row;
+
+				row.id = entry.get("id", "").asString();
+				row.name = entry.get("name", "").asString();
+
+				// Clamped rather than trusted: a hand-edited negative would break
+				// the attempts >= completions >= 0 invariant everything reading
+				// these assumes.
+				row.attempts = std::max(0, entry.get("attempts", 0).asInt());
+				row.completions = std::max(0, entry.get("completions", 0).asInt());
+
+				if (row.id.empty())
+					continue; // same policy as times: drop the row, keep the file
+
+				out.players.push_back(row);
+			}
+		}
+
+		// Triggered off the parsed shape rather than off isMember, which would also
+		// be true for a `"players": null` or `"players": {}` - and would then
+		// suppress the migration and let the next flush write the table back empty,
+		// which is the exact failure the restructure above removes for `times`.
+		//
+		// A healthy file behaves identically either way, since Jump_SerialiseRecords
+		// always emits an array: missing key -> not an array -> migrate; a real
+		// (even empty) array -> already ours -> leave alone. Testing the reference
+		// is also immune to the operator[] insertion trap that testing isMember
+		// here would walk straight into, since root["players"] above has by now
+		// created the member on any file that lacked it.
+		if (!stats.isArray() && out.BackfillFromTimes() && backfilled)
+			*backfilled = true;
+
+		return true;
+	}
+	catch (const Json::Exception &e)
+	{
+		gi.Com_PrintFmt("[jump] {} has a value of the wrong type ({}); refusing to load\n", mapname, e.what());
 		return false;
 	}
-
-	out.map = root.get("map", mapname).asString();
-	out.times.clear();
-
-	const Json::Value &times = root["times"];
-
-	if (!times.isArray())
-		return true;
-
-	for (const auto &entry : times)
-	{
-		jump::record_t rec;
-
-		rec.id = entry.get("id", "").asString();
-		rec.name = entry.get("name", "").asString();
-		rec.time_ms = entry.get("time_ms", 0).asInt64();
-		rec.date = entry.get("date", "").asString();
-
-		if (rec.id.empty() || rec.time_ms <= 0)
-			continue; // skip malformed rows rather than failing the whole file
-
-		out.times.push_back(rec);
-	}
-
-	out.Sort();
-
-	return true;
 }
 
 static std::string Jump_SerialiseRecords(const jump::map_records_t &records)
@@ -148,6 +228,24 @@ static std::string Jump_SerialiseRecords(const jump::map_records_t &records)
 
 	root["times"] = times;
 
+	Json::Value players(Json::arrayValue);
+
+	for (const auto &stats : records.players)
+	{
+		Json::Value entry;
+
+		entry["id"] = stats.id;
+		entry["name"] = stats.name;
+		entry["attempts"] = stats.attempts;
+		entry["completions"] = stats.completions;
+
+		players.append(entry);
+	}
+
+	// Always written, even empty: its presence is what tells the next load that
+	// the schema-1 backfill has already run.
+	root["players"] = players;
+
 	Json::StreamWriterBuilder writer;
 	writer["indentation"] = "  ";
 
@@ -164,6 +262,12 @@ void Jump_LoadRecords()
 	jump_records.map = jump_level.mapname;
 	jump_records_loaded = false;
 
+	// Above the Jump_Active() gate below, not under it: the outgoing map has
+	// already been flushed by Jump_InitLevel, and a level where the mod is off
+	// would otherwise leave stale dirty state standing for the next one that
+	// has it on.
+	jump_records_dirty = false;
+
 	if (!Jump_Active())
 		return;
 
@@ -178,7 +282,9 @@ void Jump_LoadRecords()
 		return;
 	}
 
-	if (!Jump_ParseRecords(text, jump_level.mapname, jump_records))
+	bool backfilled = false;
+
+	if (!Jump_ParseRecords(text, jump_level.mapname, jump_records, &backfilled))
 	{
 		// Leave the in-memory table empty and refuse to save over the file,
 		// so a corrupt or newer-schema file is never silently destroyed.
@@ -189,7 +295,35 @@ void Jump_LoadRecords()
 	}
 
 	jump_records_loaded = true;
+
+	// A migrated schema-1 file only exists in memory until something writes it,
+	// so schedule that rather than waiting for a player to do something.
+	if (backfilled)
+	{
+		jump_records_dirty = true;
+		Jump_Log("backfilled %d player counter row(s) for %s", (int) jump_records.players.size(),
+				 jump_level.mapname);
+	}
+
 	Jump_Log("loaded %d record(s) for %s", (int) jump_records.times.size(), jump_level.mapname);
+}
+
+void Jump_MarkRecordsDirty()
+{
+	jump_records_dirty = true;
+}
+
+bool Jump_RecordsDirty()
+{
+	return jump_records_dirty;
+}
+
+// Make the loaded table unwritable until the next Jump_LoadRecords. Used across
+// the level-change window, where the table and the map name briefly disagree
+// about which map they belong to.
+void Jump_InvalidateRecords()
+{
+	jump_records_loaded = false;
 }
 
 void Jump_SaveRecords()
@@ -197,7 +331,78 @@ void Jump_SaveRecords()
 	if (!jump_records_loaded)
 		return; // don't overwrite a file we failed to read
 
-	Jump_WriteFileAtomic(Jump_MapTimesPath(jump_level.mapname), Jump_SerialiseRecords(jump_records));
+	// Only on a successful write. Clearing regardless would throw away every
+	// count since the last flush the moment a write failed - a disk full or a
+	// locked temp file used to cost one personal best, and with batching it
+	// would cost the lot.
+	if (Jump_WriteFileAtomic(Jump_MapTimesPath(jump_level.mapname), Jump_SerialiseRecords(jump_records)))
+		jump_records_dirty = false;
+}
+
+// Batched writes for the counters. Called once per server frame; the personal
+// best path still writes immediately, so nothing a player earns waits on this.
+void Jump_RecordsFrame()
+{
+	if (!jump_records_dirty)
+		return;
+
+	const int64_t now = Jump_NowMs();
+
+	if (now < jump_records_flush_ms)
+		return;
+
+	jump_records_flush_ms = now + JUMP_RECORDS_FLUSH_INTERVAL_MS;
+
+	Jump_SaveRecords();
+}
+
+// ---------------------------------------------------------------------------
+// Attempt and completion counters
+// ---------------------------------------------------------------------------
+//
+// Counted at the START of a run rather than at its abandonment. There are
+// fifteen ways a run can end without finishing - death, kill, recall, team
+// change, spectate, disconnect, map change, the menu's Restart - and counting
+// the start means none of them need to know this exists, and a sixteenth
+// cannot be missed. It also makes attempts >= completions true by construction.
+//
+// Ranked only, matching every other "not recorded" gate in the mod. That also
+// makes the Practice store-recall resume a non-issue, since it can only happen
+// on the team that does not count.
+
+static jump::player_stats_t *Jump_StatsForClient(edict_t *ent)
+{
+	if (!Jump_Active() || !jump_records_loaded)
+		return nullptr;
+
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc || jc->team != jump_team_t::ranked)
+		return nullptr;
+
+	return &jump_records.StatsFor(Jump_PlayerId(ent), Jump_DisplayName(ent));
+}
+
+void Jump_CountAttempt(edict_t *ent)
+{
+	jump::player_stats_t *stats = Jump_StatsForClient(ent);
+
+	if (!stats)
+		return;
+
+	stats->attempts++;
+	Jump_MarkRecordsDirty();
+}
+
+void Jump_CountCompletion(edict_t *ent)
+{
+	jump::player_stats_t *stats = Jump_StatsForClient(ent);
+
+	if (!stats)
+		return;
+
+	stats->completions++;
+	Jump_MarkRecordsDirty();
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +432,15 @@ int Jump_SubmitTime(edict_t *ent, int64_t time_ms)
 
 	const int rank = jump_records.Submit(rec);
 
+	// Marked dirty as well as written immediately. A personal best is worth a
+	// write of its own rather than waiting on the batch, but if that write
+	// fails the flag is what gets it retried on the next flush and at
+	// shutdown - which is more than it used to get.
 	if (rank > 0)
+	{
+		Jump_MarkRecordsDirty();
 		Jump_SaveRecords();
+	}
 
 	return rank;
 }

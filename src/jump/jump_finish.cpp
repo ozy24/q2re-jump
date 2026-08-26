@@ -229,6 +229,12 @@ void Jump_Finish(edict_t *ent)
 
 	const int64_t previous_record = Jump_MapRecord();
 
+	// Before Jump_SubmitTime, not after: a personal best makes that write the
+	// file immediately, so counting first means the write carries the
+	// completion instead of leaving it pending for the next batched flush.
+	// Every finish counts, improvement or not.
+	Jump_CountCompletion(ent);
+
 	const int rank = Jump_SubmitTime(ent, time_ms);
 
 	const bool improved_pb = previous_pb == 0 || time_ms < previous_pb;

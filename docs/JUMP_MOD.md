@@ -892,9 +892,31 @@ entry per player — their personal best. Points come from placement
 (25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 for 1st through 15th) and are
 derived by scanning those files, so there is no separate total to drift.
 
+The same file also holds a `players` table — one row per player with `attempts`
+and `completions` for that map. An **attempt** is a Ranked run started; a
+**completion** is a Ranked run finished, whether or not it beat your best. Both
+are recorded but nothing displays them yet.
+
+Practice never counts toward either, in keeping with everything else on that
+team. Because attempts are counted when the clock starts rather than when a run
+is abandoned, every way of giving up — dying, `kill`, `recall`, changing team,
+disconnecting — is covered without needing to know the counters exist. One
+consequence: on a map with a `start_line`, crossing the line again during the
+same life re-zeroes the clock without counting as a fresh attempt.
+
+Unlike a personal best, which is written the moment it is set, counters are
+batched and flushed at most every 15 seconds, so a server that is killed
+outright can lose up to that much counting. Files written before this feature
+existed have no counters; each existing record is seeded with 1 attempt and
+1 completion on first load, which is a floor rather than real history.
+
 Files are written through a temporary file and renamed, so quitting mid-write
 cannot corrupt them. A file that fails to parse, or that was written by a newer
-schema, is reported and left alone rather than overwritten.
+schema, is reported and left alone rather than overwritten. Note that the
+`players` table raised the schema to 2, so **downgrading the DLL after running
+this version leaves it unable to read those files** — a map whose file it
+refuses shows no records and accepts no new times until the DLL is upgraded
+again. Nothing on disk is lost.
 
 ## Development
 

@@ -103,6 +103,19 @@ void Jump_Init()
 
 void Jump_InitLevel(const char *entities)
 {
+	// The outgoing map's counters, before the wipe below takes the map name
+	// they would be written under with it. Jump_RecordsFrame batches writes, so
+	// unlike a personal best there is usually something still pending here.
+	if (jump_level.active && Jump_RecordsDirty())
+		Jump_SaveRecords();
+
+	// From here until Jump_LoadRecords runs at the end of this function, the
+	// loaded table is the OUTGOING map's while jump_level.mapname is about to
+	// become the incoming one - so a save in that window would write map A's
+	// records over map B's file. Nothing in between calls one today; this makes
+	// that true by construction rather than by inspection.
+	Jump_InvalidateRecords();
+
 	const bool was_active = jump_level.active;
 
 	jump_level = {};
@@ -233,11 +246,14 @@ void Jump_RunFrame()
 	Jump_AnnounceFrame();
 	Jump_StatusbarFrame();
 	Jump_ReplayFrame();
+	Jump_RecordsFrame();
 }
 
 void Jump_Shutdown()
 {
-	if (Jump_Active())
+	// Dirty-gated like the other two flush sites, so "a write happens only
+	// when something changed" holds everywhere rather than nearly everywhere.
+	if (Jump_Active() && Jump_RecordsDirty())
 		Jump_SaveRecords();
 }
 

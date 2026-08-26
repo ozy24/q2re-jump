@@ -134,6 +134,62 @@ int map_records_t::PointsOf(const std::string &id) const
 	return PointsForRank(RankOf(id));
 }
 
+player_stats_t &map_records_t::StatsFor(const std::string &id, const std::string &name)
+{
+	for (auto &stats : players)
+	{
+		if (stats.id != id)
+			continue;
+
+		// A player can rename between runs, and the row outlives the session
+		// that created it, so the newest name wins - same as record_t, which
+		// carries the name as of the run that set it.
+		if (!name.empty())
+			stats.name = name;
+
+		return stats;
+	}
+
+	player_stats_t created;
+	created.id = id;
+	created.name = name;
+
+	players.push_back(created);
+
+	return players.back();
+}
+
+const player_stats_t *map_records_t::StatsOf(const std::string &id) const
+{
+	for (const auto &stats : players)
+		if (stats.id == id)
+			return &stats;
+
+	return nullptr;
+}
+
+bool map_records_t::BackfillFromTimes()
+{
+	bool created = false;
+
+	for (const auto &rec : times)
+	{
+		if (StatsOf(rec.id))
+			continue; // already counted; leave the real figures alone
+
+		player_stats_t seeded;
+		seeded.id = rec.id;
+		seeded.name = rec.name;
+		seeded.attempts = 1;
+		seeded.completions = 1;
+
+		players.push_back(seeded);
+		created = true;
+	}
+
+	return created;
+}
+
 // ---------------------------------------------------------------------------
 // Replays
 // ---------------------------------------------------------------------------

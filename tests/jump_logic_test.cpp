@@ -266,6 +266,95 @@ static void TestRecords()
 	CHECK(records.Submit(MakeRecord("dave", 3000)) == 3);
 	CHECK(records.RankOf("bob") == 2);
 	CHECK(records.RankOf("dave") == 3);
+
+	// The counters live in the same table but must not disturb the ranking -
+	// they exist for players who have never finished, so a populated players
+	// vector says nothing about who is on the board.
+	records.StatsFor("erin", "erin").attempts = 40;
+	CHECK(records.RankOf("erin") == 0);
+	CHECK(records.PointsOf("alice") == 25);
+	CHECK(records.times.size() == 4);
+}
+
+static void TestPlayerStats()
+{
+	jump::map_records_t records;
+
+	CHECK(records.StatsOf("alice") == nullptr);
+
+	records.StatsFor("alice", "Alice").attempts = 3;
+
+	CHECK(records.players.size() == 1);
+	CHECK(records.StatsOf("alice") != nullptr);
+	CHECK(records.StatsOf("alice")->attempts == 3);
+	CHECK(records.StatsOf("alice")->completions == 0);
+
+	// Find-or-create: a second call returns the same row rather than adding one.
+	records.StatsFor("alice", "Alice").completions++;
+
+	CHECK(records.players.size() == 1);
+	CHECK(records.StatsOf("alice")->attempts == 3);
+	CHECK(records.StatsOf("alice")->completions == 1);
+
+	// A rename updates the name and leaves the counters alone.
+	records.StatsFor("alice", "Alicia");
+
+	CHECK(records.players.size() == 1);
+	CHECK_EQ(records.StatsOf("alice")->name, "Alicia");
+	CHECK(records.StatsOf("alice")->attempts == 3);
+
+	// An empty name does not wipe the stored one. The counting path passes
+	// whatever Jump_DisplayName returned, and a client mid-reconnect can make
+	// that empty - which must not cost the name already on record.
+	records.StatsFor("alice", "");
+
+	CHECK_EQ(records.StatsOf("alice")->name, "Alicia");
+	CHECK(records.StatsOf("alice")->attempts == 3);
+
+	// Players are independent of one another.
+	records.StatsFor("bob", "Bob").attempts = 1;
+
+	CHECK(records.players.size() == 2);
+	CHECK(records.StatsOf("alice")->attempts == 3);
+	CHECK(records.StatsOf("bob")->completions == 0);
+}
+
+// The schema-1 migration. It runs against real files that already hold years of
+// personal bests, and it is the one piece of that path the JSON layer cannot be
+// tested for, so it lives here.
+static void TestBackfillFromTimes()
+{
+	jump::map_records_t records;
+
+	// Nothing to seed from is not an error.
+	CHECK(records.BackfillFromTimes() == false);
+	CHECK(records.players.empty());
+
+	records.Submit(MakeRecord("alice", 5000));
+	records.Submit(MakeRecord("bob", 3000));
+
+	CHECK(records.BackfillFromTimes() == true);
+	CHECK(records.players.size() == 2);
+
+	// A banked personal best is proof of at least one finish, so 1/1 is the
+	// floor rather than 0 - which would read as broken next to a time.
+	CHECK(records.StatsOf("alice")->attempts == 1);
+	CHECK(records.StatsOf("alice")->completions == 1);
+	CHECK_EQ(records.StatsOf("bob")->name, "bob");
+
+	// Idempotent: a second pass creates nothing and reports nothing created.
+	CHECK(records.BackfillFromTimes() == false);
+	CHECK(records.players.size() == 2);
+
+	// And it never overwrites counters that are already there, which is what
+	// makes a stray second call harmless rather than destructive.
+	records.StatsFor("alice", "alice").attempts = 214;
+	records.Submit(MakeRecord("carol", 4000));
+
+	CHECK(records.BackfillFromTimes() == true);
+	CHECK(records.players.size() == 3);
+	CHECK(records.StatsOf("alice")->attempts == 214);
+	CHECK(records.StatsOf("carol")->completions == 1);
 }
 
 // The property that actually matters: after feeding any sequence of
@@ -2150,6 +2239,8 @@ int main()
 	TestStrafeBarLevel();
 	TestSpeedDigits();
 	TestRecords();
+	TestPlayerStats();
+	TestBackfillFromTimes();
 	TestReplayRecorderBucketing();
 	TestReplayCodecRoundTrip();
 	TestReplayCodecKeyframeResync();

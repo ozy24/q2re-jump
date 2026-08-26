@@ -379,9 +379,20 @@ const char				  *Jump_PlayerId(edict_t *ent);
 const char				  *Jump_DisplayName(edict_t *ent);
 void					   Jump_LoadRecords();
 void					   Jump_SaveRecords();
+void					   Jump_MarkRecordsDirty();
+bool					   Jump_RecordsDirty();
+void					   Jump_InvalidateRecords();
+void					   Jump_RecordsFrame();
 int64_t					   Jump_PersonalBest(edict_t *ent);
 int64_t					   Jump_MapRecord();
 int						   Jump_SubmitTime(edict_t *ent, int64_t time_ms);
+
+// Attempts and completions, both Ranked-only and both gated internally, so a
+// new run-start site cannot forget the team test. An attempt is one
+// idle -> running transition; a completion is any Ranked finish, improvement
+// or not. Neither writes - they mark the table dirty for Jump_RecordsFrame.
+void					   Jump_CountAttempt(edict_t *ent);
+void					   Jump_CountCompletion(edict_t *ent);
 void					   Jump_PlayerTotals(const std::string &id, int &points, int &completions, int &firsts);
 
 // jump_hud.cpp
