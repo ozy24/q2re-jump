@@ -250,6 +250,18 @@ void Jump_Finish(edict_t *ent)
 	{
 		Jump_UpdatePbString(ent);
 		Jump_SaveReplay(ent, jc->replay_rec);
+
+		// Unconditional, and after the save rather than before it. There is no
+		// need to repeat Jump_SaveReplay's own decision about whether it wrote
+		// a file or deleted one: on an overflowed or empty recording it removes
+		// the file and invalidates the cache, so the load inside here fails and
+		// the arm is silently skipped. Duplicating that test at this call site
+		// could only drift from it.
+		//
+		// A player already racing is unaffected - the invalidated cache is
+		// picked up by Jump_ReplayFrame on their next run, which is what makes
+		// the ghost follow the run they just set rather than the old one.
+		Jump_AutoArmRace(ent, *jc);
 	}
 
 	std::string suffix;

@@ -108,6 +108,12 @@ struct jump_client_t
 	jump_team_t team         = jump_team_t::spectator;
 	bool        eyecam       = true; // MuffMode default: first-person spectator follow
 	bool        show_jumpers = true; // other players' models/sounds; `jumpers` toggles
+	// The raceline ghost arms itself: on joining Ranked with a saved replay for
+	// the map, and again on every new personal best. `race off` and the Options
+	// row clear it, and it stays clear for the rest of the connection - this is
+	// session state, so it must NOT be reset in Jump_InitLevel alongside
+	// race_armed.
+	bool        race_auto = true;
 	bool        menu_hint_shown = false; // %bind:inven% hint printed once
 	// Whether the SERVER draws each readout for this player, for a client that
 	// is NOT running the mod's own. `speedo` / `strafebar` set these.
@@ -335,6 +341,13 @@ void Jump_CmdReplay(edict_t *ent);
 void Jump_CmdReplayStop(edict_t *ent);
 void Jump_CmdRace(edict_t *ent);
 void Jump_CmdRaceOff(edict_t *ent);
+
+// Arms the raceline ghost by itself when the player has not opted out - on
+// joining Ranked (Jump_ClientSpawn) and on a new personal best (Jump_Finish).
+// Loads the replay first and arms only if there is one, so a player with
+// nothing saved is left silent rather than dropped into Jump_ReplayFrame's
+// "could not reload" path.
+void Jump_AutoArmRace(edict_t *ent, jump_client_t &jc);
 
 // Frees any race_beam[] edicts and clears race_armed. Called on `race off`,
 // a team switch off Ranked, and disconnect.

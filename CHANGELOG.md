@@ -12,6 +12,15 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **The raceline ghost now turns itself on.** `race` arms by itself when there is
+  something to race against — on joining ranked on a map you already have a saved
+  run on, and again on every new personal best, so the line you are chasing is
+  always your latest one. A map you have never finished stays silent. `race off`
+  still turns it off and now *keeps* it off through deaths, team switches and map
+  changes for the rest of the connection, rather than only until the next respawn;
+  `race` opts back in, and there is a **Ghost Racing** row in Options for both.
+  Reconnecting restores the default.
+
 - **`callvote <type>`**, MuffMode's spelling, over the voting that was already
   here: `callvote map <mapname>`, `callvote extend [minutes]` and a new
   `callvote nextmap`. `cv` is an alias, and `callvote` with no arguments still

@@ -14,6 +14,12 @@
 // laser-style trail following the player's own ghost while they play live -
 // rebuilt as persistent RF_BEAM entities (the target_laser pattern,
 // g_target.cpp) instead of re-broadcasting a temp-entity every server frame.
+//
+// The raceline is on by default and arms itself (Jump_AutoArmRace) from the two
+// moments where a ghost becomes available: joining Ranked, and finishing a new
+// personal best. `race off` is the opt-out, and it is session state rather than
+// per-map state - see race_auto in jump_local.h and the warning above
+// Jump_InitLevel's reset loop.
 
 #include "../g_local.h"
 #include "jump_local.h"
@@ -490,6 +496,60 @@ static void Jump_PositionRaceBeam(jump_client_t &jc, const jump::replay_t &repla
 	}
 }
 
+// Shared by `race` and the auto-arm below, because the two reach it in
+// different run states and the wrong half of it reads as a lie. The auto-arm
+// usually fires with no run in progress - from Jump_ClientSpawn (idle) and from
+// Jump_Finish (finished) - where an unconditional "Racing your ghost" would
+// announce a ghost that will not appear until the player crosses the start
+// line. It can still land mid-run, from `race` typed during one or from the
+// Options row, which is what the running branch is for.
+static const char *Jump_RaceArmedMessage(const jump_client_t &jc)
+{
+	return jc.state == jump_run_state_t::running
+			   ? "Racing your ghost - type \"race off\" to hide it.\n"
+			   : "Ghost armed, starts with your next run - type \"race off\" to hide it.\n";
+}
+
+// The ghost is on by default, so most players never type `race` at all - this
+// is what arms it for them, from the two moments where the thing to race
+// against has just become available: joining Ranked on a map they already have
+// a saved run on, and finishing a new personal best.
+//
+// Checking there is something to race first, and arming only if there is, is
+// what keeps it quiet for everyone else. Arming blind would hand a player with
+// no saved run to Jump_ReplayFrame's reload path, which announces the ghost
+// being hidden - reasonable for a run whose replay was dropped, and noise for
+// somebody who has simply never finished the map.
+void Jump_AutoArmRace(edict_t *ent, jump_client_t &jc)
+{
+	// race_armed is the re-entry guard as much as a state check. Jump_ClientSpawn
+	// runs on every respawn rather than just the join, and Jump_ClearRunState
+	// leaves an armed ghost armed across a death by design - so without this the
+	// message would repeat every time the player died for the rest of the map.
+	// It does repeat on a team switch, which clears race_armed by way of
+	// Jump_FreeRaceTrail; that is wanted, since coming back to Ranked is exactly
+	// when you want telling whether the ghost came back with you.
+	if (!Jump_Active() || !jc.race_auto || jc.team != jump_team_t::ranked || jc.race_armed)
+		return;
+
+	// No banked time means no saved run, because the two are written together
+	// (Jump_Finish saves the replay inside the same improved_pb branch that
+	// banks the PB). Checking it first is what keeps this free for the player
+	// grinding a map they have never finished: `kill` on Ranked is a respawn,
+	// so without this every attempt would open and fail to read a file that is
+	// not there. Jump_ClientSpawn seeds pb_time_ms immediately before calling
+	// in here, so it is current on the join as well as at the finish line.
+	if (!jc.pb_time_ms)
+		return;
+
+	if (!Jump_LoadReplayIfNeeded(ent, jc))
+		return;
+
+	jc.race_armed = true;
+
+	gi.Client_Print(ent, PRINT_HIGH, Jump_RaceArmedMessage(jc));
+}
+
 void Jump_CmdRace(edict_t *ent)
 {
 	jump_client_t *jc = Jump_ClientData(ent);
@@ -497,9 +557,20 @@ void Jump_CmdRace(edict_t *ent)
 	if (!Jump_Active() || !jc)
 		return;
 
+	// Above both gates below, because this is the line where the player says
+	// they want the ghost and everything under it is only about whether one can
+	// be shown to them *right now*. Recording it any later would strand them:
+	// `race off` has no team gate and no file check, so it is reachable from
+	// Practice and on a map with nothing saved - an opt-in that only takes
+	// effect on the success path would leave someone who opted out on Practice,
+	// or on a map they have never finished, still opted out afterwards, with no
+	// hint that the `race` they just typed did not stick.
+	jc->race_auto = true;
+
 	if (jc->team != jump_team_t::ranked)
 	{
-		gi.Client_Print(ent, PRINT_HIGH, "Racing your ghost is only available on Ranked.\n");
+		gi.Client_Print(ent, PRINT_HIGH,
+						 "Racing your ghost is only available on Ranked - it will arm when you join.\n");
 		return;
 	}
 
@@ -509,12 +580,9 @@ void Jump_CmdRace(edict_t *ent)
 		return;
 	}
 
-	Jump_EnsureRaceBeamSpawned(ent, *jc);
 	jc->race_armed = true;
 
-	gi.Client_Print(ent, PRINT_HIGH,
-					 jc->state == jump_run_state_t::running ? "Racing your ghost.\n"
-															 : "Ghost armed - starts with your next run.\n");
+	gi.Client_Print(ent, PRINT_HIGH, Jump_RaceArmedMessage(*jc));
 }
 
 void Jump_CmdRaceOff(edict_t *ent)
@@ -524,8 +592,14 @@ void Jump_CmdRaceOff(edict_t *ent)
 	if (!Jump_Active() || !jc)
 		return;
 
+	// The opt-out itself, not just a dismissal: without clearing this the
+	// auto-arm in Jump_ClientSpawn would put the ghost straight back on the next
+	// respawn. Session state deliberately - Jump_InitLevel leaves it alone, so
+	// it survives a map change and only a reconnect restores the default.
+	jc->race_auto = false;
+
 	Jump_FreeRaceTrail(*jc);
-	gi.Client_Print(ent, PRINT_HIGH, "Ghost racing off.\n");
+	gi.Client_Print(ent, PRINT_HIGH, "Ghost racing off for this session - type \"race\" to bring it back.\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -564,8 +638,18 @@ void Jump_ReplayFrame()
 		if (jc->replay_mode == jump_replay_mode_t::playback)
 			Jump_AdvancePlayback(ent, *jc);
 
-		const bool wants_race =
-			jc->race_armed && jc->team == jump_team_t::ranked && jc->state == jump_run_state_t::running;
+		// The spectator/chase test is the same defence Jump_AdvancePlayback
+		// carries above: the stock userinfo-driven spectator_respawn path
+		// returns from PutClientInServer before the Jump_ClientSpawn hook, so
+		// jc->team and jc->state are left reading ranked/running for someone
+		// who is now flying around as a spectator. Their own beam segments
+		// would keep tracing the ghost path in front of them. That hole is
+		// older than the auto-arm, but it used to need the player to have
+		// typed `race`; every Ranked player is armed now, so it is worth
+		// closing rather than noting.
+		const bool wants_race = jc->race_armed && jc->team == jump_team_t::ranked &&
+								 jc->state == jump_run_state_t::running &&
+								 !ent->client->resp.spectator && !ent->client->chase_target;
 
 		// A new PB invalidates the cache (Jump_SaveReplay) so an armed racer
 		// picks up their latest run rather than continuing to race a stale
@@ -577,12 +661,28 @@ void Jump_ReplayFrame()
 		// for the rest of the run.
 		if (wants_race && !jc->loaded_replay_valid && !Jump_LoadReplayIfNeeded(ent, *jc))
 		{
+			// Says "hidden", not "turned off": this disarms the trail but
+			// deliberately leaves race_auto alone, so Options still reads Auto
+			// and the ghost comes back by itself on the next personal best.
+			// The reachable cause is no longer an exotic one - a run over
+			// REPLAY_MAX_FRAMES banks the PB but has its replay deleted rather
+			// than saved (Jump_SaveReplay), and with the ghost on by default
+			// that lands on players who never asked for racing at all.
 			Jump_FreeRaceTrail(*jc);
-			gi.Client_Print(ent, PRINT_HIGH, "Could not reload your replay - ghost racing turned off.\n");
+			gi.Client_Print(ent, PRINT_HIGH, "No replay to race on this map - ghost hidden for now.\n");
 		}
 
+		// Spawned here rather than at arm time. Now that the ghost arms itself,
+		// "armed" is the resting state of every Ranked player rather than
+		// something a handful of people asked for, and there is no reason to
+		// hold twelve edicts each for a lobby stood at the spawn point.
+		// Idempotent, so calling it every frame of a run costs nothing after
+		// the first.
 		if (wants_race && jc->loaded_replay_valid)
+		{
+			Jump_EnsureRaceBeamSpawned(ent, *jc);
 			Jump_PositionRaceBeam(*jc, jc->loaded_replay, Jump_RunTimeMs(*jc));
+		}
 		else
 			Jump_HideRaceBeam(*jc);
 	}

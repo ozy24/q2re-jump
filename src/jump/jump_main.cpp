@@ -188,8 +188,11 @@ void Jump_InitLevel(const char *entities)
 
 	Jump_InvalidateCheckpointTotal();
 
-	// Per-map client state. Session preferences (eyecam, jumpers, the menu
-	// hint) survive; team does not, because the join gate re-runs every level.
+	// Per-map client state. Session preferences (eyecam, jumpers, race_auto,
+	// the menu hint) survive; team does not, because the join gate re-runs
+	// every level. race_auto is the easy one to get wrong here: it sits right
+	// next to race_armed in spirit but must NOT be cleared below, or `race off`
+	// would only last until the next map.
 	for (auto &jc : jump_clients)
 	{
 		jc.state = jump_run_state_t::idle;

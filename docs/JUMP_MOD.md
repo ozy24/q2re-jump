@@ -35,8 +35,8 @@ lobby, so everything below is a console command.
 | `kill` | Go again: recalls on practice, restarts on ranked |
 | `replay` | Watch your personal best on this map, frozen and moved through it |
 | `replay stop` | End an in-progress replay early |
-| `race` | Race live against your personal best's ghost (ranked only) |
-| `race off` | Stop racing the ghost |
+| `race` | Race live against your personal best's ghost (ranked only; on by default) |
+| `race off` | Hide the ghost for the rest of this session |
 | `team practice\|ranked\|spectator` | Change team (`easy`/`hard` still work as aliases) |
 | `maptimes` | Full list of best times on this map |
 | `playertimes` | Your completions and points |
@@ -110,6 +110,7 @@ nothing anyone else does:
 | Strafe Meter | Off, On, Centred |
 | CGaz | Off, On — needs the mod's own DLL |
 | Hide Players | Off, On |
+| Ghost Racing | Auto, Off |
 | Reset Readouts | — |
 
 They are grouped in pairs because that is how they are used: the speedometer and
@@ -117,7 +118,8 @@ the mark above it are one instrument, and the strafe meter and CGaz are the two
 halves of the angle question — where to point, and how well you pointed.
 
 Each row stays open and relabels as you pick it, so you can see what you changed.
-A row means *the readout*, not one of the two copies of it: **On** gives you the
+For the readout rows — everything above Ghost Racing — a row means *the readout*,
+not one of the two copies of it: **On** gives you the
 best version you can get — the finer overlay one if you are running the mod's own
 DLL, the status bar one if you are not — and **Off** means gone everywhere. If you
 have the DLL these rows are setting `jump_hud_speed` and `jump_hud_strafe` for
@@ -130,7 +132,13 @@ to draw a moving angular zone, so on a stock client the row reads
 that would do nothing. **Takeoff Mark** is the opposite case — the bar draws it
 for everybody, so that row behaves identically whichever client you are on.
 
-**Reset Readouts** at the foot of the list puts everything back to the state a
+**Ghost Racing** is not a readout, which is why it reads **Auto** rather than On:
+it is not a switch for a ghost showing right now, it is whether the ghost turns
+itself on when there is one to show. It is the same setting as `race` / `race off`
+and lasts as long as you stay connected. Being server-side, it is also outside
+what Reset Readouts puts back.
+
+**Reset Readouts**, at the foot of the list, puts the readouts back to the state a
 fresh install has — speedometer on, the rest off — and it is there for a specific
 reason: the rerelease writes these cvars to `system.cfg` whether or not you ever
 touched one, so if a later version changes a default you will never see it. This
@@ -516,7 +524,22 @@ same way nobody sees your own store marker glow through walls. Under the hood th
 "race spark" both upstream mods already have, just built differently: they re-sent it as a
 temporary effect every single server tick, which is a lot of small messages for a
 cosmetic trail; this one repositions a handful of persistent beam entities instead, which
-costs far less network traffic for the same thing on screen. `race off` turns it off.
+costs far less network traffic for the same thing on screen.
+
+**The ghost turns itself on.** You do not have to type `race` at all: it arms whenever
+there is something to race against — when you join ranked on a map you already have a
+saved run on, and again the moment you set a new personal best, so the line you are
+chasing is always your latest one rather than the one you had when you last remembered
+to ask. Nothing is announced on a map you have never finished; the first time you see it
+is the run after your first completion.
+
+`race off` hides it, and that sticks — through deaths, team switches and map changes,
+for the rest of the time you stay connected. Reconnecting starts you back on.
+
+`race` brings it back from anywhere, and it always takes, even when there is nothing to
+show you at that moment: type it on practice, or on a map you have never finished, and
+you are told why no ghost appeared, but you are opted back in for every run after it.
+There is also a **Ghost Racing** row in the Options menu, which is the same switch.
 
 Replays are saved one per player per map, not one per map — there is no "watch the map
 record" yet, only your own. They live under `<data>/replays/<map>/<player-id>.jrep`, a

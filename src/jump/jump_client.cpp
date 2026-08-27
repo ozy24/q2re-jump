@@ -136,6 +136,14 @@ void Jump_ClientSpawn(edict_t *ent)
 	// useful once combat damage is zeroed, and it makes hazards take seconds
 	// to kill instead of ending the run.
 
+	// Every route into Ranked lands here, because they all go through
+	// Jump_JoinTeam - the join menu, the `team` command, and the menu the join
+	// gate re-opens after a map change. It runs after that function's
+	// Jump_FreeRaceTrail rather than before it, so the ghost arms against the
+	// team the player just landed on rather than the one they left. Safe to
+	// call on every respawn as well: it is a no-op once armed.
+	Jump_AutoArmRace(ent, *jc);
+
 	Jump_RefreshPlayerInstancing();
 }
 

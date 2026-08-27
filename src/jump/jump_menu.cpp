@@ -73,6 +73,7 @@ static void Jump_MenuToggleTakeoff(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuCycleCgaz(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd);
+static void Jump_MenuToggleRace(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuResetReadouts(edict_t *ent, pmenuhnd_t *hnd);
 static void Jump_MenuUpdateOptions(edict_t *ent);
 
@@ -254,7 +255,8 @@ constexpr int JUMP_OPT_TAKEOFF = 3;
 constexpr int JUMP_OPT_STRAFE = 5;
 constexpr int JUMP_OPT_CGAZ = 6;
 constexpr int JUMP_OPT_JUMPERS = 8;
-constexpr int JUMP_OPT_RESET = 10;
+constexpr int JUMP_OPT_RACE = 9;
+constexpr int JUMP_OPT_RESET = 11;
 
 static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
 	{ "Options", PMENU_ALIGN_CENTER, nullptr },				 // 0
@@ -266,9 +268,9 @@ static const pmenu_t jump_options_menu[JUMP_MENU_ENTRIES] = {
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuCycleCgaz },			 // 6  cgaz
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 7  blank
 	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleJumpers },		 // 8  hide players
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 9  blank
-	{ "", PMENU_ALIGN_LEFT, Jump_MenuResetReadouts },		 // 10 reset readouts
-	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 11
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuToggleRace },			 // 9  ghost racing
+	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 10 blank
+	{ "", PMENU_ALIGN_LEFT, Jump_MenuResetReadouts },		 // 11 reset readouts
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 12
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 13
 	{ "", PMENU_ALIGN_CENTER, nullptr },					 // 14
@@ -678,6 +680,16 @@ static void Jump_MenuUpdateOptions(edict_t *ent)
 					G_Fmt("Hide Players: {}", (jc && !jc->show_jumpers) ? "On" : "Off").data(), PMENU_ALIGN_LEFT,
 					Jump_MenuToggleJumpers);
 
+	// Sits with Hide Players rather than with the readouts above: both are about
+	// what you see of other runs rather than about your own instruments, and
+	// unlike a readout this one has no client-side copy to hand off to, which is
+	// also why it is outside Reset Readouts' scope. "Auto" rather than "On"
+	// because the row is not a switch for a ghost that is showing now - it is
+	// whether the ghost turns itself on when there is one to show.
+	Jump_MenuSetRow(hnd->entries[JUMP_OPT_RACE],
+					G_Fmt("Ghost Racing: {}", (jc && jc->race_auto) ? "Auto" : "Off").data(), PMENU_ALIGN_LEFT,
+					Jump_MenuToggleRace);
+
 	// The way back to a clean screen. It exists because the rerelease archives
 	// these cvars whether or not you ever touched them, so a player who has run an
 	// older build never sees a changed default - this is how they get it without
@@ -762,6 +774,30 @@ static void Jump_MenuCycleStrafe(edict_t *ent, pmenuhnd_t *hnd)
 static void Jump_MenuToggleJumpers(edict_t *ent, pmenuhnd_t *hnd)
 {
 	Jump_CmdJumpers(ent);
+	PMenu_Update(ent);
+}
+
+// The same two effects as `race` and `race off` (jump_replay.cpp), reached the
+// other way round: those set race_auto and then act on it, this flips it and
+// then does what the new value implies. Racing being Ranked-only means the arm
+// is usually a no-op from here - a spectator or a Practice player is told
+// nothing and gets the ghost when they next join Ranked, which is exactly what
+// typing `race` would have done for them.
+static void Jump_MenuToggleRace(edict_t *ent, pmenuhnd_t *hnd)
+{
+	jump_client_t *jc = Jump_ClientData(ent);
+
+	if (!jc)
+		return;
+
+	jc->race_auto = !jc->race_auto;
+
+	if (jc->race_auto)
+		Jump_AutoArmRace(ent, *jc);
+	else
+		Jump_FreeRaceTrail(*jc);
+
+	Jump_MenuClick(ent);
 	PMenu_Update(ent);
 }
 
