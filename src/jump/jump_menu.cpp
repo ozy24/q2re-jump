@@ -947,7 +947,14 @@ static void Jump_MenuUpdateMaps(edict_t *ent)
 	// the only place a player would look for it. Dropped when the list is empty,
 	// where there is no column to explain and "No maps configured" is the whole
 	// message.
-	Jump_MenuSetRow(hnd->entries[JUMP_MENU_ENTRIES - 2], total ? "* = has a recorded time" : "",
+	//
+	// Led by a space for the same reason the map rows are, and it is worth being
+	// blunt about why: this row shipped as "* = has a recorded time" and drew as
+	// " = has a recorded time", highlighted, because PMenu_Do_Update had taken
+	// the star as the alt flag. The legend explaining the marker is exactly the
+	// row where losing the marker is least likely to be noticed in review, so it
+	// needs the guard more than the rows it describes, not less.
+	Jump_MenuSetRow(hnd->entries[JUMP_MENU_ENTRIES - 2], total ? " * = has a recorded time" : "",
 					PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain);
 
