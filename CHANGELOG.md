@@ -10,6 +10,8 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-27
+
 ### Added
 
 - **The map vote menu marks maps that have a recorded time** with a `*` against
