@@ -915,7 +915,20 @@ static void Jump_MenuUpdateMaps(edict_t *ent)
 
 		const bool is_current = !Q_strcasecmp(maps[index].c_str(), level.mapname);
 
-		Jump_MenuSetRow(row, is_current ? G_Fmt("{}  (Playing)", maps[index].c_str()).data() : maps[index].c_str(),
+		// A star marks a map somebody has finished, so the list distinguishes
+		// what has history on this server from what nobody has ever completed.
+		//
+		// It cannot be the first character. PMenu_Do_Update (p_ctf_menu.cpp)
+		// reads a leading '*' as the "draw this row highlighted" flag and steps
+		// past it, so a bare "*map" would lose the star AND render in the same
+		// style as the cursor row, leaving no way to see where the cursor is.
+		// Hence the leading space - and the same three-character prefix on every
+		// row, marked or not, so the names stay in one column.
+		const char *mark = Jump_MapHasTimes(maps[index].c_str()) ? " * " : "   ";
+
+		Jump_MenuSetRow(row,
+						is_current ? G_Fmt("{}{}  (Playing)", mark, maps[index].c_str()).data()
+								   : G_Fmt("{}{}", mark, maps[index].c_str()).data(),
 						PMENU_ALIGN_LEFT, is_current ? nullptr : Jump_MenuSelectMap);
 
 		// The row remembers which map it is; the label may be decorated.
@@ -930,7 +943,12 @@ static void Jump_MenuUpdateMaps(edict_t *ent)
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_NEXT], has_next ? "> Next Page" : "", PMENU_ALIGN_LEFT,
 					has_next ? Jump_MenuNextPage : nullptr);
 
-	Jump_MenuSetRow(hnd->entries[JUMP_MENU_ENTRIES - 2], "", PMENU_ALIGN_CENTER, nullptr);
+	// Spends the blank line above Return on saying what the star means, which is
+	// the only place a player would look for it. Dropped when the list is empty,
+	// where there is no column to explain and "No maps configured" is the whole
+	// message.
+	Jump_MenuSetRow(hnd->entries[JUMP_MENU_ENTRIES - 2], total ? "* = has a recorded time" : "",
+					PMENU_ALIGN_CENTER, nullptr);
 	Jump_MenuSetRow(hnd->entries[JUMP_MENU_CLOSE], "Return", PMENU_ALIGN_LEFT, Jump_MenuReturnToMain);
 
 	if (total == 0)

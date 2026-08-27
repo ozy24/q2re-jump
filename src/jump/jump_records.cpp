@@ -13,6 +13,8 @@
 #include <ctime>
 #include <filesystem>
 #include <map>
+#include <string>
+#include <unordered_map>
 
 // Loaded records for the current map.
 static jump::map_records_t jump_records;
@@ -28,6 +30,11 @@ static int64_t jump_records_flush_ms = 0;
 // stamp set late in one map would block every flush on the next until its clock
 // caught up. Jump_NowMs is steady_clock and monotonic across maps.
 constexpr int64_t JUMP_RECORDS_FLUSH_INTERVAL_MS = 15000;
+
+// Answers to Jump_MapHasTimes for maps other than the one loaded, so paging
+// through the vote menu parses each map's file at most once per level rather
+// than twelve of them on every menu refresh. Cleared by Jump_LoadRecords.
+static std::unordered_map<std::string, bool> jump_map_has_times;
 
 const jump::map_records_t &Jump_Records()
 {
@@ -262,6 +269,11 @@ void Jump_LoadRecords()
 	jump_records.map = jump_level.mapname;
 	jump_records_loaded = false;
 
+	// A level change is the one point where another map's file can have changed
+	// underneath the cache without this process seeing it - a second server
+	// sharing the data directory, or the map being left as it is written out.
+	jump_map_has_times.clear();
+
 	// Above the Jump_Active() gate below, not under it: the outgoing map has
 	// already been flushed by Jump_InitLevel, and a level where the mod is off
 	// would otherwise leave stale dirty state standing for the next one that
@@ -412,6 +424,48 @@ void Jump_CountCompletion(edict_t *ent)
 int64_t Jump_PersonalBest(edict_t *ent)
 {
 	return jump_records.TimeOf(Jump_PlayerId(ent));
+}
+
+// True when at least one player has FINISHED this map, which is not the same
+// question as whether the file exists: Jump_CountAttempt marks the table dirty
+// too, so a map somebody only ever started has a file on disk carrying player
+// counters and an empty times array. Deciding the marker on existence alone
+// would star every map anyone had ever loaded.
+bool Jump_MapHasTimes(const char *mapname)
+{
+	if (!Jump_Active() || !mapname || !mapname[0])
+		return false;
+
+	// The current map answers from the table that is already in memory, which
+	// is both free and self-updating: the first completion of the session lights
+	// the marker up with no cache entry to go stale.
+	if (!Q_strcasecmp(mapname, jump_level.mapname))
+		return !jump_records.times.empty();
+
+	const std::string key = mapname;
+	const auto		  cached = jump_map_has_times.find(key);
+
+	if (cached != jump_map_has_times.end())
+		return cached->second;
+
+	bool		has_times = false;
+	std::string text;
+
+	if (Jump_ReadFile(Jump_MapTimesPath(mapname), text))
+	{
+		// A throwaway table, and deliberately no backfilled out-parameter: the
+		// same rule Jump_PlayerTotals works under below. Nothing read on behalf
+		// of another map may mark the loaded map's records dirty, and a
+		// schema-1 file is migrated when that map is actually played.
+		jump::map_records_t records;
+
+		if (Jump_ParseRecords(text, mapname, records))
+			has_times = !records.times.empty();
+	}
+
+	jump_map_has_times[key] = has_times;
+
+	return has_times;
 }
 
 int64_t Jump_MapRecord()

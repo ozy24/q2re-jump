@@ -12,6 +12,14 @@ released — see [docs/release-process.md](docs/release-process.md).
 
 ### Added
 
+- **The map vote menu marks maps that have a recorded time** with a `*` against
+  the name, so the list distinguishes maps with history on the server from ones
+  nobody has ever completed. It is the same mark for every player. A map that has
+  only been attempted does not count — the attempt counter writes a records file
+  too, so the test is whether the file holds any finishing times, not whether it
+  exists. Each map's file is read at most once per level, and only if somebody
+  pages past it.
+
 - **The raceline ghost now turns itself on.** `race` arms by itself when there is
   something to race against — on joining ranked on a map you already have a saved
   run on, and again on every new personal best, so the line you are chasing is

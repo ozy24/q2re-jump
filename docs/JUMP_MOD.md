@@ -208,9 +208,13 @@ disconnect.
 ### Voting
 
 **Vote Map** in the menu lists every configured map, paged, with the current
-map marked `(Playing)` and unpickable; pick another and it calls a vote. While a vote is running the menu
-key goes straight to the cast screen instead, showing what was called, who
-called it, the tally and the countdown, with Yes and No rows.
+map marked `(Playing)` and unpickable; pick another and it calls a vote. A `*`
+against a name means somebody has finished that map on this server — it is the
+same mark for everyone, not "you have completed it", so it says the map is known
+to be finishable and has times on the board worth chasing. A map that has only
+ever been *attempted* does not get one. While a vote is running the menu key goes
+straight to the cast screen instead, showing what was called, who called it, the
+tally and the countdown, with Yes and No rows.
 
 From the console, `callvote` (or `cv`) takes the type as its first argument:
 

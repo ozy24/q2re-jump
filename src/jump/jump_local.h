@@ -401,6 +401,12 @@ int64_t					   Jump_PersonalBest(edict_t *ent);
 int64_t					   Jump_MapRecord();
 int						   Jump_SubmitTime(edict_t *ent, int64_t time_ms);
 
+// Whether ANY player has a completion banked on `mapname`, for the marker in
+// the vote menu. Answers for the current map from the loaded table and for the
+// rest from disk, memoised per level - see the note on the cache in
+// jump_records.cpp before calling it from anywhere that runs per frame.
+bool					   Jump_MapHasTimes(const char *mapname);
+
 // Attempts and completions, both Ranked-only and both gated internally, so a
 // new run-start site cannot forget the team test. An attempt is one
 // idle -> running transition; a completion is any Ranked finish, improvement
